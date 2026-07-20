@@ -34,6 +34,23 @@ jobs:
         with:
           path: contrib
 
+      # The collector repo (and any private Go modules its manifest pulls in)
+      # lives in the private Dynatrace org, so every fetch of it needs a token.
+      # Same GitHub App as the collector's CI: contents:read on the listed
+      # repos, app ID in the PRIVATE_GO_MODULES_APP_ID actions variable and key
+      # in the PRIVATE_GO_MODULES_APP_PRIVATE_KEY secret.
+      # TODO(dbdot): install/scope that App for this repo's org settings.
+      - name: Mint collector access token
+        id: collector_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.PRIVATE_GO_MODULES_APP_ID }}
+          private-key: ${{ secrets.PRIVATE_GO_MODULES_APP_PRIVATE_KEY }}
+          repositories: dynatrace-bindplane-otel-collector,dt-otelcol-edge-processing-components
+
+      - name: Route git fetches of Dynatrace repos through the token
+        run: git config --global url."https://x-access-token:${{ steps.collector_token.outputs.token }}@github.com/Dynatrace/".insteadOf "https://github.com/Dynatrace/"
+
       # OTel version bumps are coordinated breaking changes that must land in
       # contrib and collector in lockstep, so contrib cannot always build
       # against collector's main. We resolve the collector ref by comparing the
@@ -51,10 +68,12 @@ jobs:
       # linger in the collector repo after merge are never used by mistake.
       - name: Resolve collector ref
         id: collector_ref
+        env:
+          COLLECTOR_TOKEN: ${{ steps.collector_token.outputs.token }}
         run: |
           set -euo pipefail
           MOD="go.opentelemetry.io/collector/cmd/mdatagen"
-          COLLECTOR="https://github.com/observIQ/bindplane-otel-collector.git"
+          COLLECTOR="https://github.com/Dynatrace/dynatrace-bindplane-otel-collector.git"
           # internal/tools/go.mod is the pinned-tooling manifest present in both
           # repos; it declares mdatagen at the beta-line OTel version.
           TOOLS_GOMOD="internal/tools/go.mod"
@@ -67,7 +86,8 @@ jobs:
             exit 1
           fi
 
-          main_ver=$(curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused "https://raw.githubusercontent.com/observIQ/bindplane-otel-collector/main/${TOOLS_GOMOD}" 2>/dev/null \
+          main_ver=$(curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused -H "Authorization: Bearer ${COLLECTOR_TOKEN}" \
+            "https://raw.githubusercontent.com/Dynatrace/dynatrace-bindplane-otel-collector/main/${TOOLS_GOMOD}" 2>/dev/null \
             | extract_ver || true)
 
           if [ "$contrib_ver" = "$main_ver" ]; then
@@ -111,7 +131,8 @@ jobs:
       - name: Checkout Collector
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          repository: observIQ/bindplane-otel-collector
+          repository: Dynatrace/dynatrace-bindplane-otel-collector
+          token: ${{ steps.collector_token.outputs.token }}
           ref: ${{ steps.collector_ref.outputs.ref }}
           path: collector
 
