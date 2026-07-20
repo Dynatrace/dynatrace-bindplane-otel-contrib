@@ -27,7 +27,7 @@ import (
 	"go.opentelemetry.io/collector/extension/xextension/storage"
 	"go.uber.org/zap"
 
-	"github.com/observiq/bindplane-otel-contrib/extension/pebbleextension/internal/client"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/pebbleextension/internal/client"
 )
 
 type pebbleExtension struct {

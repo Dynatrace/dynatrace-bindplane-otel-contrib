@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package chronicleexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/chronicleexporter"
+package chronicleexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter"
 
 import (
 	"testing"

@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"github.com/observiq/bindplane-otel-contrib/extension/opampgateway/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"go.uber.org/zap"
 )
 

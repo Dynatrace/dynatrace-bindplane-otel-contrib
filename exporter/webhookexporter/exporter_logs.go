@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/exporterutils"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/exporterutils"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/consumer"

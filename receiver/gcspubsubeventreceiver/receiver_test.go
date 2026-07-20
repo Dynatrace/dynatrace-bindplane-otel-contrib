@@ -30,9 +30,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/storageclient"
-	"github.com/observiq/bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/metadata"
-	"github.com/observiq/bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/worker"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/worker"
 )
 
 // testEnv bundles the pstest server, high-level helpers, and an apiv1 subscriber

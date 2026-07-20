@@ -21,8 +21,8 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/advapi32"
-	windows_ "github.com/observiq/bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/windows"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/advapi32"
+	windows_ "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/windows"
 	"golang.org/x/sys/windows"
 )
 

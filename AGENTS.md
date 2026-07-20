@@ -91,5 +91,5 @@ trailer by default; please disable or strip it before committing.
 
 Each component is its own Go module. When adding or modifying dependencies:
 - Run `make tidy` to tidy all modules
-- Ensure module paths follow `github.com/observiq/bindplane-otel-contrib/<path>` convention
+- Ensure module paths follow `github.com/dynatrace/dynatrace-bindplane-otel-contrib/<path>` convention
 - Add new modules to `.github/dependabot.yml`

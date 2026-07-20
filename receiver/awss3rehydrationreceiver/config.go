@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package awss3rehydrationreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/awss3rehydrationreceiver"
+package awss3rehydrationreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3rehydrationreceiver"
 
 import (
 	"errors"
 	"fmt"
 	"time" // timeFormat is the format for the starting and end time
 
-	"github.com/observiq/bindplane-otel-contrib/internal/blobconsume"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume"
 	"go.opentelemetry.io/collector/component"
 )
 

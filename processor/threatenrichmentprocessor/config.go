@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	filter "github.com/observiq/bindplane-otel-contrib/internal/amqfilter"
+	filter "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/amqfilter"
 )
 
 // FilterConfig is the configuration for which filter algorithm to use and its parameters.

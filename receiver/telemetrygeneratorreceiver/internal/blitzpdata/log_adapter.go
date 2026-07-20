@@ -17,7 +17,7 @@
 // and exists so the receiver can satisfy blitz's embed.LogConsumer
 // interface without dragging pdata into blitz itself — per the embed
 // contract, format conversion lives on the consuming host.
-package blitzpdata // import "github.com/observiq/bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/internal/blitzpdata"
+package blitzpdata // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/internal/blitzpdata"
 
 import (
 	"context"
@@ -34,7 +34,7 @@ import (
 
 // scopeName is set on every plog.ScopeLogs emitted by the adapter so
 // downstream pipelines can attribute the records to the blitz source.
-const scopeName = "github.com/observiq/bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/blitz"
+const scopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/blitz"
 
 // LogAdapter implements embed.LogConsumer. Each ConsumeLogs call builds
 // a fresh plog.Logs from the batch and pushes it to the receiver's

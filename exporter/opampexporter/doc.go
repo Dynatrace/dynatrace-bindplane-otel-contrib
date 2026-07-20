@@ -15,4 +15,4 @@
 //go:generate mdatagen metadata.yaml
 
 // Package opampexporter exports OpenTelemetry data as OTLP payloads via OpAMP custom messages.
-package opampexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/opampexporter"
+package opampexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/opampexporter"

@@ -29,7 +29,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/restapireceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/restapireceiver/internal/metadata"
 )
 
 func TestConfig_Validate(t *testing.T) {

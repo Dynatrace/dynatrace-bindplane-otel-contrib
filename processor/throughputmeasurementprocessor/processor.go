@@ -27,7 +27,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 
-	"github.com/observiq/bindplane-otel-contrib/pkg/measurements"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements"
 )
 
 type throughputMeasurementProcessor struct {

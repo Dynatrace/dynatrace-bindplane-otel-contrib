@@ -14,7 +14,7 @@
 
 //go:build linux
 
-package awsneuronreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/awsneuronreceiver"
+package awsneuronreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awsneuronreceiver"
 
 import (
 	"context"
@@ -26,7 +26,7 @@ import (
 	"go.opentelemetry.io/collector/scraper"
 	"go.opentelemetry.io/collector/scraper/scraperhelper"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/awsneuronreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awsneuronreceiver/internal/metadata"
 )
 
 var errNotNeuronConfig = errors.New("config was not an awsneuron receiver config")

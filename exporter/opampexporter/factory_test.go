@@ -17,7 +17,7 @@ package opampexporter
 import (
 	"testing"
 
-	"github.com/observiq/bindplane-otel-contrib/exporter/opampexporter/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/opampexporter/internal/metadata"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exportertest"

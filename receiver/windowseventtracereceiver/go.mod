@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/receiver/windowseventtracereceiver
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/windowseventtracereceiver
 
 go 1.26.4
 

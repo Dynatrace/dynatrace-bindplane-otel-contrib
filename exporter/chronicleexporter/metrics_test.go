@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/observiq/bindplane-otel-contrib/exporter/chronicleexporter/protos/api"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter/protos/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"

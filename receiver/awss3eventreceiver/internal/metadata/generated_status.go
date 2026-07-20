@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("s3event")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver"
 )
 
 const (

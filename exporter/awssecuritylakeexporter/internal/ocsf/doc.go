@@ -13,4 +13,4 @@
 // limitations under the License.
 
 // Package ocsf provides OCSF parquet schema definitions.
-package ocsf // import "github.com/observiq/bindplane-otel-contrib/exporter/awssecuritylakeexporter/internal/ocsf"
+package ocsf // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/awssecuritylakeexporter/internal/ocsf"

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package worker provides a worker that processes GCS event notifications from Pub/Sub.
-package worker // import "github.com/observiq/bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/worker"
+package worker // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/worker"
 
 import (
 	"context"
@@ -36,9 +36,9 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/api/googleapi"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/blobstream"
-	"github.com/observiq/bindplane-otel-contrib/internal/storageclient"
-	"github.com/observiq/bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/metadata"
 )
 
 // GCS Pub/Sub notification event types

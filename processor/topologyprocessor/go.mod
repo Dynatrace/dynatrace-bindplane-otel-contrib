@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/processor/topologyprocessor
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/topologyprocessor
 
 go 1.26.4
 

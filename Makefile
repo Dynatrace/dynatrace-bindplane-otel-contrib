@@ -48,8 +48,8 @@ LOCAL_MANIFEST := $(abspath $(OUTDIR))/manifest.local.yaml
 AGENT_BUILD_TAGS = bindplane embed_library
 
 # AGENT_LDFLAGS stamps version + git hash + build date into the v1 collector
-# binaries (both consume github.com/observiq/bindplane-otel-contrib/pkg/version).
-AGENT_LDFLAGS = -s -w -X github.com/observiq/bindplane-otel-contrib/pkg/version.version=$(COLLECTOR_VERSION)
+# binaries (both consume github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version).
+AGENT_LDFLAGS = -s -w -X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.version=$(COLLECTOR_VERSION)
 
 # Installs the ocb builder at the pinned version. The single source of truth
 # for the ocb version — CI workflows call this instead of pinning their own.
@@ -378,7 +378,7 @@ check-metadata:
 	./scripts/check-metadata.sh
 
 # This target checks that every go.mod has the correct module path.
-# Subdirectories must be github.com/observiq/bindplane-otel-contrib/<relative-path>.
+# Subdirectories must be github.com/dynatrace/dynatrace-bindplane-otel-contrib/<relative-path>.
 # There is no root go.mod in this repo.
 .PHONY: check-mod-paths
 check-mod-paths:
@@ -386,7 +386,7 @@ check-mod-paths:
 	for dir in $(ALL_MODULES); do \
 		MOD=$$(head -1 "$${dir}/go.mod" | sed 's/^module //'); \
 		RELPATH=$$(echo "$${dir}" | sed 's|^\./||'); \
-		EXPECTED="github.com/observiq/bindplane-otel-contrib/$${RELPATH}"; \
+		EXPECTED="github.com/dynatrace/dynatrace-bindplane-otel-contrib/$${RELPATH}"; \
 		if [ "$${MOD}" != "$${EXPECTED}" ]; then \
 			echo "MISMATCH: $${dir}/go.mod"; \
 			echo "  got:      $${MOD}"; \

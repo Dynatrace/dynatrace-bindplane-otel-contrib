@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package awss3eventreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver"
+package awss3eventreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver"
 
 import (
 	"errors"
@@ -21,9 +21,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/client"
-	"github.com/observiq/bindplane-otel-contrib/internal/blobstream"
-	"github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver/internal/constants"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver/internal/constants"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configretry"
 )

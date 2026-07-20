@@ -30,7 +30,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw"
 )
 
 type logsReceiver struct {

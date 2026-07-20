@@ -21,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/observiq/bindplane-otel-contrib/pkg/version"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version"
 	gmp "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlemanagedprometheusexporter"
 	"go.opentelemetry.io/collector/component"
 	"google.golang.org/api/option"

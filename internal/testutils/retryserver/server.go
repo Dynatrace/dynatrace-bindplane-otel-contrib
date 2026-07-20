@@ -41,7 +41,7 @@
 //	        {StatusCode: 200},
 //	    }),
 //	)
-package retryserver //import "github.com/observiq/bindplane-otel-contrib/internal/testutils/retryserver"
+package retryserver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils/retryserver"
 
 import (
 	"net/http"

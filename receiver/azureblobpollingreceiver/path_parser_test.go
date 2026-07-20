@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package azureblobpollingreceiver //import "github.com/observiq/bindplane-otel-contrib/receiver/azureblobpollingreceiver"
+package azureblobpollingreceiver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobpollingreceiver"
 
 import (
 	"testing"

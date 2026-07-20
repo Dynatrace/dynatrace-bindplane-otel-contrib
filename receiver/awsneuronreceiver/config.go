@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package awsneuronreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/awsneuronreceiver"
+package awsneuronreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awsneuronreceiver"
 
 import (
 	"errors"
@@ -22,7 +22,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/scraper/scraperhelper"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/awsneuronreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awsneuronreceiver/internal/metadata"
 )
 
 // Config defines the configuration for the AWS Neuron receiver.

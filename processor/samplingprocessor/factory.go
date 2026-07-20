@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/observiq/bindplane-otel-contrib/pkg/expr"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"

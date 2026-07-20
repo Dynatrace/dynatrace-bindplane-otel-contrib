@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("http")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/receiver/httpreceiver"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/httpreceiver"
 )
 
 const (

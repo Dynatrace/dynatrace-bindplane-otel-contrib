@@ -17,7 +17,7 @@ package blobstream
 import (
 	"encoding/json"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/storageclient"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
 )
 
 // Offset is used to keep track of where in a GCS event stream the receiver has read.

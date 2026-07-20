@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/processor/metricstatsprocessor/internal/stats"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/metricstatsprocessor/internal/stats"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"

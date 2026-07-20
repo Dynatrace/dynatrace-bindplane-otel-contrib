@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sapnetweaverreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/sapnetweaverreceiver"
+package sapnetweaverreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/sapnetweaverreceiver"
 
 import (
 	"context"
@@ -33,8 +33,8 @@ import (
 	"go.opentelemetry.io/collector/receiver/receivertest"
 	"go.uber.org/multierr"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/sapnetweaverreceiver/internal/mocks"
-	"github.com/observiq/bindplane-otel-contrib/receiver/sapnetweaverreceiver/internal/models"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/sapnetweaverreceiver/internal/mocks"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/sapnetweaverreceiver/internal/models"
 )
 
 func TestScraperStart(t *testing.T) {

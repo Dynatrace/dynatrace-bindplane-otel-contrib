@@ -19,7 +19,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/observiq/bindplane-otel-contrib/exporter/opampexporter/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/opampexporter/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"

@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/pkg/expr"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"

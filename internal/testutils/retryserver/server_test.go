@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/testutils/retryserver"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils/retryserver"
 )
 
 // get is a tiny helper that issues a GET to url and returns the response.

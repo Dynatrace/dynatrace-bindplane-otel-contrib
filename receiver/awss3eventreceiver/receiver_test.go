@@ -31,12 +31,12 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata/metricdatatest"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/client"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/fake"
-	rcvr "github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver"
-	"github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadata"
-	"github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadatatest"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/fake"
+	rcvr "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadatatest"
 )
 
 func TestNewS3EventReceiver(t *testing.T) {

@@ -49,7 +49,7 @@ type ThroughputMeasurements struct {
 
 // NewThroughputMeasurements initializes a new ThroughputMeasurements, adding metrics for the measurements to the meter provider.
 func NewThroughputMeasurements(mp metric.MeterProvider, processorID string, extraAttributes map[string]string) (*ThroughputMeasurements, error) {
-	meter := mp.Meter("github.com/observiq/bindplane-otel-contrib/pkg/measurements")
+	meter := mp.Meter("github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements")
 
 	logSize, err := meter.Int64Counter(
 		metricName("log_data_size"),

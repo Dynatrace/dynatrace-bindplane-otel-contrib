@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("m365")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/receiver/m365receiver"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/m365receiver"
 )
 
 const (

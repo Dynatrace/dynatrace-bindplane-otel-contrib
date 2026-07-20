@@ -17,4 +17,4 @@
 
 //go:generate mdatagen metadata.yaml
 
-package sapnetweaverreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/sapnetweaverreceiver"
+package sapnetweaverreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/sapnetweaverreceiver"

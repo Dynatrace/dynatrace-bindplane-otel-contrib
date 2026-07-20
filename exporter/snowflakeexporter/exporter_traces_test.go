@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/exporter/snowflakeexporter/internal/database"
-	"github.com/observiq/bindplane-otel-contrib/exporter/snowflakeexporter/internal/database/mocks"
-	"github.com/observiq/bindplane-otel-contrib/exporter/snowflakeexporter/internal/utility"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/snowflakeexporter/internal/database"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/snowflakeexporter/internal/database/mocks"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/snowflakeexporter/internal/utility"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/ptrace"

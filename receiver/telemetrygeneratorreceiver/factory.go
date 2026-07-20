@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package telemetrygeneratorreceiver //import "github.com/observiq/bindplane-otel-contrib/receiver/telemetrygeneratorreceiver"
+package telemetrygeneratorreceiver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/telemetrygeneratorreceiver"
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"

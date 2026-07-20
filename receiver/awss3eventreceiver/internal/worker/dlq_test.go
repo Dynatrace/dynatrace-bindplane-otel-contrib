@@ -34,12 +34,12 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/client"
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/client/mocks"
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/fake"
-	"github.com/observiq/bindplane-otel-contrib/internal/blobstream"
-	"github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadata"
-	"github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver/internal/worker"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client/mocks"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/fake"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver/internal/worker"
 )
 
 // DLQ Tests

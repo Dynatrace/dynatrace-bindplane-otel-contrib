@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package azureblobpollingreceiver //import "github.com/observiq/bindplane-otel-contrib/receiver/azureblobpollingreceiver"
+package azureblobpollingreceiver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobpollingreceiver"
 
 import (
 	"bytes"
@@ -23,9 +23,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/azureblob"
-	"github.com/observiq/bindplane-otel-contrib/internal/blobconsume"
-	"github.com/observiq/bindplane-otel-contrib/internal/storageclient"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"

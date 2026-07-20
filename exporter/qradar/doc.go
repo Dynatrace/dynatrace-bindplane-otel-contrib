@@ -15,4 +15,4 @@
 //go:generate mdatagen metadata.yaml
 
 // Package qradar exports OpenTelemetry data to an endpoint or file.
-package qradar // import "github.com/observiq/bindplane-otel-contrib/exporter/qradar"
+package qradar // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/qradar"

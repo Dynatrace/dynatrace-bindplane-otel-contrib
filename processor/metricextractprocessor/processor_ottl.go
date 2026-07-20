@@ -20,8 +20,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/pkg/expr"
-	"github.com/observiq/bindplane-otel-contrib/receiver/routereceiver"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/routereceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"

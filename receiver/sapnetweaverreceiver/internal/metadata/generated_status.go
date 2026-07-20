@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("sapnetweaver")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/receiver/sapnetweaverreceiver"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/sapnetweaverreceiver"
 )
 
 const (

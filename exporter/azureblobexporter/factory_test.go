@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package azureblobexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/azureblobexporter"
+package azureblobexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/azureblobexporter"
 
 import (
 	"testing"

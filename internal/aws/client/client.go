@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package client provides a client for AWS services.
-package client // import "github.com/observiq/bindplane-otel-contrib/internal/aws/client"
+package client // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client"
 
 import (
 	"github.com/aws/aws-sdk-go-v2/aws"

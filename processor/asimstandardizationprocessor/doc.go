@@ -17,4 +17,4 @@
 // Package asimstandardizationprocessor creates Microsoft Sentinel ASIM-formatted
 // log bodies from OpenTelemetry logs and sets routing attributes consumed by
 // the Azure Log Analytics (Sentinel) exporter.
-package asimstandardizationprocessor // import "github.com/observiq/bindplane-otel-contrib/processor/asimstandardizationprocessor"
+package asimstandardizationprocessor // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/asimstandardizationprocessor"

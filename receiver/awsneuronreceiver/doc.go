@@ -24,4 +24,4 @@
 // failing the collector. The per-runtime performance metrics (utilization,
 // flops, execution latency/errors, memory) only populate while a Neuron runtime
 // process is actively executing a model.
-package awsneuronreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/awsneuronreceiver"
+package awsneuronreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awsneuronreceiver"

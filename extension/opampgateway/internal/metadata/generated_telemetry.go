@@ -13,11 +13,11 @@ import (
 )
 
 func Meter(settings component.TelemetrySettings) metric.Meter {
-	return settings.MeterProvider.Meter("github.com/observiq/bindplane-otel-contrib/extension/opampgateway")
+	return settings.MeterProvider.Meter("github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway")
 }
 
 func Tracer(settings component.TelemetrySettings) trace.Tracer {
-	return settings.TracerProvider.Tracer("github.com/observiq/bindplane-otel-contrib/extension/opampgateway")
+	return settings.TracerProvider.Tracer("github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway")
 }
 
 // TelemetryBuilder provides an interface for components to report telemetry

@@ -17,7 +17,7 @@ package asimstandardizationprocessor
 import (
 	"fmt"
 
-	"github.com/observiq/bindplane-otel-contrib/pkg/expr"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr"
 )
 
 // Supported ASIM target tables.

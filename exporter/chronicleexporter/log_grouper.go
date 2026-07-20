@@ -18,7 +18,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/observiq/bindplane-otel-contrib/exporter/chronicleexporter/protos/api"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter/protos/api"
 )
 
 type logGroup struct {

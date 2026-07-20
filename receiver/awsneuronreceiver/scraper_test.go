@@ -36,7 +36,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/awsneuronreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awsneuronreceiver/internal/metadata"
 )
 
 func loadFixture(t *testing.T) *nmReport {

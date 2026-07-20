@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("webhook")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/exporter/webhookexporter"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/webhookexporter"
 )
 
 const (

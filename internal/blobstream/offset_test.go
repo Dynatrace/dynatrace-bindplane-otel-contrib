@@ -20,7 +20,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/blobstream"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
 )
 
 func TestNewOffset(t *testing.T) {

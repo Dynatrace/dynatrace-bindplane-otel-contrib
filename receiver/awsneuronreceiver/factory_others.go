@@ -14,7 +14,7 @@
 
 //go:build !linux
 
-package awsneuronreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/awsneuronreceiver"
+package awsneuronreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awsneuronreceiver"
 
 import (
 	"context"

@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/exporter/chronicleforwarderexporter/internal/mocks"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleforwarderexporter/internal/mocks"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confignet"

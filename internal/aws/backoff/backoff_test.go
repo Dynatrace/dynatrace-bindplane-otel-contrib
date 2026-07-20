@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component/componenttest"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/backoff"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/backoff"
 )
 
 func TestExponentialBackoff(t *testing.T) {

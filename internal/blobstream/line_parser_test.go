@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/plog"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/blobstream"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
 )
 
 // newLineParserFromString is a test helper that creates a NewBufferedReader from a string

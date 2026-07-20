@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("aws_security_lake")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/exporter/awssecuritylakeexporter"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/awssecuritylakeexporter"
 )
 
 const (

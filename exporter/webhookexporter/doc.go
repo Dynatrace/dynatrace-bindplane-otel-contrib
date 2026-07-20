@@ -15,4 +15,4 @@
 //go:generate mdatagen metadata.yaml
 
 // Package webhookexporter exports OpenTelemetry data to an HTTP webhook.
-package webhookexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/webhookexporter"
+package webhookexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/webhookexporter"

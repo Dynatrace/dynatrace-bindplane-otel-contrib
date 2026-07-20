@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package azureblobrehydrationreceiver //import "github.com/observiq/bindplane-otel-contrib/receiver/azureblobrehydrationreceiver"
+package azureblobrehydrationreceiver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobrehydrationreceiver"
 
 import (
 	"bytes"
@@ -33,10 +33,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/azureblob"
-	"github.com/observiq/bindplane-otel-contrib/internal/blobconsume"
-	"github.com/observiq/bindplane-otel-contrib/internal/storageclient"
-	"github.com/observiq/bindplane-otel-contrib/internal/testutils"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils"
 )
 
 func Test_newMetricsReceiver(t *testing.T) {

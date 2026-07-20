@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/testutils/retryserver"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils/retryserver"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"

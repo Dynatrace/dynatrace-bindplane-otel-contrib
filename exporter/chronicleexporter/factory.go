@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/exporter/chronicleexporter/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
