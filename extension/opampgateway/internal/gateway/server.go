@@ -27,9 +27,9 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"

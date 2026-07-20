@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gopacket/gopacket"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/pcapreceiver/parser"
+	"github.com/gopacket/gopacket"
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 )

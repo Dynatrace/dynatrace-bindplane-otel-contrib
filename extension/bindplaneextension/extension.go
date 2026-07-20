@@ -22,9 +22,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/snappy"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/topologyprocessor"
+	"github.com/golang/snappy"
 	"github.com/open-telemetry/opamp-go/client/types"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampcustommessages"
 	"go.opentelemetry.io/collector/component"

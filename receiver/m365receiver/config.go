@@ -19,8 +19,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/m365receiver/internal/metadata"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/scraper/scraperhelper"

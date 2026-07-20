@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/snappy"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/opampexporter/internal/metadata"
+	"github.com/golang/snappy"
 	"github.com/open-telemetry/opamp-go/client/types"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampcustommessages"
