@@ -32,7 +32,7 @@ const (
 
 // Config defines the configuration for an Okta receiver
 type Config struct {
-	// Domain Okta Domain (no https://  -  ex: observiq.okta.com)
+	// Domain Okta Domain (no https://  -  ex: example.okta.com)
 	Domain string `mapstructure:"okta_domain"`
 
 	// APIToken Okta API Token

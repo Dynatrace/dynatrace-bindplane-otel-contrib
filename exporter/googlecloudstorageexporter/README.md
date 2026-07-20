@@ -4,7 +4,7 @@ This exporter allows you to export logs, metrics, and traces to Google Cloud Sto
 
 ## Minimum Agent Versions
 
-- Introduced: [v1.72.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.72.0)
+- Introduced: v1.72.0
 
 ## Supported Pipelines
 

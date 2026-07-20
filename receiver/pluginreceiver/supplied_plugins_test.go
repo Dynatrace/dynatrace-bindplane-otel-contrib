@@ -56,7 +56,7 @@ func TestValidateSuppliedPlugins(t *testing.T) {
 	emitterFactory := createLogEmitterFactory(nil)
 
 	tmp := t.TempDir()
-	t.Setenv("OIQ_OTEL_COLLECTOR_HOME", tmp)
+	t.Setenv("BINDPLANE_COLLECTOR_HOME", tmp)
 
 	for _, entry := range entries {
 		entryName := entry.Name()

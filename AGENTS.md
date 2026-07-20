@@ -4,7 +4,7 @@ This file provides guidance to LLM Agents when working with this repository.
 
 ## Repository Overview
 
-This is `bindplane-otel-contrib`, a multi-module Go repository containing contrib components (receivers, processors, exporters, extensions) for the [Bindplane OpenTelemetry Collector](https://github.com/observIQ/bindplane-otel-collector). There is **no root go.mod** and **no main binary** — this repo is a library of components consumed by the collector repo.
+This is `dynatrace-bindplane-otel-contrib`, a multi-module Go repository containing contrib components (receivers, processors, exporters, extensions) for the [Dynatrace Bindplane Distribution of OpenTelemetry Collector (DBDOT Collector)](https://github.com/Dynatrace/dynatrace-bindplane-otel-collector). There is **no root go.mod** and **no main binary** — this repo is a library of components consumed by the collector repo.
 
 ## Pull Request Content
 
@@ -62,7 +62,7 @@ trailer by default; please disable or strip it before committing.
 
 ### Building the Collector Locally
 - `make build-collector` — Build the collector against the local contrib working tree
-  - Set `COLLECTOR_PATH` (default `../bindplane-otel-collector`) to a local collector checkout, e.g. via `.local.env`
+  - Set `COLLECTOR_PATH` (default `../dynatrace-bindplane-otel-collector`) to a local collector checkout, e.g. via `.local.env`
   - `_build-setup` writes an OCB manifest copy that `replace`s every contrib module with its on-disk path.
   - `make build-linux` / `build-darwin` / `build-windows` build for that GOOS; `GOOS`/`GOARCH` are honored.
 

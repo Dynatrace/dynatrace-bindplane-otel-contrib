@@ -91,11 +91,11 @@ When `directory.path_prefix` is not set or is empty, the format becomes:
 {directory.path}/{kind}_{type}_{component_name}_{name}/
 ```
 
-For example, with `directory.path: $OIQ_OTEL_COLLECTOR_STORAGE` and default prefix:
+For example, with `directory.path: $BINDPLANE_COLLECTOR_STORAGE` and default prefix:
 
 ```
-$OIQ_OTEL_COLLECTOR_STORAGE/pebble_processor_batch_default/
-$OIQ_OTEL_COLLECTOR_STORAGE/pebble_exporter_otlp_backup/
+$BINDPLANE_COLLECTOR_STORAGE/pebble_processor_batch_default/
+$BINDPLANE_COLLECTOR_STORAGE/pebble_exporter_otlp_backup/
 ```
 
 When sharing a storage directory with other extensions, the prefix prevents naming collisions:

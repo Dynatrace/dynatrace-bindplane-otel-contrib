@@ -8,7 +8,7 @@ This is not a traditional receiver that continually produces data. Instead, it r
 
 ## Minimum Agent Versions
 
-- Introduced: [v1.74.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.74.0)
+- Introduced: v1.74.0
 
 ## Supported Pipelines
 
@@ -75,7 +75,7 @@ This configuration shows using a storage extension to track rehydration progress
 ```yaml
 extensions:
   file_storage:
-    directory: $OIQ_OTEL_COLLECTOR_HOME/storage
+    directory: $BINDPLANE_COLLECTOR_HOME/storage
 receivers:
   googlecloudstoragerehydration:
     bucket_name: "my-bucket"

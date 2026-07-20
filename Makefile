@@ -23,7 +23,7 @@ VERSION ?= $(if $(CURRENT_TAG),$(CURRENT_TAG),$(PREVIOUS_TAG)-SNAPSHOT-$(SNAPSHO
 -include .local.env
 export
 
-COLLECTOR_PATH ?= ../bindplane-otel-collector
+COLLECTOR_PATH ?= ../dynatrace-bindplane-otel-collector
 COLLECTOR_ABS ?= $(abspath $(COLLECTOR_PATH))
 
 SNAPSHOT := $(shell git -C $(COLLECTOR_PATH) rev-parse --short HEAD)
@@ -149,7 +149,7 @@ _build-setup:
 	done && \
 	awk -v rf="$(OUTDIR)/contrib-replaces.yaml" \
 		'/^replaces:/{print; while ((getline line < rf) > 0) print line; next} {print}' \
-		"$(COLLECTOR_ABS)/manifests/observIQ/manifest.yaml" > $(LOCAL_MANIFEST)
+		"$(COLLECTOR_ABS)/manifests/dbdot/manifest.yaml" > $(LOCAL_MANIFEST)
 	@# The source manifest's collector-internal replaces use paths relative to the
 	@# collector repo (e.g. "=> ../internal/..."). Once copied into $(OUTDIR), ocb
 	@# would resolve them against $(OUTDIR), so rewrite them to absolute collector paths.

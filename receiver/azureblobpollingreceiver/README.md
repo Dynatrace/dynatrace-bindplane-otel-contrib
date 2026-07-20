@@ -206,7 +206,7 @@ This configuration shows using a storage extension to persist checkpoint data ac
 ```yaml
 extensions:
   file_storage:
-    directory: $OIQ_OTEL_COLLECTOR_HOME/storage
+    directory: $BINDPLANE_COLLECTOR_HOME/storage
 receivers:
   azureblobpolling:
     connection_string: "DefaultEndpointsProtocol=https;AccountName=storage_account_name;AccountKey=storage_account_key;EndpointSuffix=core.windows.net"
@@ -291,7 +291,7 @@ This example shows a complete production-ready configuration with storage extens
 ```yaml
 extensions:
   file_storage:
-    directory: $OIQ_OTEL_COLLECTOR_HOME/storage
+    directory: $BINDPLANE_COLLECTOR_HOME/storage
 
 receivers:
   azureblobpolling/metrics:

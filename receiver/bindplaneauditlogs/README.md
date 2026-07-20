@@ -4,7 +4,7 @@ This receiver is capable of collecting audit logs from a Bindplane instance.
 
 ## Minimum Agent Versions
 
-- Introduced: [v1.73.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.73.0)
+- Introduced: v1.73.0
 
 ## Supported Pipelines
 

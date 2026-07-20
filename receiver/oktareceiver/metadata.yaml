@@ -6,7 +6,7 @@ status:
   class: receiver
   stability:
     beta: [logs]
-  distributions: [Bindplane]
+  distributions: [dbdot]
 
 tests:
   config:

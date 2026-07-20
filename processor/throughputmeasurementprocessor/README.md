@@ -14,7 +14,7 @@ Counters:
 
 ## Minimum agent versions
 
-- Introduced: [v1.8.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.8.0)
+- Introduced: v1.8.0
 
 ## Supported pipelines:
 

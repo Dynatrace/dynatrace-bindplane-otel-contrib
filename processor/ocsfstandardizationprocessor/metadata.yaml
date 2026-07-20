@@ -6,4 +6,4 @@ status:
   class: processor
   stability:
     alpha: [logs]
-  distributions: [Bindplane]
+  distributions: [dbdot]

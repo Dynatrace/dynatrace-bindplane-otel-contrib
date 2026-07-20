@@ -15,4 +15,4 @@ exporters:
   - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.146.1
 
 replaces:
-  - github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr => ../../../../pkg/expr
+  - github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr => ../../../pkg/expr

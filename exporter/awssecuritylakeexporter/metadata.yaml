@@ -6,4 +6,4 @@ status:
   class: exporter
   stability:
     alpha: [logs]
-  distributions: [Bindplane]
+  distributions: [dbdot]

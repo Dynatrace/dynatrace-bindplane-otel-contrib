@@ -10,7 +10,7 @@ There is no way of specifying a time range of objects for AWS S3 to return, so t
 
 ## Minimum Agent Versions
 
-- Introduced: [v1.49.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.49.0)
+- Introduced: v1.49.0
 
 ## Supported Pipelines
 
@@ -86,7 +86,7 @@ This configuration shows using a storage extension to track rehydration progress
 ```yaml
 extensions:
   file_storage:
-    directory: $OIQ_OTEL_COLLECTOR_HOME/storage
+    directory: $BINDPLANE_COLLECTOR_HOME/storage
 
 receivers:
   awss3rehydration:
