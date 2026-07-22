@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	defaultUserAgent = "bindplane-otel-collector"
+	defaultUserAgent = "dynatrace-bindplane-otel-collector"
 )
 
 // NewFactory creates a new Webhook exporter factory

@@ -45,7 +45,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 	webhookCfg, ok := cfg.(*Config)
 	require.True(t, ok)
 
-	expectedUserAgent := "bindplane-otel-collector/latest"
+	expectedUserAgent := "dynatrace-bindplane-otel-collector/latest"
 	assert.Equal(t, &SignalConfig{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: "https://localhost",
