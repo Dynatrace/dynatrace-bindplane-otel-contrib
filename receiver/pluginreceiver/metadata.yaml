@@ -4,6 +4,6 @@ status:
   class: receiver
   stability:
     beta: [logs, metrics, traces]
-  distributions: [Bindplane]
+  distributions: [dbdot]
   codeowners:
-    active: [observIQ/fleet, observIQ/pipeline, observIQ/platformteam, observIQ/ai]
+    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]

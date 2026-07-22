@@ -54,7 +54,7 @@ func authenticationInputBody() map[string]any {
 		"dst_port": 8443,
 		"dst_svc":  "auth-service",
 		"product": map[string]any{
-			"vendor_name": "observIQ",
+			"vendor_name": "Dynatrace",
 			"name":        "bindplane-gateway",
 		},
 	}

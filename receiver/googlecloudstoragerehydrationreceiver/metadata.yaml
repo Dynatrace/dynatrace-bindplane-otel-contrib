@@ -2,7 +2,7 @@ type: googlecloudstoragerehydration
 
 status:
   codeowners:
-    active: [observIQ/fleet, observIQ/pipeline, observIQ/platformteam, observIQ/ai]
+    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
   class: receiver
   stability:
     beta: [metrics, logs, traces]

@@ -47,7 +47,7 @@ service:
 ```yaml
 exporters:
   googlecloud:
-    credentials_file: /opt/observiq/credentials.json
+    credentials_file: /opt/dbdot-collector/credentials.json
     project: my-gcp-project
 ```
 
@@ -56,7 +56,7 @@ exporters:
 ```yaml
 exporters:
   googlecloud:
-    credentials_file: /opt/observiq/credentials.json
+    credentials_file: /opt/dbdot-collector/credentials.json
     batch:
       send_batch_size: 500
       send_batch_max_size: 500

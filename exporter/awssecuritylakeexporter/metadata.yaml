@@ -2,7 +2,7 @@ type: aws_security_lake
 
 status:
   codeowners:
-    active: [observIQ/fleet, observIQ/pipeline, observIQ/platformteam, observIQ/ai]
+    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
   class: exporter
   stability:
     alpha: [logs]
