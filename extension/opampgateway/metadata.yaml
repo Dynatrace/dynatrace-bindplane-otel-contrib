@@ -9,7 +9,7 @@ tests:
       endpoint: "127.0.0.1:0"
 
 status:
-  distributions: [dbdot]
+  distributions: [Dynatrace-Bindplane]
   codeowners:
     active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
   class: extension

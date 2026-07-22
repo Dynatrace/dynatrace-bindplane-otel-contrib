@@ -6,5 +6,5 @@ status:
   class: receiver
   stability:
     beta: [logs]
-  distributions: [dbdot]
+  distributions: [Dynatrace-Bindplane]
   unsupported_platforms: [darwin, linux]

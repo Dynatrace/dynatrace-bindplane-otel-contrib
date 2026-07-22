@@ -6,7 +6,7 @@ status:
   class: exporter
   stability:
     beta: [traces, metrics, logs]
-  distributions: [dbdot]
+  distributions: [Dynatrace-Bindplane]
 
 # dakota: skip goleak for now, seeing leaks only when ran on ubuntu, unsure of why need more time to troubleshoot
 tests:

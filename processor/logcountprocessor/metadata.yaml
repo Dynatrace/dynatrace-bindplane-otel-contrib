@@ -4,6 +4,6 @@ status:
   class: processor
   stability:
     beta: [logs]
-  distributions: [dbdot]
+  distributions: [Dynatrace-Bindplane]
   codeowners:
     active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]

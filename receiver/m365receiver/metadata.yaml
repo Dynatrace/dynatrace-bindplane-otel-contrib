@@ -1,7 +1,7 @@
 type: m365
 
 status:
-  distributions: [dbdot]
+  distributions: [Dynatrace-Bindplane]
   codeowners:
     active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
   class: receiver

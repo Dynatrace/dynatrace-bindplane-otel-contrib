@@ -4,6 +4,6 @@ status:
   class: exporter
   stability:
     beta: [metrics]
-  distributions: [dbdot]
+  distributions: [Dynatrace-Bindplane]
   codeowners:
     active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
