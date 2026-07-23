@@ -23,6 +23,12 @@ VERSION ?= $(if $(CURRENT_TAG),$(CURRENT_TAG),$(PREVIOUS_TAG)-SNAPSHOT-$(SNAPSHO
 -include .local.env
 export
 
+# Bypass the module proxy and checksum database for private Dynatrace modules
+# pulled in by the collector manifest (e.g. dt-otelcol-edge-processing-components);
+# sum.golang.org cannot see private repos and fails verification with a 404.
+# Matches the collector repo's Makefile.
+export GOPRIVATE ?= github.com/Dynatrace/*
+
 COLLECTOR_PATH ?= ../dynatrace-bindplane-otel-collector
 COLLECTOR_ABS ?= $(abspath $(COLLECTOR_PATH))
 
