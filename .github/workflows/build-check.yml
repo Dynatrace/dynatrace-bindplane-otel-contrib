@@ -36,20 +36,16 @@ jobs:
 
       # The collector repo (and any private Go modules its manifest pulls in)
       # lives in the private Dynatrace org, so every fetch of it needs a token.
-      # Same GitHub App as the collector's CI: contents:read on the listed
+      # Same GitHub App as the collector's CI: contents:read on the scoped
       # repos, app ID in the PRIVATE_GO_MODULES_APP_ID actions variable and key
       # in the PRIVATE_GO_MODULES_APP_PRIVATE_KEY secret.
       # TODO(dbdot): install/scope that App for this repo's org settings.
-      - name: Mint collector access token
+      - name: Grant access to private Dynatrace repos
         id: collector_token
-        uses: actions/create-github-app-token@v2
+        uses: ./contrib/.github/actions/private-go-modules
         with:
           app-id: ${{ vars.PRIVATE_GO_MODULES_APP_ID }}
           private-key: ${{ secrets.PRIVATE_GO_MODULES_APP_PRIVATE_KEY }}
-          repositories: dynatrace-bindplane-otel-collector,dt-otelcol-edge-processing-components
-
-      - name: Route git fetches of Dynatrace repos through the token
-        run: git config --global url."https://x-access-token:${{ steps.collector_token.outputs.token }}@github.com/Dynatrace/".insteadOf "https://github.com/Dynatrace/"
 
       # OTel version bumps are coordinated breaking changes that must land in
       # contrib and collector in lockstep, so contrib cannot always build
