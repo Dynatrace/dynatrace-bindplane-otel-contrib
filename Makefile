@@ -159,7 +159,14 @@ _build-setup:
 	@# The source manifest's collector-internal replaces use paths relative to the
 	@# collector repo (e.g. "=> ../internal/..."). Once copied into $(OUTDIR), ocb
 	@# would resolve them against $(OUTDIR), so rewrite them to absolute collector paths.
-	sed -i.bak -E 's#=> \.\./#=> $(COLLECTOR_ABS)/#' $(LOCAL_MANIFEST) && rm -f $(LOCAL_MANIFEST).bak
+	@# Also rewrite the manifest's contrib module paths to this repo's renamed module
+	@# prefix so the local-directory replaces above actually apply; otherwise go
+	@# silently ignores them and builds the published bindplane-otel-contrib release.
+	@# This is a no-op once the collector manifest switches to the new module paths.
+	sed -i.bak -E \
+		-e 's#=> \.\./#=> $(COLLECTOR_ABS)/#' \
+		-e 's#github\.com/observiq/bindplane-otel-contrib#github.com/dynatrace/dynatrace-bindplane-otel-contrib#' \
+		$(LOCAL_MANIFEST) && rm -f $(LOCAL_MANIFEST).bak
 	$(MAKE) install-ocb
 
 .PHONY: _cleanup-build

@@ -1,11 +1,10 @@
 name: Private Go modules access
 description: >
   Mints a GitHub App installation token and routes git fetches of
-  github.com/Dynatrace repos through it, so jobs can clone the private
-  collector repo and go can download the private Dynatrace modules its
-  manifest pulls in (the proxy/sumdb bypass comes from GOPRIVATE, exported
-  by the collector Makefile). Same App and mechanism as the collector
-  repo's private-go-modules action.
+  github.com/Dynatrace repos through it, so go can download the private
+  Dynatrace modules the collector manifest pulls in (the proxy/sumdb
+  bypass comes from GOPRIVATE, exported by the Makefile). Same App and
+  mechanism as the collector repo's private-go-modules action.
 inputs:
   app-id:
     description: ID of a GitHub App with contents:read on the private module repos

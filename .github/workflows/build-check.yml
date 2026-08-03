@@ -34,12 +34,11 @@ jobs:
         with:
           path: contrib
 
-      # The collector repo (and any private Go modules its manifest pulls in)
-      # lives in the private Dynatrace org, so every fetch of it needs a token.
-      # Same GitHub App as the collector's CI: contents:read on the scoped
-      # repos, app ID in the PRIVATE_GO_MODULES_APP_ID actions variable and key
-      # in the PRIVATE_GO_MODULES_APP_PRIVATE_KEY secret.
-      # TODO(dbdot): install/scope that App for this repo's org settings.
+      # The collector manifest pulls in private Dynatrace Go modules, so module
+      # fetches during the build need a token (the collector repo itself is
+      # public). Same GitHub App as the collector's CI: contents:read on the
+      # scoped repos, app ID in the PRIVATE_GO_MODULES_APP_ID actions variable
+      # and key in the PRIVATE_GO_MODULES_APP_PRIVATE_KEY secret.
       - name: Grant access to private Dynatrace repos
         id: collector_token
         uses: ./contrib/.github/actions/private-go-modules
