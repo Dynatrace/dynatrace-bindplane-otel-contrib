@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/badgerextension/internal/client/mocks"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,10 +36,10 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata/metricdatatest"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/client/mocks"
-	"github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadata"
-	"github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadatatest"
-	"github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver/internal/worker"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client/mocks"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadatatest"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver/internal/worker"
 )
 
 // TestTruncatedArrayDeliversRecordsThenAcks drives a JSON array that ends mid-record

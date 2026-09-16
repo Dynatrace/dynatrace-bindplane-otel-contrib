@@ -6,7 +6,7 @@ status:
     development: [logs]
   distributions: []
   codeowners:
-    active: [observIQ/ai]
+    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
 
 attributes:
   log_type:

@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,9 +34,9 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/api/option"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/blobstream"
-	"github.com/observiq/bindplane-otel-contrib/internal/storageclient"
-	"github.com/observiq/bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/metadata"
 )
 
 // loadErrStorage fails LoadStorageData so the offset-load error path runs.

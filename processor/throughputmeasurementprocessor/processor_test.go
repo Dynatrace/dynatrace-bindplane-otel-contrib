@@ -36,7 +36,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.uber.org/zap"
 
-	"github.com/observiq/bindplane-otel-contrib/pkg/measurements"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements"
 )
 
 func TestProcessor_Logs(t *testing.T) {

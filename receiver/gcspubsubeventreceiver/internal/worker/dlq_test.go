@@ -22,9 +22,10 @@ import (
 	"testing"
 
 	"cloud.google.com/go/storage"
-	"github.com/observiq/bindplane-otel-contrib/internal/blobstream"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
 )
 
 func TestDLQConditionKind(t *testing.T) {
