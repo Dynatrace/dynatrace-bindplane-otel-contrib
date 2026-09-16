@@ -30,4 +30,6 @@ runs:
         repositories: dt-otelcol-edge-processing-components,dt-protocols-go
     - name: Route git fetches of Dynatrace repos through the token
       shell: bash
-      run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/Dynatrace/".insteadOf "https://github.com/Dynatrace/"
+      env:
+        TOKEN: ${{ steps.app-token.outputs.token }}
+      run: git config --global url."https://x-access-token:${TOKEN}@github.com/Dynatrace/".insteadOf "https://github.com/Dynatrace/"
