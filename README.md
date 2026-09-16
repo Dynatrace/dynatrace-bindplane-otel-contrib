@@ -148,7 +148,7 @@ COLLECTOR_PATH=../dynatrace-bindplane-otel-collector
 
 Then run `make build-collector` to build the collector with your local contrib changes.
 
-The collector build is [ocb](https://opentelemetry.io/docs/collector/custom-collector/)-driven and lives in the collector repo: its `manifests/dbdot/manifest.yaml` pins each contrib component at a released version. `make build-collector` writes a copy of that manifest which `replace`s every contrib module with its on-disk path.
+The collector build is [ocb](https://opentelemetry.io/docs/collector/custom-collector/)-driven and lives in the collector repo: its `manifests/dynatrace-bindplane-otel-collector/manifest.yaml` pins each contrib component at a released version. `make build-collector` writes a copy of that manifest which `replace`s every contrib module with its on-disk path.
 
 ## License
 
