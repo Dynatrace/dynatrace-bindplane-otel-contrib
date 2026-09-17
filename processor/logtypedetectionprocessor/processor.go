@@ -55,11 +55,9 @@ type logTypeDetectionProcessor struct {
 	matcherHash    string
 	matcherVersion string
 
-	matcherStorageClient storageclient.StorageClient
-	matcherStorageOwned  bool
-
 	opampHandler    opampcustommessages.CustomCapabilityHandler
-	opampDone       chan struct{}
+	opampCtx        context.Context
+	opampCancel     context.CancelFunc
 	opampWg         sync.WaitGroup
 	matchersReady   chan struct{}
 	matchersOnce    sync.Once
@@ -67,7 +65,7 @@ type logTypeDetectionProcessor struct {
 
 	stopped bool
 
-	fingerprintStorageClient storageclient.StorageClient
+	storageClient            storageclient.StorageClient
 	fingerprintPersistCancel context.CancelFunc
 	fingerprintPersistDone   chan struct{}
 	fingerprintsDirty        atomic.Bool
@@ -123,8 +121,7 @@ func buildMatchers(configs []MatcherConfig) ([]Matcher, string, error) {
 	return matchers, hash, nil
 }
 
-// hashMatchers renders the matcher config to JSON and hashes it, so a config
-// change invalidates log types detected under the old config.
+// hashMatchers hashes the JSON form of the matcher config.
 func hashMatchers(matchers []MatcherConfig) (string, error) {
 	encoded, err := json.Marshal(matchers)
 	if err != nil {
@@ -141,15 +138,15 @@ func newLogTypeDetectionProcessor(cfg *Config, id component.ID, logger *zap.Logg
 	}
 
 	p := &logTypeDetectionProcessor{
-		logTypes:                 logTypes,
-		telemetry:                telemetry,
-		logger:                   logger,
-		id:                       id,
-		cfg:                      cfg,
-		fingerprintStorageClient: storageclient.NewNopStorage(),
-		opampDone:                make(chan struct{}),
-		matchersReady:            make(chan struct{}),
+		logTypes:      logTypes,
+		telemetry:     telemetry,
+		logger:        logger,
+		id:            id,
+		cfg:           cfg,
+		storageClient: storageclient.NewNopStorage(),
+		matchersReady: make(chan struct{}),
 	}
+	p.opampCtx, p.opampCancel = context.WithCancel(context.Background())
 
 	if p.matchers, p.matcherHash, err = buildMatchers(cfg.Matchers); err != nil {
 		return nil, err
@@ -158,9 +155,7 @@ func newLogTypeDetectionProcessor(cfg *Config, id component.ID, logger *zap.Logg
 	return p, nil
 }
 
-// setServerMatchers merges the opamp server's matchers with the configured
-// ones. A changed matcher set invalidates every log type detected under the old
-// one; an unchanged set keeps the cache as it is.
+// setServerMatchers merges the server's matchers with the configured ones.
 func (p *logTypeDetectionProcessor) setServerMatchers(version string, server []MatcherConfig) error {
 	matchers, hash, err := buildMatchers(slices.Concat(p.cfg.Matchers, server))
 	if err != nil {
@@ -177,15 +172,24 @@ func (p *logTypeDetectionProcessor) setServerMatchers(version string, server []M
 		p.matcherHash = hash
 		p.logTypes.Purge()
 	}
-
-	if p.pendingLogTypes != nil {
-		if p.pendingLogTypes.MatcherHash == hash {
-			p.addSavedLogTypes(p.pendingLogTypes.LogTypes)
-		}
-		p.pendingLogTypes = nil
-	}
+	p.resolvePendingLogTypes()
 
 	return nil
+}
+
+// resolvePendingLogTypes restores held-back log types if they match the current matchers; needs matcherMux held.
+func (p *logTypeDetectionProcessor) resolvePendingLogTypes() {
+	if p.pendingLogTypes == nil {
+		return
+	}
+
+	switch {
+	case p.pendingLogTypes.MatcherHash == p.matcherHash:
+		p.addSavedLogTypes(p.pendingLogTypes.LogTypes)
+	case len(p.pendingLogTypes.LogTypes) > 0:
+		p.logger.Info("persisted log types were detected with a different matcher set, discarding")
+	}
+	p.pendingLogTypes = nil
 }
 
 func (p *logTypeDetectionProcessor) currentVersion() string {
@@ -195,7 +199,7 @@ func (p *logTypeDetectionProcessor) currentVersion() string {
 	return p.matcherVersion
 }
 
-func (p *logTypeDetectionProcessor) addSavedLogTypes(saved logTypeMap) {
+func (p *logTypeDetectionProcessor) addSavedLogTypes(saved map[string]string) {
 	for key, logType := range saved {
 		logFingerprint, err := strconv.ParseUint(key, 16, 64)
 		if err != nil {
@@ -226,7 +230,7 @@ func (p *logTypeDetectionProcessor) start(ctx context.Context, host component.Ho
 }
 
 func (p *logTypeDetectionProcessor) startStorage(ctx context.Context, host component.Host) error {
-	if p.cfg.FingerprintStorageID == nil {
+	if p.cfg.StorageID == nil {
 		return nil
 	}
 
@@ -234,7 +238,7 @@ func (p *logTypeDetectionProcessor) startStorage(ctx context.Context, host compo
 		ctx,
 		host,
 		component.KindProcessor,
-		*p.cfg.FingerprintStorageID,
+		*p.cfg.StorageID,
 		p.id,
 		pipeline.SignalLogs,
 	)
@@ -245,13 +249,12 @@ func (p *logTypeDetectionProcessor) startStorage(ctx context.Context, host compo
 	if err := client.LoadStorageData(ctx, fingerprintStorageKey, &saved); err != nil {
 		return errors.Join(fmt.Errorf("load log types: %w", err), client.Close(ctx))
 	}
-	p.fingerprintStorageClient = client
+	p.storageClient = client
 
 	switch {
 	case saved.MatcherHash == p.matcherHash:
 		p.addSavedLogTypes(saved.LogTypes)
 	case p.cfg.OpAMP != nil:
-		// The matcher set is not final until the server's matchers arrive.
 		p.pendingLogTypes = &saved
 	case len(saved.LogTypes) > 0:
 		p.logger.Info("matcher config changed, discarding persisted log types")
@@ -302,7 +305,7 @@ func (p *logTypeDetectionProcessor) save(ctx context.Context) error {
 	p.matcherMux.RUnlock()
 
 	state := persistedFingerprints{MatcherHash: hash, LogTypes: toSave}
-	if err := p.fingerprintStorageClient.SaveStorageData(ctx, fingerprintStorageKey, &state); err != nil {
+	if err := p.storageClient.SaveStorageData(ctx, fingerprintStorageKey, &state); err != nil {
 		return fmt.Errorf("save log types: %w", err)
 	}
 	return nil
@@ -317,13 +320,13 @@ func (p *logTypeDetectionProcessor) stop(ctx context.Context) error {
 	p.stopOpAMP()
 
 	if p.fingerprintPersistCancel == nil {
-		return errors.Join(p.closeMatcherStorage(ctx), p.fingerprintStorageClient.Close(ctx))
+		return p.storageClient.Close(ctx)
 	}
 
 	p.fingerprintPersistCancel()
 	<-p.fingerprintPersistDone
 
-	return errors.Join(p.save(ctx), p.closeMatcherStorage(ctx), p.fingerprintStorageClient.Close(ctx))
+	return errors.Join(p.save(ctx), p.storageClient.Close(ctx))
 }
 
 func (p *logTypeDetectionProcessor) processLogs(ctx context.Context, ld plog.Logs) (plog.Logs, error) {
