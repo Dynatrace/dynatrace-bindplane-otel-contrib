@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package azureloganalyticsexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/azureloganalyticsexporter"
+package azureloganalyticsexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/azureloganalyticsexporter"
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 	azlog "github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/monitor/ingestion/azlogs"
-	"github.com/observiq/bindplane-otel-contrib/internal/exporterutils"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/exporterutils"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumererror"

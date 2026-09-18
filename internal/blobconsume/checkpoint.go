@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,13 +13,13 @@
 // limitations under the License.
 
 // Package blobconsume provides a checkpoint for blob-consuming receivers that can be stored using an internal/storageclient.StorageClient
-package blobconsume //import "github.com/observiq/bindplane-otel-contrib/internal/blobconsume"
+package blobconsume //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume"
 
 import (
 	"encoding/json"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/storageclient"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
 )
 
 // CheckPoint is the checkpoint used with a storage extension to

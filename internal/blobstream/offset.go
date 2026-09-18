@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package blobstream
 import (
 	"encoding/json"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/storageclient"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
 )
 
 // Offset is used to keep track of where in a GCS event stream the receiver has read.

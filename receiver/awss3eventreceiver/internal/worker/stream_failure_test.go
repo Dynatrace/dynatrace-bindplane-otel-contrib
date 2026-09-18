@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,9 +35,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/client/mocks"
-	"github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadata"
-	"github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver/internal/worker"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client/mocks"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver/internal/worker"
 )
 
 // brokenBody serves head and then fails, standing in for a connection dropped part way

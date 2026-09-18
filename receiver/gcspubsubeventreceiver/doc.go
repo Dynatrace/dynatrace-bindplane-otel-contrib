@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,4 +21,4 @@
 // The receiver uses synchronous Pub/Sub pull to receive GCS event notifications. When an
 // OBJECT_FINALIZE event is received, the receiver downloads the GCS object and processes
 // it as log data.
-package gcspubsubeventreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/gcspubsubeventreceiver"
+package gcspubsubeventreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver"

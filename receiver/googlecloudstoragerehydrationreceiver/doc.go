@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,4 +15,4 @@
 // Package googlecloudstoragerehydrationreceiver implements a receiver that rehydrates telemetry data from Google Cloud Storage.
 //
 //go:generate mdatagen metadata.yaml
-package googlecloudstoragerehydrationreceiver //import "github.com/observiq/bindplane-otel-contrib/receiver/googlecloudstoragerehydrationreceiver"
+package googlecloudstoragerehydrationreceiver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/googlecloudstoragerehydrationreceiver"

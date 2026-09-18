@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/receiver/m365receiver
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/m365receiver
 
 go 1.26.4
 

@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/exporter/azureblobexporter
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/azureblobexporter
 
 go 1.26.4
 

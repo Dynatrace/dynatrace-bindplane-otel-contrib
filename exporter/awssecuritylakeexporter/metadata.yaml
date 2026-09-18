@@ -2,8 +2,8 @@ type: aws_security_lake
 
 status:
   codeowners:
-    active: [observIQ/fleet, observIQ/pipeline, observIQ/platformteam, observIQ/ai]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: exporter
   stability:
     alpha: [logs]
-  distributions: [Bindplane]
+  distributions: [Dynatrace-Bindplane]

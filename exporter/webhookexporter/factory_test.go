@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,13 +19,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/exporter/webhookexporter/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/webhookexporter/internal/metadata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -45,17 +44,10 @@ func TestCreateDefaultConfig(t *testing.T) {
 	webhookCfg, ok := cfg.(*Config)
 	require.True(t, ok)
 
-	expectedUserAgent := "bindplane-otel-collector/latest"
 	assert.Equal(t, &SignalConfig{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: "https://localhost",
 			Timeout:  30 * time.Second,
-			Headers: configopaque.MapList{
-				{
-					Name:  "User-Agent",
-					Value: configopaque.String(expectedUserAgent),
-				},
-			},
 		},
 		Verb:             POST,
 		ContentType:      "application/json",

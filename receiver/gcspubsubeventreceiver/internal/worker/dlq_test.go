@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,9 +22,10 @@ import (
 	"testing"
 
 	"cloud.google.com/go/storage"
-	"github.com/observiq/bindplane-otel-contrib/internal/blobstream"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
 )
 
 func TestDLQConditionKind(t *testing.T) {

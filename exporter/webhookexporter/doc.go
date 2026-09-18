@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,4 +15,4 @@
 //go:generate mdatagen metadata.yaml
 
 // Package webhookexporter exports OpenTelemetry data to an HTTP webhook.
-package webhookexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/webhookexporter"
+package webhookexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/webhookexporter"

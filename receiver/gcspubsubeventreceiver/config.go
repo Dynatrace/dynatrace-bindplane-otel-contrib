@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package gcspubsubeventreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/gcspubsubeventreceiver"
+package gcspubsubeventreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver"
 
 import (
 	"errors"
@@ -21,9 +21,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/blobstream"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configretry"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
 )
 
 // Config defines the configuration for the GCS Pub/Sub Event receiver.

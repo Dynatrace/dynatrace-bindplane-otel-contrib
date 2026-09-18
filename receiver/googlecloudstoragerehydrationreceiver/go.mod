@@ -1,11 +1,11 @@
-module github.com/observiq/bindplane-otel-contrib/receiver/googlecloudstoragerehydrationreceiver
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/googlecloudstoragerehydrationreceiver
 
 go 1.26.4
 
 require (
 	cloud.google.com/go/storage v1.67.0
-	github.com/observiq/bindplane-otel-contrib/internal/blobconsume v1.14.0
-	github.com/observiq/bindplane-otel-contrib/internal/storageclient v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.14.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.66.0
 	go.opentelemetry.io/collector/component/componenttest v0.160.0
@@ -82,8 +82,8 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 )
 
-replace github.com/observiq/bindplane-otel-contrib/internal/blobconsume => ../../internal/blobconsume
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume => ../../internal/blobconsume
 
-replace github.com/observiq/bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient
 
-replace github.com/observiq/bindplane-otel-contrib/internal/testutils => ../../internal/testutils
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils => ../../internal/testutils

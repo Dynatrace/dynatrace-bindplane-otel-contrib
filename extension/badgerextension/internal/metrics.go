@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package internal contains the internal constants for the badger extension
-package internal // import "github.com/observiq/bindplane-otel-contrib/extension/badgerextension/internal"
+package internal // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/badgerextension/internal"
 
 const (
 	// ExtensionAttribute is the attribute for the extension

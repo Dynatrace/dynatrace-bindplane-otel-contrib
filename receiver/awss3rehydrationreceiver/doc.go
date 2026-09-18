@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,4 +15,4 @@
 // Package awss3rehydrationreceiver contains the core logic for the Azure Blob Rehydration receiver
 //
 //go:generate mdatagen metadata.yaml
-package awss3rehydrationreceiver //import "github.com/observiq/bindplane-otel-contrib/receiver/awss3rehydrationreceiver"
+package awss3rehydrationreceiver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3rehydrationreceiver"

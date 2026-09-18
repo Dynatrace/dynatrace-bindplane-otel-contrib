@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 // configuration shape (blitz_yaml) — they trade flexibility for a
 // stable, version-pinned starting point that doesn't require the user
 // to author blitz YAML.
-package recipes // import "github.com/observiq/bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/internal/recipes"
+package recipes // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/internal/recipes"
 
 import (
 	"fmt"

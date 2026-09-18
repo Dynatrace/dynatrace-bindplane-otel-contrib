@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/pkg/osinfo
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo
 
 go 1.26.4
 

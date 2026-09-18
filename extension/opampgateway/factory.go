@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/observiq/bindplane-otel-contrib/extension/opampgateway/internal/gateway"
-	"github.com/observiq/bindplane-otel-contrib/extension/opampgateway/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/gateway"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"

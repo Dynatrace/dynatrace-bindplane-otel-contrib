@@ -1,12 +1,12 @@
-module github.com/observiq/bindplane-otel-contrib/receiver/azureblobrehydrationreceiver
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobrehydrationreceiver
 
 go 1.26.4
 
 require (
-	github.com/observiq/bindplane-otel-contrib/internal/azureblob v1.14.0
-	github.com/observiq/bindplane-otel-contrib/internal/blobconsume v1.14.0
-	github.com/observiq/bindplane-otel-contrib/internal/storageclient v1.14.0
-	github.com/observiq/bindplane-otel-contrib/internal/testutils v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.14.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.66.0
 	go.opentelemetry.io/collector/component/componenttest v0.160.0
@@ -68,13 +68,13 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/observiq/bindplane-otel-contrib/internal/azureblob => ../../internal/azureblob
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob => ../../internal/azureblob
 
-replace github.com/observiq/bindplane-otel-contrib/internal/blobconsume => ../../internal/blobconsume
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume => ../../internal/blobconsume
 
-replace github.com/observiq/bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient
 
-replace github.com/observiq/bindplane-otel-contrib/internal/testutils => ../../internal/testutils
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils => ../../internal/testutils
 
 // Replacing testify so tests can pass. Some weird behavior with latest testify version. Potentially related to: https://github.com/stretchr/testify/issues/1785
 // Recheck during next release.

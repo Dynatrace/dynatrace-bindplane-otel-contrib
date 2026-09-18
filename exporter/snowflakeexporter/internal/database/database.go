@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package database defines functions to be used by the Snowflake exporter for interacting with Snowflake
-package database // import "github.com/observiq/bindplane-otel-contrib/exporter/snowflakeexporter/internal/database"
+package database // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/snowflakeexporter/internal/database"
 
 import (
 	"context"

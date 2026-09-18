@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 
-	"github.com/observiq/bindplane-otel-contrib/extension/pebbleextension/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/pebbleextension/internal/metadata"
 )
 
 // NewFactory creates a new factory for the pebble extension

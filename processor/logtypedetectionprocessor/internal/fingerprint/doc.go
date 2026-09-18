@@ -1,4 +1,4 @@
-// Copyright  observIQ, Inc.
+// Copyright  Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,4 +13,4 @@
 // limitations under the License.
 
 // Package fingerprint provides fingerprinting algorithms for log types.
-package fingerprint // import "github.com/observiq/bindplane-otel-contrib/processor/logtypedetectionprocessor/internal/fingerprint"
+package fingerprint // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/logtypedetectionprocessor/internal/fingerprint"

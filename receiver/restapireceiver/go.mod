@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/receiver/restapireceiver
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/restapireceiver
 
 go 1.26.4
 
