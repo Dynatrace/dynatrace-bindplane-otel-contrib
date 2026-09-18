@@ -19,23 +19,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/webhookexporter/internal/metadata"
-	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper"
-)
-
-const (
-	defaultUserAgent = "dynatrace-bindplane-otel-collector"
 )
 
 // NewFactory creates a new Webhook exporter factory
@@ -48,18 +41,11 @@ func NewFactory() exporter.Factory {
 }
 
 func createDefaultConfig() component.Config {
-	userAgent := fmt.Sprintf("%s/%s", defaultUserAgent, version.Version())
 	return &Config{
 		LogsConfig: &SignalConfig{
 			ClientConfig: confighttp.ClientConfig{
 				Endpoint: "https://localhost",
 				Timeout:  30 * time.Second,
-				Headers: configopaque.MapList{
-					{
-						Name:  "User-Agent",
-						Value: configopaque.String(userAgent),
-					},
-				},
 			},
 			Verb:             POST,
 			ContentType:      "application/json",

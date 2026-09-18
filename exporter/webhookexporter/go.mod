@@ -5,7 +5,6 @@ go 1.26.4
 require (
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/exporterutils v1.14.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.14.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version v1.14.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.66.0
 	go.opentelemetry.io/collector/component/componenttest v0.160.0
@@ -95,5 +94,3 @@ require (
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/exporterutils => ../../internal/exporterutils
 
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils => ../../internal/testutils
-
-replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version => ../../pkg/version

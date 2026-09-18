@@ -109,12 +109,6 @@ exporters:
         key_file: /path/to/key.pem
 ```
 
-## OCB
+## User-Agent
 
-This component relies on the `github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version` package to get a version value. This version is used to construct a User-Agent header value.
-
-When using this component with the OpenTelemetry Collector Builder (OCB), use the `--ldflags` CLI argument to set the version value at build time. For example:
-
-```sh
-builder --config "manifest.yaml" --ldflags "-s -w -X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.version=v1.2.3"
-```
+Requests carry a `User-Agent` header of `<distribution command>/<version>`, taken from the collector's build info. Set `headers: { User-Agent: ... }` in the exporter config to override it.

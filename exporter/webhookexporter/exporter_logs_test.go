@@ -122,6 +122,7 @@ func TestLogsDataPusher(t *testing.T) {
 				require.Equal(t, "POST", r.Method)
 				require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 				require.Equal(t, "test-value", r.Header.Get("X-Test"))
+				require.Equal(t, "otelcol/latest", r.Header.Get("User-Agent"))
 
 				body, err := io.ReadAll(r.Body)
 				require.NoError(t, err)

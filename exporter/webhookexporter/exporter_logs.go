@@ -34,10 +34,11 @@ import (
 )
 
 type logsExporter struct {
-	cfg      *SignalConfig
-	logger   *zap.Logger
-	settings component.TelemetrySettings
-	client   *http.Client
+	cfg       *SignalConfig
+	logger    *zap.Logger
+	settings  component.TelemetrySettings
+	client    *http.Client
+	userAgent string
 }
 
 func newLogsExporter(
@@ -50,9 +51,10 @@ func newLogsExporter(
 	}
 
 	return &logsExporter{
-		cfg:      cfg,
-		logger:   params.Logger,
-		settings: params.TelemetrySettings,
+		cfg:       cfg,
+		logger:    params.Logger,
+		settings:  params.TelemetrySettings,
+		userAgent: params.BuildInfo.Command + "/" + params.BuildInfo.Version,
 	}, nil
 }
 
@@ -153,6 +155,8 @@ func (le *logsExporter) sendPayload(ctx context.Context, payload any) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// Default User-Agent from the distribution's build info; a configured header overrides it.
+	request.Header.Set("User-Agent", le.userAgent)
 	le.cfg.ClientConfig.Headers.Iter(func(key string, value configopaque.String) bool {
 		request.Header.Set(key, string(value))
 		return true
