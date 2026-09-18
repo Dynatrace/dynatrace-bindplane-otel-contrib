@@ -3,7 +3,7 @@ type: awsneuron
 status:
   distributions: [Dynatrace-Bindplane]
   codeowners:
-    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: receiver
   stability:
     alpha: [metrics]

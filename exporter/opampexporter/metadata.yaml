@@ -2,7 +2,7 @@ type: opamp
 
 status:
   codeowners:
-    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: exporter
   stability:
     alpha: [logs, metrics, traces]

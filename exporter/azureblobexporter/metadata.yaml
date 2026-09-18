@@ -2,7 +2,7 @@ type: azureblob
 
 status:
   codeowners:
-    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: exporter
   stability:
     beta: [traces, metrics, logs]

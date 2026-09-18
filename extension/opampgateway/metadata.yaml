@@ -11,7 +11,7 @@ tests:
 status:
   distributions: [Dynatrace-Bindplane]
   codeowners:
-    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: extension
   stability:
     alpha: [extension]

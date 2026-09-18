@@ -6,7 +6,7 @@ status:
     development: [logs]
   distributions: []
   codeowners:
-    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
 
 attributes:
   log_type:

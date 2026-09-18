@@ -6,4 +6,4 @@ status:
     beta: [metrics]
   distributions: [Dynatrace-Bindplane]
   codeowners:
-    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]

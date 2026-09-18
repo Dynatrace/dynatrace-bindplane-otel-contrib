@@ -3,7 +3,7 @@ type: awss3rehydration
 status:
   distributions: [Dynatrace-Bindplane]
   codeowners:
-    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: receiver
   stability:
     beta: [metrics, logs, traces]

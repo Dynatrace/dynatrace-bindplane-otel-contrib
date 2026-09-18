@@ -2,7 +2,7 @@ type: threat_enrichment
 
 status:
   codeowners:
-    active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: processor
   stability:
     alpha: [logs]
