@@ -1,7 +1,7 @@
 # All source code and documents, used when checking for misspellings
 ALLDOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
                                 -type f | sort)
-ALL_MODULES := $(shell find . -type f -name "go.mod" -not -path "*/internal/tools/*" -exec dirname {} \; | sort )
+ALL_MODULES := $(shell find . -type f -name "go.mod" -not -path "*/internal/tools/*" -not -path "./build/*" -exec dirname {} \; | sort )
 ALL_MDATAGEN_MODULES := $(shell find . -type f -name "metadata.yaml" -exec dirname {} \; | sort )
 
 # All source code files
@@ -148,7 +148,7 @@ _build-setup:
 	@mkdir -p $(OUTDIR)
 	@CONTRIB_ROOT=$$(pwd) && \
 	: > $(OUTDIR)/contrib-replaces.yaml && \
-	for gomod in $$(find "$$CONTRIB_ROOT" -name go.mod -not -path "*/internal/tools/*" -not -path "*/vendor/*" | sort); do \
+	for gomod in $$(find "$$CONTRIB_ROOT" -name go.mod -not -path "*/internal/tools/*" -not -path "$$CONTRIB_ROOT/build/*" -not -path "*/vendor/*" | sort); do \
 		dir=$$(dirname "$$gomod"); \
 		modpath=$$(awk '/^module /{print $$2; exit}' "$$gomod"); \
 		echo "  - $$modpath => $$dir" >> $(OUTDIR)/contrib-replaces.yaml; \
