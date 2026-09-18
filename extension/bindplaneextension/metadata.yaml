@@ -1,7 +1,7 @@
 type: bindplane
 
 status:
-  distributions: []
+  distributions: [Dynatrace-Bindplane]
   codeowners:
     active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: extension

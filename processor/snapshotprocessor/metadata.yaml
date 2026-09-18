@@ -4,6 +4,6 @@ status:
   class: processor
   stability:
     beta: [logs, metrics, traces]
-  distributions: []
+  distributions: [Dynatrace-Bindplane]
   codeowners:
     active: [dynatrace/team-dynatrace-bindplane-maintainers]
