@@ -6,10 +6,6 @@ This receiver rehydrates OTLP data from Google Cloud Storage that was previously
 
 This is not a traditional receiver that continually produces data. Instead, it rehydrates all objects found within a specified time range. Once all objects have been rehydrated in that time range, the receiver will stop producing data.
 
-## Minimum Agent Versions
-
-- Introduced: v1.74.0
-
 ## Supported Pipelines
 
 - Metrics

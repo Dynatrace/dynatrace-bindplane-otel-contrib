@@ -2,10 +2,6 @@
 
 This exporter allows you to export logs, metrics, and traces to Google Cloud Storage. Telemetry is exported in [OpenTelemetry Protocol JSON format](https://github.com/open-telemetry/opentelemetry-proto).
 
-## Minimum Agent Versions
-
-- Introduced: v1.72.0
-
 ## Supported Pipelines
 
 - Logs

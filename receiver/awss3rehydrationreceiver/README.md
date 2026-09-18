@@ -8,10 +8,6 @@ This is not a traditional receiver that continually produces data but rather reh
 
 There is no way of specifying a time range of objects for AWS S3 to return, so this receiver needs to retrieve all objects via the API and filter via `starting_time` and `ending_time` to determine which objects are rehydrated.
 
-## Minimum Agent Versions
-
-- Introduced: v1.49.0
-
 ## Supported Pipelines
 
 - Metrics

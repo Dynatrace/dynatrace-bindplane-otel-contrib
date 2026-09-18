@@ -1,9 +1,6 @@
 # HTTP Receiver
 This receiver is capable of collecting logs for a variety of services, serving as a default HTTP log receiver. Anything that is able to send logs to an endpoint using HTTP will be able to utilize this receiver.
 
-## Minimum Agent Versions
-- Introduced: v1.39.0
-
 ## Supported Pipelines
 - Logs
 

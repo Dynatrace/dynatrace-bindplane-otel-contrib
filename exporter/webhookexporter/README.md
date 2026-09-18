@@ -2,12 +2,6 @@
 
 The webhook exporter sends telemetry data to a webhook endpoint.
 
-## Minimum Agent Versions
-
-<!-- Modify this if we decide to patch release -->
-
-- Introduced: 1.79.0
-
 ## Supported Pipelines
 
 - Logs

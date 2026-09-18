@@ -18,10 +18,6 @@ Unlike the `azureblobrehydrationreceiver` which is a one-time rehydration receiv
 | Configuration           | `poll_interval`                  | `starting_time` and `ending_time` |
 | Stops After Empty Polls | No                               | Yes (after 3 consecutive)         |
 
-## Minimum Agent Versions
-
-- Introduced: v1.92.0
-
 ## Supported Pipelines
 
 - Metrics

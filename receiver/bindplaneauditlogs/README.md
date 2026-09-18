@@ -2,10 +2,6 @@
 
 This receiver is capable of collecting audit logs from a Bindplane instance.
 
-## Minimum Agent Versions
-
-- Introduced: v1.73.0
-
 ## Supported Pipelines
 
 - Logs

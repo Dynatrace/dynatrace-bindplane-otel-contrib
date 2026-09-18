@@ -2,10 +2,6 @@
 This processor copies a resource level attribute to all individual logs or metric data points associated with the resource.
 If the key already exists, no action is taken (the attribute _**IS NOT**_ overwritten)
 
-## Minimum agent versions
-- Introduced: v0.0.12
-- Introduced support for logging pipelines: v1.0.0
-
 ## Supported pipelines
 - Logs
 - Metrics

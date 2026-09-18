@@ -2,10 +2,6 @@
 
 This exporter allows logs, metrics, and traces to be sent to Snowflake, a cloud data warehouse service. This exporter utilizes the Go Snowflake Driver to send telemetry to a database in Snowflake.
 
-## Minimum Collector Versions
-
-- Introduced: v1.45.0
-
 ## Supported Pipelines
 
 - Logs

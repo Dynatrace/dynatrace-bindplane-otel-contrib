@@ -1,9 +1,6 @@
 # Okta Receiver
 This receiver collects system logs from an Okta domain.
 
-## Minimum Agent Versions
-- Introduced: v1.59.0
-
 ## Supported Pipelines
 - Logs
 
