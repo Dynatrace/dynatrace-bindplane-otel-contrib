@@ -1,7 +1,7 @@
 type: bindplane
 
 status:
-  distributions: [Dynatrace-Bindplane]
+  distributions: []
   codeowners:
     active: [dynatrace/TODO-DBDOT-CODEOWNERS-TEAM]
   class: extension
