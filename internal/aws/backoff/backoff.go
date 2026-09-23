@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package backoff provides a backoff calculator for the AWS S3 event receiver.
-package backoff // import "github.com/observiq/bindplane-otel-contrib/internal/aws/backoff"
+package backoff // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/backoff"
 
 import (
 	"time"

@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package azureblob contains client interfaces and implementations for accessing Blob storage
-package azureblob //import "github.com/observiq/bindplane-otel-contrib/internal/azureblob"
+package azureblob //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob"
 
 import (
 	"context"

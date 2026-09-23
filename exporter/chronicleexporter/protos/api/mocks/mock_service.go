@@ -8,8 +8,8 @@ import (
 	context "context"
 	reflect "reflect"
 
+	generated "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter/protos/api"
 	gomock "github.com/golang/mock/gomock"
-	generated "github.com/observiq/bindplane-otel-contrib/exporter/chronicleexporter/protos/api"
 	grpc "google.golang.org/grpc"
 )
 

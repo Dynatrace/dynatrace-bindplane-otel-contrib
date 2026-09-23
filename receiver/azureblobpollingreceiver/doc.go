@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,4 +15,4 @@
 // Package azureblobpollingreceiver implements a receiver that continuously polls
 // Azure Blob Storage at configurable intervals and dynamically adjusts the time
 // window to collect only new data from each interval.
-package azureblobpollingreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/azureblobpollingreceiver"
+package azureblobpollingreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobpollingreceiver"

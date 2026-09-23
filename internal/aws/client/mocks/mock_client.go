@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	client "github.com/observiq/bindplane-otel-contrib/internal/aws/client"
+	client "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client"
 	mock "github.com/stretchr/testify/mock"
 )
 

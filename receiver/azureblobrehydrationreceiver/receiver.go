@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package azureblobrehydrationreceiver //import "github.com/observiq/bindplane-otel-contrib/receiver/azureblobrehydrationreceiver"
+package azureblobrehydrationreceiver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobrehydrationreceiver"
 
 import (
 	"context"
@@ -23,9 +23,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/azureblob"
-	"github.com/observiq/bindplane-otel-contrib/internal/blobconsume"
-	"github.com/observiq/bindplane-otel-contrib/internal/storageclient"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pipeline"

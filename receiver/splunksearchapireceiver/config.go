@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/splunksearchapireceiver/internal"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/splunksearchapireceiver/internal"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 )

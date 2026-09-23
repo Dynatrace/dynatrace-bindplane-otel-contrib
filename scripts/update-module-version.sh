@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright  observIQ, Inc.
+# Copyright  Dynatrace LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ for local_mod in $LOCAL_MODULES; do
         cd "$local_mod" || exit 1
         go mod tidy
         OTEL_MODULES=$(go list -m -f '{{if not (or .Indirect .Main)}}{{.Path}}{{end}}' all |
-            grep -E -e '^github.com/observiq/bindplane-otel-contrib')
+            grep -E -e '^github.com/dynatrace/dynatrace-bindplane-otel-contrib')
 
         for mod in $OTEL_MODULES; do
             echo "$local_mod: $mod@$TARGET_VERSION"

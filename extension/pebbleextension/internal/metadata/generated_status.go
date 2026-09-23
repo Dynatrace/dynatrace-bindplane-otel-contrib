@@ -8,7 +8,7 @@ import (
 
 var (
 	Type      = component.MustNewType("pebble")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/extension/pebbleextension"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/pebbleextension"
 )
 
 const (

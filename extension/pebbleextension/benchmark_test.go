@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/observiq/bindplane-otel-contrib/extension/pebbleextension/internal/client"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/pebbleextension/internal/client"
 	"go.opentelemetry.io/collector/extension/xextension/storage"
 	"go.uber.org/zap"
 )

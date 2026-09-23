@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@
 //	        {StatusCode: 200},
 //	    }),
 //	)
-package retryserver //import "github.com/observiq/bindplane-otel-contrib/internal/testutils/retryserver"
+package retryserver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils/retryserver"
 
 import (
 	"net/http"

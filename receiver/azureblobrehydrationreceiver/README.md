@@ -4,9 +4,6 @@ Rehydrates OTLP from Azure Blob Storage that was stored using the Azure Blob Exp
 ## Important Note
 This is not a traditional receiver that continually produces data but rather rehydrates all blobs found within a specified time range. Once all of the blobs have been rehydrated in that time range the receiver will stop producing data. After the receiver has detected three consecutive empty polls it will stop polling for new blobs in order to prevent unnecessary API calls.
 
-## Minimum Agent Versions
-- Introduced: [v1.37.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.37.0)
-
 ## Supported Pipelines
 - Metrics
 - Logs
@@ -71,7 +68,7 @@ This configuration shows using a storage extension to track rehydration progress
 ```yaml
 extensions:
     file_storage:
-      directory: $OIQ_OTEL_COLLECTOR_HOME/storage
+      directory: $BINDPLANE_COLLECTOR_HOME/storage
 receivers:
     azureblobrehydration:
         connection_string: "DefaultEndpointsProtocol=https;AccountName=storage_account_name;AccountKey=storage_account_key;EndpointSuffix=core.windows.net"

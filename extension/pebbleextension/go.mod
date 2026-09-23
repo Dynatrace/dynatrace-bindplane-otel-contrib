@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/extension/pebbleextension
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/pebbleextension
 
 go 1.26.4
 

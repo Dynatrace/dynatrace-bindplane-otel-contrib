@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package gcspubsubeventreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/gcspubsubeventreceiver"
+package gcspubsubeventreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver"
 
 import (
 	"context"
@@ -35,10 +35,10 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/api/option"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/blobstream"
-	"github.com/observiq/bindplane-otel-contrib/internal/storageclient"
-	"github.com/observiq/bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/metadata"
-	"github.com/observiq/bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/worker"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/worker"
 )
 
 type logsReceiver struct {

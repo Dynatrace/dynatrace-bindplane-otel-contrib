@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package metrics defines how to send the different pmetric types to Snowflake
-package metrics // "github.com/observiq/bindplane-otel-contrib/exporter/snowflakeexporter/internal/metrics"
+package metrics // "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/snowflakeexporter/internal/metrics"
 
 import (
 	"go.opentelemetry.io/collector/pdata/pmetric"

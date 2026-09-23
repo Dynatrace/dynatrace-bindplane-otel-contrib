@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("awsneuron")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/receiver/awsneuronreceiver"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awsneuronreceiver"
 )
 
 const (

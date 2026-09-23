@@ -9,9 +9,9 @@ tests:
       endpoint: "127.0.0.1:0"
 
 status:
-  distributions: [Bindplane]
+  distributions: [Dynatrace-Bindplane]
   codeowners:
-    active: [observIQ/fleet, observIQ/pipeline, observIQ/platformteam, observIQ/ai]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: extension
   stability:
     alpha: [extension]

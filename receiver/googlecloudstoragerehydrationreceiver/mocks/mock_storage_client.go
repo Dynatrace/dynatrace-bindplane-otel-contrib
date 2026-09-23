@@ -5,7 +5,7 @@ package mocks
 import (
 	context "context"
 
-	googlecloudstoragerehydrationreceiver "github.com/observiq/bindplane-otel-contrib/receiver/googlecloudstoragerehydrationreceiver"
+	googlecloudstoragerehydrationreceiver "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/googlecloudstoragerehydrationreceiver"
 	mock "github.com/stretchr/testify/mock"
 )
 

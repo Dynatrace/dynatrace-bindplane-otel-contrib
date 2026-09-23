@@ -2,10 +2,6 @@
 
 This exporter facilitates the sending of logs to Chronicle, which is a security analytics platform provided by Google. It is designed to integrate with OpenTelemetry collectors to export telemetry data such as logs to a Chronicle account.
 
-## Minimum Collector Versions
-
-- Introduced: [v1.39.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.39.0)
-
 ## Supported Pipelines
 
 - Logs

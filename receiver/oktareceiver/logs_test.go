@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ func TestPollBasic(t *testing.T) {
 	}))
 
 	cfg := createDefaultConfig().(*Config)
-	cfg.Domain = "observiq.okta.com"
+	cfg.Domain = "example.okta.com"
 
 	sink := &consumertest.LogsSink{}
 	recv := newOktaLogsReceiver(cfg, zap.NewNop(), sink, client)
@@ -106,7 +106,7 @@ func TestPollBasic(t *testing.T) {
 
 	oktaDomain, exist := log.ResourceLogs().At(0).Resource().Attributes().Get("okta.domain")
 	require.True(t, exist)
-	require.Equal(t, "observiq.okta.com", oktaDomain.Str())
+	require.Equal(t, "example.okta.com", oktaDomain.Str())
 
 	expected, err := golden.ReadLogs("testdata/plog.yaml")
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestPollError(t *testing.T) {
 	}))
 
 	cfg := createDefaultConfig().(*Config)
-	cfg.Domain = "observiq.okta.com"
+	cfg.Domain = "example.okta.com"
 
 	sink := &consumertest.LogsSink{}
 	recv := newOktaLogsReceiver(cfg, zap.NewNop(), sink, client)
@@ -139,7 +139,7 @@ func TestPollEmpty(t *testing.T) {
 	}))
 
 	cfg := createDefaultConfig().(*Config)
-	cfg.Domain = "observiq.okta.com"
+	cfg.Domain = "example.okta.com"
 
 	sink := &consumertest.LogsSink{}
 	recv := newOktaLogsReceiver(cfg, zap.NewNop(), sink, client)
@@ -159,7 +159,7 @@ func TestPollLargeResponse(t *testing.T) {
 	}))
 
 	cfg := createDefaultConfig().(*Config)
-	cfg.Domain = "observiq.okta.com"
+	cfg.Domain = "example.okta.com"
 
 	sink := &consumertest.LogsSink{}
 	recv := newOktaLogsReceiver(cfg, zap.NewNop(), sink, client)
@@ -211,7 +211,7 @@ func TestPollPagination(t *testing.T) {
 	client := okta.NewAPIClient(cfg)
 
 	recvCfg := createDefaultConfig().(*Config)
-	recvCfg.Domain = "observiq.okta.com"
+	recvCfg.Domain = "example.okta.com"
 
 	sink := &consumertest.LogsSink{}
 	recv := newOktaLogsReceiver(recvCfg, zap.NewNop(), sink, client)

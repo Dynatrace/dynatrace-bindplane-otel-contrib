@@ -1,4 +1,4 @@
-// Copyright  observIQ, Inc.
+// Copyright  Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ func TestValidateSuppliedPlugins(t *testing.T) {
 	emitterFactory := createLogEmitterFactory(nil)
 
 	tmp := t.TempDir()
-	t.Setenv("OIQ_OTEL_COLLECTOR_HOME", tmp)
+	t.Setenv("BINDPLANE_COLLECTOR_HOME", tmp)
 
 	for _, entry := range entries {
 		entryName := entry.Name()

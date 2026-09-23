@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	filter "github.com/observiq/bindplane-otel-contrib/internal/amqfilter"
+	filter "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/amqfilter"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension/xextension/storage"
 	"go.opentelemetry.io/collector/pdata/pcommon"

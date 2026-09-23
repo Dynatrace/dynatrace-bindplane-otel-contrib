@@ -2,11 +2,11 @@ type: snowflake
 
 status:
   codeowners:
-    active: [observIQ/fleet, observIQ/pipeline, observIQ/platformteam, observIQ/ai]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: exporter
   stability:
     beta: [traces, metrics, logs]
-  distributions: [Bindplane]
+  distributions: [Dynatrace-Bindplane]
 
 # dakota: skip goleak for now, seeing leaks only when ran on ubuntu, unsure of why need more time to troubleshoot
 tests:

@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,4 +15,4 @@
 //go:generate mdatagen metadata.yaml
 
 // Package opampexporter exports OpenTelemetry data as OTLP payloads via OpAMP custom messages.
-package opampexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/opampexporter"
+package opampexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/opampexporter"

@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package m365receiver // import "github.com/observiq/bindplane-otel-contrib/receiver/m365receiver"
+package m365receiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/m365receiver"
 
 import (
 	"context"
@@ -25,7 +25,7 @@ import (
 	"go.opentelemetry.io/collector/scraper"
 	"go.opentelemetry.io/collector/scraper/scraperhelper"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/m365receiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/m365receiver/internal/metadata"
 )
 
 // NewFactory creates a factory for Microsoft Office 365 receiver.

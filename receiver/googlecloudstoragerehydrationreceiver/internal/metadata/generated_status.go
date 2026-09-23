@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("googlecloudstoragerehydration")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/receiver/googlecloudstoragerehydrationreceiver"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/googlecloudstoragerehydrationreceiver"
 )
 
 const (

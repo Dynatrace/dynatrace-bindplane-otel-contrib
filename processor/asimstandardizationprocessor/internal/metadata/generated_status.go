@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("asim_standardization")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/processor/asimstandardizationprocessor"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/asimstandardizationprocessor"
 )
 
 const (

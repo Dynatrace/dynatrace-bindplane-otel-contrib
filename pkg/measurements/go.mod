@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/pkg/measurements
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements
 
 go 1.26.4
 

@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package event defines the types of events that can be processed by the extension.
-package event // import "github.com/observiq/bindplane-otel-contrib/internal/aws/event"
+package event // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/event"
 
 // Marshaler is an interface for marshaling SQS event bodies.
 // It accepts multiple objects as input and allows multiple bodies

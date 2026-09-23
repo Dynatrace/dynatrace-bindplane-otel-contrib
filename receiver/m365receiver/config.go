@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package m365receiver // import "github.com/observiq/bindplane-otel-contrib/receiver/m365receiver"
+package m365receiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/m365receiver"
 
 import (
 	"fmt"
 	"regexp"
 	"time"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/m365receiver/internal/metadata"
 	"github.com/google/uuid"
-	"github.com/observiq/bindplane-otel-contrib/receiver/m365receiver/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/scraper/scraperhelper"

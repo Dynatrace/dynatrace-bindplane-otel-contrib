@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,4 +20,4 @@
 // The receiver polls an SQS queue for S3 event notifications. When an object creation
 // event is received, the receiver downloads the S3 object and processes it as OTLP data
 // (metrics, logs, or traces).
-package awss3eventreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/awss3eventreceiver"
+package awss3eventreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver"

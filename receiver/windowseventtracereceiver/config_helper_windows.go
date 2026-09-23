@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package windowseventtracereceiver
 import (
 	"fmt"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/advapi32"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/advapi32"
 	"golang.org/x/sys/windows"
 )
 

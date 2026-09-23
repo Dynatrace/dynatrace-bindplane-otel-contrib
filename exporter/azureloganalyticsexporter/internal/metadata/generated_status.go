@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("azureloganalytics")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/exporter/azureloganalyticsexporter"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/azureloganalyticsexporter"
 )
 
 const (

@@ -1,4 +1,4 @@
-// Copyright  observIQ, Inc.
+// Copyright  Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/pkg/counter"
-	"github.com/observiq/bindplane-otel-contrib/pkg/expr"
-	"github.com/observiq/bindplane-otel-contrib/receiver/routereceiver"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/counter"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/routereceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
