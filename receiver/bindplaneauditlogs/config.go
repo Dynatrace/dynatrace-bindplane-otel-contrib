@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package bindplaneauditlogs provides a receiver that receives telemetry from an Bindplane audit logs.
-package bindplaneauditlogs // import "github.com/observiq/bindplane-otel-contrib/receiver/bindplaneauditlogs"
+package bindplaneauditlogs // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/bindplaneauditlogs"
 
 import (
 	"errors"

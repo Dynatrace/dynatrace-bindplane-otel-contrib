@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,9 +31,9 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 
-	"github.com/observiq/bindplane-otel-contrib/extension/badgerextension/internal"
-	"github.com/observiq/bindplane-otel-contrib/extension/badgerextension/internal/client"
-	"github.com/observiq/bindplane-otel-contrib/extension/badgerextension/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/badgerextension/internal"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/badgerextension/internal/client"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/badgerextension/internal/metadata"
 )
 
 type badgerExtension struct {

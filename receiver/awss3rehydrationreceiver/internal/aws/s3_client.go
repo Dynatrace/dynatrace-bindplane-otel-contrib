@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package aws provides an S3 client for AWS
-package aws //import "github.com/observiq/bindplane-otel-contrib/receiver/awss3rehydrationreceiver/internal/aws"
+package aws //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3rehydrationreceiver/internal/aws"
 
 import (
 	"context"

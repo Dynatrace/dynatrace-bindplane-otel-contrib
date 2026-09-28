@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/processor/removeemptyvaluesprocessor
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/removeemptyvaluesprocessor
 
 go 1.26.4
 

@@ -1,9 +1,9 @@
 type: bindplane
 
 status:
-  distributions: [Bindplane]
+  distributions: [Dynatrace-Bindplane]
   codeowners:
-    active: [observIQ/fleet, observIQ/pipeline, observIQ/platformteam, observIQ/ai]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: extension
   stability:
     deprecated: [extension]

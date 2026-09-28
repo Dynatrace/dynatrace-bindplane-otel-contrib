@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,4 +15,4 @@
 // Package azureblobrehydrationreceiver contains the core logic for the Azure Blob Rehydration receiver
 //
 //go:generate mdatagen metadata.yaml
-package azureblobrehydrationreceiver //import "github.com/observiq/bindplane-otel-contrib/receiver/azureblobrehydrationreceiver"
+package azureblobrehydrationreceiver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobrehydrationreceiver"

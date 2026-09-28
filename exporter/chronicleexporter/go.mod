@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/exporter/chronicleexporter
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter
 
 go 1.26.4
 
@@ -6,9 +6,9 @@ require (
 	github.com/goccy/go-json v0.10.6
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/google/uuid v1.6.0
-	github.com/observiq/bindplane-otel-contrib/internal/testutils v1.14.0
-	github.com/observiq/bindplane-otel-contrib/pkg/expr v1.14.0
-	github.com/observiq/bindplane-otel-contrib/pkg/osinfo v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo v1.14.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.160.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/stretchr/testify v1.12.1
@@ -102,8 +102,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/observiq/bindplane-otel-contrib/internal/testutils => ../../internal/testutils
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils => ../../internal/testutils
 
-replace github.com/observiq/bindplane-otel-contrib/pkg/osinfo => ../../pkg/osinfo
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo => ../../pkg/osinfo
 
-replace github.com/observiq/bindplane-otel-contrib/pkg/expr => ../../pkg/expr
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr => ../../pkg/expr

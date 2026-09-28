@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package worker provides a worker that processes S3 event notifications.
-package worker // import "github.com/observiq/bindplane-otel-contrib/extension/awss3eventextension/internal/worker"
+package worker // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/awss3eventextension/internal/worker"
 
 import (
 	"context"
@@ -28,8 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/client"
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/event"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/event"
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 )

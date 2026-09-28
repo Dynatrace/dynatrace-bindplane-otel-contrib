@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/advapi32"
-	tdh "github.com/observiq/bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/tdh"
-	"github.com/observiq/bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/windows"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/advapi32"
+	tdh "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/tdh"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/windowseventtracereceiver/internal/etw/windows"
 )
 
 var (

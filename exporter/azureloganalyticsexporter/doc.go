@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,4 +15,4 @@
 //go:generate mdatagen metadata.yaml
 
 // Package azureloganalyticsexporter exports logs to Azure Log Analytics via Log Ingestion API.
-package azureloganalyticsexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/azureloganalyticsexporter"
+package azureloganalyticsexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/azureloganalyticsexporter"

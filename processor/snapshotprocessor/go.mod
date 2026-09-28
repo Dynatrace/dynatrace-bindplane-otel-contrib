@@ -1,9 +1,9 @@
-module github.com/observiq/bindplane-otel-contrib/processor/snapshotprocessor
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/snapshotprocessor
 
 go 1.26.4
 
 require (
-	github.com/observiq/bindplane-otel-contrib/pkg/snapshot v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/snapshot v1.14.0
 	github.com/open-telemetry/opamp-go v0.23.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampcustommessages v0.160.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.160.0
@@ -50,4 +50,4 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 )
 
-replace github.com/observiq/bindplane-otel-contrib/pkg/snapshot => ../../pkg/snapshot
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/snapshot => ../../pkg/snapshot

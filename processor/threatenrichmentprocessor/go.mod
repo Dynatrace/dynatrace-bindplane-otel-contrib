@@ -1,9 +1,9 @@
-module github.com/observiq/bindplane-otel-contrib/processor/threatenrichmentprocessor
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/threatenrichmentprocessor
 
 go 1.26.4
 
 require (
-	github.com/observiq/bindplane-otel-contrib/internal/amqfilter v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/amqfilter v1.14.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.66.0
 	go.opentelemetry.io/collector/consumer v1.66.0
@@ -50,7 +50,7 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 )
 
-replace github.com/observiq/bindplane-otel-contrib/internal/amqfilter => ../../internal/amqfilter
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/amqfilter => ../../internal/amqfilter
 
 // Monolithic knadh/koanf v1.5.0 provides the same import paths as knadh/koanf/maps and
 // knadh/koanf/providers/confmap; selecting both breaks the build (ambiguous import).

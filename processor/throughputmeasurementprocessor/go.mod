@@ -1,10 +1,10 @@
-module github.com/observiq/bindplane-otel-contrib/processor/throughputmeasurementprocessor
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/throughputmeasurementprocessor
 
 go 1.26.4
 
 require (
 	github.com/golang/snappy v1.0.0
-	github.com/observiq/bindplane-otel-contrib/pkg/measurements v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements v1.14.0
 	github.com/open-telemetry/opamp-go v0.23.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampcustommessages v0.160.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.160.0
@@ -53,4 +53,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/observiq/bindplane-otel-contrib/pkg/measurements => ../../pkg/measurements
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements => ../../pkg/measurements

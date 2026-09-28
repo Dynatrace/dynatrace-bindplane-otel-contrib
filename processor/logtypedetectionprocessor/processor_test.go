@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,9 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/processor/logtypedetectionprocessor/internal/fingerprint"
-	"github.com/observiq/bindplane-otel-contrib/processor/logtypedetectionprocessor/internal/metadata"
-	"github.com/observiq/bindplane-otel-contrib/processor/logtypedetectionprocessor/internal/metadatatest"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,6 +31,10 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata/metricdatatest"
 	"go.uber.org/zap"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/logtypedetectionprocessor/internal/fingerprint"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/logtypedetectionprocessor/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/logtypedetectionprocessor/internal/metadatatest"
 )
 
 func logsFromBodies(bodies ...string) plog.Logs {

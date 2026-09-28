@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("snowflake")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/exporter/snowflakeexporter"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/snowflakeexporter"
 )
 
 const (

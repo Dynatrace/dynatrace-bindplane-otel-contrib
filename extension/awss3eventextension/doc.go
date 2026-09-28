@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,4 +20,4 @@
 // The extension polls an SQS queue for S3 event notifications. When an object creation
 // event is received, the extension downloads the S3 object and writes it so the configured
 // directory.
-package awss3eventextension // import "github.com/observiq/bindplane-otel-contrib/extension/awss3eventextension"
+package awss3eventextension // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/awss3eventextension"

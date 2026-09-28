@@ -1,7 +1,7 @@
 # All source code and documents, used when checking for misspellings
 ALLDOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
                                 -type f | sort)
-ALL_MODULES := $(shell find . -type f -name "go.mod" -not -path "*/internal/tools/*" -exec dirname {} \; | sort )
+ALL_MODULES := $(shell find . -type f -name "go.mod" -not -path "*/internal/tools/*" -not -path "./build/*" -exec dirname {} \; | sort )
 ALL_MDATAGEN_MODULES := $(shell find . -type f -name "metadata.yaml" -exec dirname {} \; | sort )
 
 # All source code files
@@ -23,7 +23,13 @@ VERSION ?= $(if $(CURRENT_TAG),$(CURRENT_TAG),$(PREVIOUS_TAG)-SNAPSHOT-$(SNAPSHO
 -include .local.env
 export
 
-COLLECTOR_PATH ?= ../bindplane-otel-collector
+# Bypass the module proxy and checksum database for private Dynatrace modules
+# pulled in by the collector manifest (e.g. dt-otelcol-edge-processing-components);
+# sum.golang.org cannot see private repos and fails verification with a 404.
+# Matches the collector repo's Makefile.
+export GOPRIVATE ?= github.com/Dynatrace/*
+
+COLLECTOR_PATH ?= ../dynatrace-bindplane-otel-collector
 COLLECTOR_ABS ?= $(abspath $(COLLECTOR_PATH))
 
 SNAPSHOT := $(shell git -C $(COLLECTOR_PATH) rev-parse --short HEAD)
@@ -48,8 +54,8 @@ LOCAL_MANIFEST := $(abspath $(OUTDIR))/manifest.local.yaml
 AGENT_BUILD_TAGS = bindplane embed_library
 
 # AGENT_LDFLAGS stamps version + git hash + build date into the v1 collector
-# binaries (both consume github.com/observiq/bindplane-otel-contrib/pkg/version).
-AGENT_LDFLAGS = -s -w -X github.com/observiq/bindplane-otel-contrib/pkg/version.version=$(COLLECTOR_VERSION)
+# binaries (both consume github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version).
+AGENT_LDFLAGS = -s -w -X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.version=$(COLLECTOR_VERSION)
 
 # Installs the ocb builder at the pinned version. The single source of truth
 # for the ocb version — CI workflows call this instead of pinning their own.
@@ -142,18 +148,25 @@ _build-setup:
 	@mkdir -p $(OUTDIR)
 	@CONTRIB_ROOT=$$(pwd) && \
 	: > $(OUTDIR)/contrib-replaces.yaml && \
-	for gomod in $$(find "$$CONTRIB_ROOT" -name go.mod -not -path "*/internal/tools/*" -not -path "*/vendor/*" | sort); do \
+	for gomod in $$(find "$$CONTRIB_ROOT" -name go.mod -not -path "*/internal/tools/*" -not -path "$$CONTRIB_ROOT/build/*" -not -path "*/vendor/*" | sort); do \
 		dir=$$(dirname "$$gomod"); \
 		modpath=$$(awk '/^module /{print $$2; exit}' "$$gomod"); \
 		echo "  - $$modpath => $$dir" >> $(OUTDIR)/contrib-replaces.yaml; \
 	done && \
 	awk -v rf="$(OUTDIR)/contrib-replaces.yaml" \
 		'/^replaces:/{print; while ((getline line < rf) > 0) print line; next} {print}' \
-		"$(COLLECTOR_ABS)/manifests/observIQ/manifest.yaml" > $(LOCAL_MANIFEST)
+		"$(COLLECTOR_ABS)/manifests/dynatrace-bindplane-otel-collector/manifest.yaml" > $(LOCAL_MANIFEST)
 	@# The source manifest's collector-internal replaces use paths relative to the
 	@# collector repo (e.g. "=> ../internal/..."). Once copied into $(OUTDIR), ocb
 	@# would resolve them against $(OUTDIR), so rewrite them to absolute collector paths.
-	sed -i.bak -E 's#=> \.\./#=> $(COLLECTOR_ABS)/#' $(LOCAL_MANIFEST) && rm -f $(LOCAL_MANIFEST).bak
+	@# Also rewrite the manifest's contrib module paths to this repo's renamed module
+	@# prefix so the local-directory replaces above actually apply; otherwise go
+	@# silently ignores them and builds the published bindplane-otel-contrib release.
+	@# This is a no-op once the collector manifest switches to the new module paths.
+	sed -i.bak -E \
+		-e 's#=> \.\./#=> $(COLLECTOR_ABS)/#' \
+		-e 's#github\.com/observiq/bindplane-otel-contrib#github.com/dynatrace/dynatrace-bindplane-otel-contrib#' \
+		$(LOCAL_MANIFEST) && rm -f $(LOCAL_MANIFEST).bak
 	$(MAKE) install-ocb
 
 .PHONY: _cleanup-build
@@ -378,7 +391,7 @@ check-metadata:
 	./scripts/check-metadata.sh
 
 # This target checks that every go.mod has the correct module path.
-# Subdirectories must be github.com/observiq/bindplane-otel-contrib/<relative-path>.
+# Subdirectories must be github.com/dynatrace/dynatrace-bindplane-otel-contrib/<relative-path>.
 # There is no root go.mod in this repo.
 .PHONY: check-mod-paths
 check-mod-paths:
@@ -386,7 +399,7 @@ check-mod-paths:
 	for dir in $(ALL_MODULES); do \
 		MOD=$$(head -1 "$${dir}/go.mod" | sed 's/^module //'); \
 		RELPATH=$$(echo "$${dir}" | sed 's|^\./||'); \
-		EXPECTED="github.com/observiq/bindplane-otel-contrib/$${RELPATH}"; \
+		EXPECTED="github.com/dynatrace/dynatrace-bindplane-otel-contrib/$${RELPATH}"; \
 		if [ "$${MOD}" != "$${EXPECTED}" ]; then \
 			echo "MISMATCH: $${dir}/go.mod"; \
 			echo "  got:      $${MOD}"; \
@@ -438,7 +451,7 @@ check-license:
 # This target adds a license copyright header is on every source file that is missing one
 .PHONY: add-license
 add-license:
-	@ADDLICENSEOUT=`addlicense -y "" -c "observIQ, Inc." $(ALL_SRC) 2>&1`; \
+	@ADDLICENSEOUT=`addlicense -y "" -c "Dynatrace LLC" $(ALL_SRC) 2>&1`; \
 		if [ "$$ADDLICENSEOUT" ]; then \
 			echo "addlicense FAILED => add License errors:\n"; \
 			echo "$$ADDLICENSEOUT\n"; \

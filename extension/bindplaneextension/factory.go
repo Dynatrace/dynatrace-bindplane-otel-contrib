@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package bindplaneextension
 import (
 	"context"
 
-	"github.com/observiq/bindplane-otel-contrib/extension/bindplaneextension/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/bindplaneextension/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 )

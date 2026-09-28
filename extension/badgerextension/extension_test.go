@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/badgerextension/internal/client/mocks"
 	"github.com/jonboulle/clockwork"
-	"github.com/observiq/bindplane-otel-contrib/extension/badgerextension/internal/client/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

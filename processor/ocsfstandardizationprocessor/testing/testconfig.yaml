@@ -41,7 +41,7 @@ processors:
           - to: "metadata.product.name"
             default: "bindplane"
           - to: "metadata.product.vendor_name"
-            default: "observIQ"
+            default: "Dynatrace"
           - from: 'body["user"]'
             to: "actor.user.name"
           - from: 'body["action"]'

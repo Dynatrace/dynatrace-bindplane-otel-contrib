@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("telemetrygeneratorreceiver")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/receiver/telemetrygeneratorreceiver"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/telemetrygeneratorreceiver"
 )
 
 const (

@@ -1,10 +1,10 @@
-module github.com/observiq/bindplane-otel-contrib/internal/blobconsume
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume
 
 go 1.26.4
 
 require (
-	github.com/observiq/bindplane-otel-contrib/internal/storageclient v1.14.0
-	github.com/observiq/bindplane-otel-contrib/internal/testutils v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.14.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/consumer v1.66.0
 	go.opentelemetry.io/collector/consumer/consumertest v0.160.0
@@ -37,6 +37,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 )
 
-replace github.com/observiq/bindplane-otel-contrib/internal/storageclient => ../storageclient
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient => ../storageclient
 
-replace github.com/observiq/bindplane-otel-contrib/internal/testutils => ../testutils
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils => ../testutils

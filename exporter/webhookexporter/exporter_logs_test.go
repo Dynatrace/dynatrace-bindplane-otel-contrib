@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/testutils/retryserver"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils/retryserver"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -122,6 +122,7 @@ func TestLogsDataPusher(t *testing.T) {
 				require.Equal(t, "POST", r.Method)
 				require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 				require.Equal(t, "test-value", r.Header.Get("X-Test"))
+				require.Equal(t, "otelcol/latest", r.Header.Get("User-Agent"))
 
 				body, err := io.ReadAll(r.Body)
 				require.NoError(t, err)

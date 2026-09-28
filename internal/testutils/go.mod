@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/internal/testutils
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils
 
 go 1.26.4
 

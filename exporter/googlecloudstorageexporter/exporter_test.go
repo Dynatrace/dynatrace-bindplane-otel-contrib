@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package googlecloudstorageexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/googlecloudstorageexporter"
+package googlecloudstorageexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/googlecloudstorageexporter"
 
 import (
 	"context"
@@ -22,8 +22,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/observiq/bindplane-otel-contrib/exporter/googlecloudstorageexporter/internal/metadata"
-	"github.com/observiq/bindplane-otel-contrib/exporter/googlecloudstorageexporter/internal/mocks"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/googlecloudstorageexporter/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/googlecloudstorageexporter/internal/mocks"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"

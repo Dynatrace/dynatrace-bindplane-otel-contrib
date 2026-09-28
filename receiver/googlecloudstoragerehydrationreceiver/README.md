@@ -6,10 +6,6 @@ This receiver rehydrates OTLP data from Google Cloud Storage that was previously
 
 This is not a traditional receiver that continually produces data. Instead, it rehydrates all objects found within a specified time range. Once all objects have been rehydrated in that time range, the receiver will stop producing data.
 
-## Minimum Agent Versions
-
-- Introduced: [v1.74.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.74.0)
-
 ## Supported Pipelines
 
 - Metrics
@@ -75,7 +71,7 @@ This configuration shows using a storage extension to track rehydration progress
 ```yaml
 extensions:
   file_storage:
-    directory: $OIQ_OTEL_COLLECTOR_HOME/storage
+    directory: $BINDPLANE_COLLECTOR_HOME/storage
 receivers:
   googlecloudstoragerehydration:
     bucket_name: "my-bucket"

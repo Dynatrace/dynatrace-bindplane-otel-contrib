@@ -3,7 +3,7 @@ resourceLogs:
       attributes:
         - key: okta.domain
           value:
-            stringValue: observiq.okta.com
+            stringValue: example.okta.com
     scopeLogs:
       - logRecords:
           - attributes:

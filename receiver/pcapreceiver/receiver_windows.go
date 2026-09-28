@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/pcapreceiver/parser"
 	"github.com/gopacket/gopacket"
-	"github.com/observiq/bindplane-otel-contrib/receiver/pcapreceiver/parser"
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 )

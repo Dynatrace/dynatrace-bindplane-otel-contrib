@@ -2,11 +2,11 @@ type: googlecloudstoragerehydration
 
 status:
   codeowners:
-    active: [observIQ/fleet, observIQ/pipeline, observIQ/platformteam, observIQ/ai]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: receiver
   stability:
     beta: [metrics, logs, traces]
-  distributions: [Bindplane]
+  distributions: [Dynatrace-Bindplane]
 
 tests:
   skip_lifecycle: true

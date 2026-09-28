@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,4 +21,4 @@
 //
 // This receiver requires elevated privileges (root on Unix-like systems) to
 // capture network packets.
-package pcapreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/pcapreceiver"
+package pcapreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/pcapreceiver"

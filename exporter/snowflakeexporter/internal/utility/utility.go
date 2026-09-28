@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package utility provides utility functions for the snowflakeexporter package to consolidate code
-package utility // "github.com/observiq/bindplane-otel-contrib/exporter/snowflakeexporter/internal/utility"
+package utility // "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/snowflakeexporter/internal/utility"
 
 import (
 	"database/sql/driver"

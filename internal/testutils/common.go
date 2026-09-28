@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package testutils contains utility functions used for testing other packges in the collector
-package testutils //import "github.com/observiq/bindplane-otel-contrib/internal/testutils"
+package testutils //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils"
 
 import (
 	"bytes"

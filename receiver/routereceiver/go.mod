@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/receiver/routereceiver
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/routereceiver
 
 go 1.26.4
 

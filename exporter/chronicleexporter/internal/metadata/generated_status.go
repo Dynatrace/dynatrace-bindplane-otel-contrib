@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("chronicle")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/exporter/chronicleexporter"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter"
 )
 
 const (

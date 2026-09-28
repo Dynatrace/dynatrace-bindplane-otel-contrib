@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("awss3rehydration")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/receiver/awss3rehydrationreceiver"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3rehydrationreceiver"
 )
 
 const (

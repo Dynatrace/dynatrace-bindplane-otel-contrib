@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package oktareceiver provides a receiver that receives telemetry from an Okta domain.
-package oktareceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/oktareceiver"
+package oktareceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/oktareceiver"
 
 import (
 	"errors"
@@ -32,7 +32,7 @@ const (
 
 // Config defines the configuration for an Okta receiver
 type Config struct {
-	// Domain Okta Domain (no https://  -  ex: observiq.okta.com)
+	// Domain Okta Domain (no https://  -  ex: example.okta.com)
 	Domain string `mapstructure:"okta_domain"`
 
 	// APIToken Okta API Token

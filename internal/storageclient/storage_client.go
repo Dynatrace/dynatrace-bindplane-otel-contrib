@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package storageclient contains interfaces and implementations used for storing data
-package storageclient //import "github.com/observiq/bindplane-otel-contrib/internal/storageclient"
+package storageclient //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
 
 import (
 	"context"

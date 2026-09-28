@@ -1,10 +1,10 @@
-module github.com/observiq/bindplane-otel-contrib/processor/metricextractprocessor
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/metricextractprocessor
 
 go 1.26.4
 
 require (
-	github.com/observiq/bindplane-otel-contrib/pkg/expr v1.14.0
-	github.com/observiq/bindplane-otel-contrib/receiver/routereceiver v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.14.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/routereceiver v1.14.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.160.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.160.0
 	github.com/stretchr/testify v1.12.1
@@ -80,6 +80,6 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 )
 
-replace github.com/observiq/bindplane-otel-contrib/receiver/routereceiver => ../../receiver/routereceiver
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/routereceiver => ../../receiver/routereceiver
 
-replace github.com/observiq/bindplane-otel-contrib/pkg/expr => ../../pkg/expr
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr => ../../pkg/expr

@@ -1,8 +1,8 @@
-# bindplane-otel-contrib
+# dynatrace-bindplane-otel-contrib
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-Contrib components (receivers, processors, exporters, extensions) for the [Bindplane OpenTelemetry Collector](https://github.com/observIQ/bindplane-otel-collector).
+Contrib components (receivers, processors, exporters, extensions) for the [Dynatrace Bindplane Distribution of OpenTelemetry Collector (DBDOT Collector)](https://github.com/Dynatrace/dynatrace-bindplane-otel-collector).
 
 ## Directory Structure
 
@@ -143,12 +143,12 @@ make tidy
 Create a `.local.env` file to configure the path to your local collector repo:
 
 ```bash
-COLLECTOR_PATH=../bindplane-otel-collector
+COLLECTOR_PATH=../dynatrace-bindplane-otel-collector
 ```
 
 Then run `make build-collector` to build the collector with your local contrib changes.
 
-The collector build is [ocb](https://opentelemetry.io/docs/collector/custom-collector/)-driven and lives in the collector repo: its `manifests/observIQ/manifest.yaml` pins each contrib component at a released version. `make build-collector` writes a copy of that manifest which `replace`s every contrib module with its on-disk path.
+The collector build is [ocb](https://opentelemetry.io/docs/collector/custom-collector/)-driven and lives in the collector repo: its `manifests/dynatrace-bindplane-otel-collector/manifest.yaml` pins each contrib component at a released version. `make build-collector` writes a copy of that manifest which `replace`s every contrib module with its on-disk path.
 
 ## License
 

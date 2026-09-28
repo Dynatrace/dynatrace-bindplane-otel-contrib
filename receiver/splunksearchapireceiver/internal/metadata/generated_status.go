@@ -8,7 +8,7 @@ import (
 
 var (
 	Type      = component.MustNewType("splunksearchapi")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/receiver/splunksearchapireceiver"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/splunksearchapireceiver"
 )
 
 const (
