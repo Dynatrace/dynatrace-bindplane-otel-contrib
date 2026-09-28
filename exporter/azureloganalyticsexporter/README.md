@@ -6,10 +6,6 @@ This exporter sends logs to Azure Log Analytics via the [Log Analytics Ingestion
 - **Unstructured (default, string body):** String-body logs are wrapped in `{"RawData": "<string>", "TimeGenerated": "...", ...}` so ingestion works with tables that have a `RawData` column.
 - **Raw Log Mode (`raw_log_field` set):** Extracts the specified field via an OTTL expression and sends `{"RawData": "<extracted value>"}`.
 
-## Minimum Agent Versions
-
-- Introduced: v1.75.0
-
 ## Supported Pipelines
 
 - Logs

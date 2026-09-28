@@ -1,4 +1,4 @@
-// Copyright  observIQ, Inc.
+// Copyright  Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/observiq/bindplane-otel-contrib/processor/metricstatsprocessor/internal/stats"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/metricstatsprocessor/internal/stats"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/pmetrictest"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"

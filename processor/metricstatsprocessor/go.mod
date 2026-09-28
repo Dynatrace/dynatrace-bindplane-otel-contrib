@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/processor/metricstatsprocessor
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/metricstatsprocessor
 
 go 1.26.4
 

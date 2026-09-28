@@ -2,11 +2,11 @@ type: chronicle
 
 status:
   codeowners:
-    active: [observIQ/fleet, observIQ/pipeline, observIQ/platformteam, observIQ/ai]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: exporter
   stability:
     beta: [logs]
-  distributions: [Bindplane]
+  distributions: [Dynatrace-Bindplane]
 
 telemetry:
   metrics:

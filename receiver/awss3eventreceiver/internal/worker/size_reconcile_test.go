@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.uber.org/zap"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/client/mocks"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client/mocks"
 )
 
 // TestConsume_SizeFromContentLengthNotStaleEvent asserts the object size used for

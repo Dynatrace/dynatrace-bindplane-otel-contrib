@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("qradar")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/exporter/qradar"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/qradar"
 )
 
 const (

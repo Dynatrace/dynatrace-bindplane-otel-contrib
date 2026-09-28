@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package azureblobexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/azureblobexporter"
+package azureblobexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/azureblobexporter"
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/observiq/bindplane-otel-contrib/exporter/azureblobexporter/internal/mocks"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/azureblobexporter/internal/mocks"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/plog"

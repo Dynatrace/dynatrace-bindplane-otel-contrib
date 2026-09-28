@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/internal/azureblob
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob
 
 go 1.26.4
 

@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/oktareceiver/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/oktareceiver/internal/metadata"
 )
 
 // NewFactory creates a new factory for the Okta receiver

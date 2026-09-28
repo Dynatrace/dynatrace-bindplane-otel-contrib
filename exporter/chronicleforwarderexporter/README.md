@@ -2,10 +2,6 @@
 
 The Chronicle Forwarder Exporter is designed for forwarding logs to a Chronicle Forwarder endpoint using either Syslog or File-based methods. This exporter supports customization of data export types and various configuration options to tailor the connection and data handling to specific needs.
 
-## Minimum Agent Versions
-
-- Introduced: [v1.42.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.42.0)
-
 ## Supported Pipelines
 
 - Logs

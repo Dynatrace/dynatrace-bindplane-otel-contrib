@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@ import (
 
 	json "github.com/goccy/go-json"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter/protos/api"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr"
 	"github.com/google/uuid"
-	"github.com/observiq/bindplane-otel-contrib/exporter/chronicleexporter/internal/metadata"
-	"github.com/observiq/bindplane-otel-contrib/exporter/chronicleexporter/protos/api"
-	"github.com/observiq/bindplane-otel-contrib/pkg/expr"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"

@@ -1,4 +1,4 @@
-// Copyright  observIQ, Inc.
+// Copyright  Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,11 +18,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/observiq/bindplane-otel-contrib/processor/logtypedetectionprocessor/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/processor/processorhelper"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/logtypedetectionprocessor/internal/metadata"
 )
 
 // NewFactory creates a new factory for the processor.

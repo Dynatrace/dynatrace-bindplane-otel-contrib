@@ -1,4 +1,4 @@
-// Copyright  observIQ, Inc.
+// Copyright  Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ func authenticationInputBody() map[string]any {
 		"dst_port": 8443,
 		"dst_svc":  "auth-service",
 		"product": map[string]any{
-			"vendor_name": "observIQ",
+			"vendor_name": "Dynatrace",
 			"name":        "bindplane-gateway",
 		},
 	}

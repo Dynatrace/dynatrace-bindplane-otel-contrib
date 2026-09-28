@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,4 +15,4 @@
 //go:generate mdatagen metadata.yaml
 
 // Package restapireceiver implements a receiver that pulls logs and metrics from a REST API.
-package restapireceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/restapireceiver"
+package restapireceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/restapireceiver"

@@ -2,8 +2,8 @@ type: ocsf_standardization
 
 status:
   codeowners:
-    active: [observIQ/fleet, observIQ/pipeline, observIQ/platformteam, observIQ/ai]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: processor
   stability:
     alpha: [logs]
-  distributions: [Bindplane]
+  distributions: [Dynatrace-Bindplane]

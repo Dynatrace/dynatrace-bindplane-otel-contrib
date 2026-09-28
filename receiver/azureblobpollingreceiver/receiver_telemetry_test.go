@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/blobconsume"
-	"github.com/observiq/bindplane-otel-contrib/receiver/azureblobpollingreceiver/internal/metadatatest"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobpollingreceiver/internal/metadatatest"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/consumer"

@@ -12,10 +12,6 @@ Counters:
 - `metric_count` - The number of metric data points in the payload
 - `trace_count` - The number of trace spans in the payload
 
-## Minimum agent versions
-
-- Introduced: [v1.8.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.8.0)
-
 ## Supported pipelines:
 
 - Logs

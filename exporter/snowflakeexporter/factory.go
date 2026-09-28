@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/observiq/bindplane-otel-contrib/exporter/snowflakeexporter/internal/database"
-	"github.com/observiq/bindplane-otel-contrib/exporter/snowflakeexporter/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/snowflakeexporter/internal/database"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/snowflakeexporter/internal/metadata"
 	"github.com/snowflakedb/gosnowflake/v2"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configoptional"

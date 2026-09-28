@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package chronicleforwarderexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/azureblobexporter"
+package chronicleforwarderexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/azureblobexporter"
 
 import (
 	"testing"

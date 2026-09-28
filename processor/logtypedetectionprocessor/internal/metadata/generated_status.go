@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("log_type_detection")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/processor/logtypedetectionprocessor"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/logtypedetectionprocessor"
 )
 
 const (

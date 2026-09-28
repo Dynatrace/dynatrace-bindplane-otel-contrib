@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/receiver/sapnetweaverreceiver
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/sapnetweaverreceiver
 
 go 1.26.4
 

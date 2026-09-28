@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/extension/opampgateway
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway
 
 go 1.26.4
 

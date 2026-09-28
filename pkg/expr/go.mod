@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/pkg/expr
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr
 
 go 1.26.4
 

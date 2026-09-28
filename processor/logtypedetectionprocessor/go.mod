@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/processor/logtypedetectionprocessor
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/logtypedetectionprocessor
 
 go 1.26.4
 
@@ -31,6 +31,7 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.15.0
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
@@ -45,7 +46,6 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
-	github.com/observiq/bindplane-otel-contrib/internal/storageclient v1.15.0
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.161.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.161.0 // indirect
@@ -62,4 +62,4 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 )
 
-replace github.com/observiq/bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient

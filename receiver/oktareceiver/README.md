@@ -1,9 +1,6 @@
 # Okta Receiver
 This receiver collects system logs from an Okta domain.
 
-## Minimum Agent Versions
-- Introduced: [v1.59.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.59.0)
-
 ## Supported Pipelines
 - Logs
 

@@ -1,13 +1,13 @@
-module github.com/observiq/bindplane-otel-contrib/receiver/azureblobpollingreceiver
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobpollingreceiver
 
 go 1.26.4
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.1
-	github.com/observiq/bindplane-otel-contrib/internal/azureblob v1.15.0
-	github.com/observiq/bindplane-otel-contrib/internal/blobconsume v1.15.0
-	github.com/observiq/bindplane-otel-contrib/internal/storageclient v1.15.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob v1.15.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume v1.15.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.15.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.67.0
 	go.opentelemetry.io/collector/component/componenttest v0.161.0
@@ -72,10 +72,10 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 )
 
-replace github.com/observiq/bindplane-otel-contrib/internal/azureblob => ../../internal/azureblob
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob => ../../internal/azureblob
 
-replace github.com/observiq/bindplane-otel-contrib/internal/blobconsume => ../../internal/blobconsume
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume => ../../internal/blobconsume
 
-replace github.com/observiq/bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient
 
-replace github.com/observiq/bindplane-otel-contrib/internal/testutils => ../../internal/testutils
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils => ../../internal/testutils

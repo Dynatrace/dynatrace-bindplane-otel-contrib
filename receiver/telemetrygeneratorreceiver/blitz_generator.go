@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package telemetrygeneratorreceiver //import "github.com/observiq/bindplane-otel-contrib/receiver/telemetrygeneratorreceiver"
+package telemetrygeneratorreceiver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/telemetrygeneratorreceiver"
 
 import (
 	"errors"
@@ -26,8 +26,8 @@ import (
 	"github.com/observiq/blitz/generator/filegen/embeddedlibrary"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
-	"github.com/observiq/bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/internal/blitzpdata"
-	"github.com/observiq/bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/internal/recipes"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/internal/blitzpdata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/telemetrygeneratorreceiver/internal/recipes"
 )
 
 // blitz AdditionalConfig keys. Centralized so the validator and the

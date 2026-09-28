@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,4 +15,4 @@
 //go:generate mdatagen metadata.yaml
 
 // Package ocsfstandardizationprocessor creates OCSF-formatted logs from OpenTelemetry logs.
-package ocsfstandardizationprocessor // import "github.com/observiq/bindplane-otel-contrib/processor/ocsfstandardizationprocessor"
+package ocsfstandardizationprocessor // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/ocsfstandardizationprocessor"

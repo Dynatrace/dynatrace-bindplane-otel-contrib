@@ -1,4 +1,4 @@
-// Copyright  observIQ, Inc.
+// Copyright  Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,4 +24,4 @@
 // failing the collector. The per-runtime performance metrics (utilization,
 // flops, execution latency/errors, memory) only populate while a Neuron runtime
 // process is actively executing a model.
-package awsneuronreceiver // import "github.com/observiq/bindplane-otel-contrib/receiver/awsneuronreceiver"
+package awsneuronreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awsneuronreceiver"

@@ -1,9 +1,9 @@
 type: m365
 
 status:
-  distributions: [Bindplane]
+  distributions: [Dynatrace-Bindplane]
   codeowners:
-    active: [observIQ/fleet, observIQ/pipeline, observIQ/platformteam, observIQ/ai]
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
   class: receiver
   stability:
     beta: [metrics, logs]

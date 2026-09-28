@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/client"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client"
 )
 
 var _ client.S3Client = &s3Client{}

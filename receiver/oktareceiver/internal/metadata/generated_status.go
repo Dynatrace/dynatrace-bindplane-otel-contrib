@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("okta")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/receiver/oktareceiver"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/oktareceiver"
 )
 
 const (

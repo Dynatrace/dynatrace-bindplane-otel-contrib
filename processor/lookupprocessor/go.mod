@@ -1,4 +1,4 @@
-module github.com/observiq/bindplane-otel-contrib/processor/lookupprocessor
+module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/lookupprocessor
 
 go 1.26.4
 

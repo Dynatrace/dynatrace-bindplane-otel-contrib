@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@
 //
 // Detection reads content, not names or content-type headers. Customers store data
 // under a wrong extension, and object stores report application/octet-stream.
-package blobstream // import "github.com/observiq/bindplane-otel-contrib/internal/blobstream"
+package blobstream // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
 
 import "context"
 

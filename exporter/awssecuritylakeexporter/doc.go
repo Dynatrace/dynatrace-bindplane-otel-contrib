@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,4 +15,4 @@
 //go:generate mdatagen metadata.yaml
 
 // Package awssecuritylakeexporter exports OCSF-formatted logs as Parquet files to AWS Security Lake via S3.
-package awssecuritylakeexporter // import "github.com/observiq/bindplane-otel-contrib/exporter/awssecuritylakeexporter"
+package awssecuritylakeexporter // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/awssecuritylakeexporter"

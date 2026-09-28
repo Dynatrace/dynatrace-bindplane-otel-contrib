@@ -8,7 +8,7 @@ import (
 
 var (
 	Type      = component.MustNewType("windowseventtrace")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/receiver/windowseventtracereceiver"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/windowseventtracereceiver"
 )
 
 const (

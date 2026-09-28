@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 
-	"github.com/observiq/bindplane-otel-contrib/extension/awss3eventextension/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/awss3eventextension/internal/metadata"
 )
 
 func TestValidConfig(t *testing.T) {

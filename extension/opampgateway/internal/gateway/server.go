@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/observiq/bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"

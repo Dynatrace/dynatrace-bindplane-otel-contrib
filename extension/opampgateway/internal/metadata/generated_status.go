@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("opampgateway")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/extension/opampgateway"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway"
 )
 
 const (

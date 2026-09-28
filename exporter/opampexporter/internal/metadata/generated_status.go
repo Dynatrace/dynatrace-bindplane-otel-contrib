@@ -10,7 +10,7 @@ import (
 
 var (
 	Type      = component.MustNewType("opamp")
-	ScopeName = "github.com/observiq/bindplane-otel-contrib/exporter/opampexporter"
+	ScopeName = "github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/opampexporter"
 )
 
 const (

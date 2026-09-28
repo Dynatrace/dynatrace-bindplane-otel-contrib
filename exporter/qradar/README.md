@@ -2,10 +2,6 @@
 
 The QRadar Exporter is designed for forwarding logs to a QRadar instance using its Syslog endpoint. This exporter supports customization of data export types and various configuration options to tailor the connection and data handling to specific needs.
 
-## Minimum Agent Versions
-
-- Introduced: [v1.61.0](https://github.com/observIQ/bindplane-otel-collector/releases/tag/v1.61.0)
-
 ## Supported Pipelines
 
 - Logs

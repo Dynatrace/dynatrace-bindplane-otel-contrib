@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,4 +13,4 @@
 // limitations under the License.
 
 // Package threatenrichmentprocessor enriches log telemetry with threat context by matching field values against indicator lists.
-package threatenrichmentprocessor // import "github.com/observiq/bindplane-otel-contrib/processor/threatenrichmentprocessor"
+package threatenrichmentprocessor // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/threatenrichmentprocessor"

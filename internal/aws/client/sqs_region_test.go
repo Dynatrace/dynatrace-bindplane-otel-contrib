@@ -1,4 +1,4 @@
-// Copyright observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/observiq/bindplane-otel-contrib/internal/aws/client"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client"
 )
 
 func TestParseRegion(t *testing.T) {
