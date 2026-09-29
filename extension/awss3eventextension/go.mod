@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.23.10
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.4
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.52.1
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws v1.15.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws v1.0.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.12.1

@@ -31,7 +31,7 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.15.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.0.0
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
