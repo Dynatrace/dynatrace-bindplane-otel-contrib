@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/pubsub v1.51.1
 	cloud.google.com/go/storage v1.68.0
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.15.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.0.0
 	github.com/google/go-cmp v0.7.0
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/stretchr/testify v1.12.1
@@ -59,7 +59,7 @@ require (
 	github.com/bodgit/windows v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream v1.15.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream v1.0.0
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect

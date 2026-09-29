@@ -3,7 +3,7 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/threatenr
 go 1.26.4
 
 require (
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/amqfilter v1.15.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/amqfilter v1.0.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.67.0
 	go.opentelemetry.io/collector/consumer v1.67.0

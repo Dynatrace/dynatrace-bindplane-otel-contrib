@@ -3,8 +3,8 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/bindplane
 go 1.26.4
 
 require (
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements v1.15.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/topologyprocessor v1.15.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements v1.0.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/topologyprocessor v1.0.0
 	github.com/golang/snappy v1.0.0
 	github.com/open-telemetry/opamp-go v0.23.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampcustommessages v0.161.0

@@ -3,8 +3,8 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsum
 go 1.26.4
 
 require (
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.15.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.15.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.0.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.0.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/consumer v1.67.0
 	go.opentelemetry.io/collector/consumer/consumertest v0.161.0
