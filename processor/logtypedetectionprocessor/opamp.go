@@ -171,7 +171,7 @@ func (p *logTypeDetectionProcessor) awaitMatchers() {
 	}
 }
 
-// sendOpAMPMessage queues a message, treating an already-queued one as sent.
+// sendOpAMPMessage queues a message, leaving it to the next retry when another message is pending.
 func (p *logTypeDetectionProcessor) sendOpAMPMessage(messageType string, payload []byte) error {
 	_, err := p.opampHandler.SendMessage(messageType, payload)
 	if errors.Is(err, types.ErrCustomMessagePending) {
