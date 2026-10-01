@@ -22,7 +22,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/observiq/bindplane-otel-contrib/pkg/measurements"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements"
 )
 
 // logsConsumer wraps the next consumer in the pipeline.
