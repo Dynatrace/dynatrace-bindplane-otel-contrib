@@ -52,9 +52,10 @@ or slice body is stringified before it is tested. Target the log structure to av
 
 ### OpAMP Matchers
 
-When `opamp` is set, the processor registers the `logtypedetection.matchers`
-custom capability with the opamp extension and asks the server for matchers on
-startup. Any OpAMP server that speaks the messages below can supply matchers.
+When `opamp` is set, the processor registers the
+`com.bindplane.log_type_detection` custom capability with the opamp
+extension and asks the server for matchers on startup. Any OpAMP server that
+speaks the messages below can supply matchers.
 
 ```yaml
 processors:

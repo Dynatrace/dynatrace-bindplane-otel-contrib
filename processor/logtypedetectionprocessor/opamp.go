@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	logTypeDetectionCapability = "logtypedetection.matchers"
+	logTypeDetectionCapability = "com.bindplane.log_type_detection"
 	requestMatchersType        = "requestMatchers"
 	updateMatchersType         = "updateMatchers"
 	matchersUpToDateType       = "matchersUpToDate"
