@@ -486,8 +486,8 @@ func TestOpAMPVersionAcceptance(t *testing.T) {
 		{name: "minor bump", held: "1.2.3", offered: "1.3.0", wantApplied: true},
 		{name: "same version", held: "1.2.3", offered: "1.2.3"},
 		{name: "older version", held: "1.2.3", offered: "1.2.2"},
-		{name: "major bump refused", held: "1.2.3", offered: "2.0.0", wantErr: "breaking change"},
-		{name: "major downgrade refused", held: "2.0.0", offered: "1.9.9", wantErr: "breaking change"},
+		{name: "major bump", held: "1.2.3", offered: "2.0.0", wantApplied: true},
+		{name: "major downgrade", held: "2.0.0", offered: "1.9.9"},
 		{name: "unparseable version", held: "1.2.3", offered: "latest", wantErr: `parse version "latest"`},
 		{name: "first version", offered: "3.1.0", wantApplied: true},
 	}

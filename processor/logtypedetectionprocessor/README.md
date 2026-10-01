@@ -68,10 +68,9 @@ processors:
 Matcher sets are versioned with [semver](https://semver.org) and only move
 forward. The processor reports the version it holds and the server answers with
 `updateMatchers` or `matchersUpToDate`, so a full set only crosses the wire when
-the version changed. A major bump is refused as a breaking change; upgrade the
-collector to move to a new major. `opamp.max_matchers_version` caps what is
-accepted, including stored matchers on restart. To roll back, publish the
-previous matchers under a higher version.
+the version changed. `opamp.max_matchers_version` caps what is accepted,
+including stored matchers on restart. To roll back, publish the previous
+matchers under a higher version.
 
 Server matchers are merged with the configured `matchers` and ordered by
 `priority`, config-first on ties. They are validated the same way; an invalid or

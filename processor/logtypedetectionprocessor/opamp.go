@@ -262,7 +262,7 @@ func (p *logTypeDetectionProcessor) matchersDone() {
 	p.matchersOnce.Do(func() { close(p.matchersReady) })
 }
 
-// applyMatchers puts a newer version of the same major, at or below max_matchers_version, in use, reporting whether it did.
+// applyMatchers puts a newer version, at or below max_matchers_version, in use, reporting whether it did.
 func (p *logTypeDetectionProcessor) applyMatchers(ver string, matchers []MatcherConfig) (bool, error) {
 	offered, err := version.NewSemver(ver)
 	if err != nil {
@@ -273,14 +273,8 @@ func (p *logTypeDetectionProcessor) applyMatchers(ver string, matchers []Matcher
 		return false, fmt.Errorf("version %s is above max_matchers_version %s", offered.Original(), p.cfg.OpAMP.MaxMatchersVersion)
 	}
 
-	if held := p.heldVersion(); held != nil {
-		if offered.Segments()[0] != held.Segments()[0] {
-			return false, fmt.Errorf("version %s is a breaking change from %s", offered.Original(), held.Original())
-		}
-
-		if !offered.GreaterThan(held) {
-			return false, nil
-		}
+	if held := p.heldVersion(); held != nil && !offered.GreaterThan(held) {
+		return false, nil
 	}
 
 	for _, m := range matchers {
