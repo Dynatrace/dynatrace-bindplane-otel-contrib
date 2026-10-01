@@ -249,7 +249,8 @@ func (p *logTypeDetectionProcessor) startStorage(ctx context.Context, host compo
 
 	saved := persistedFingerprints{}
 	if err := client.LoadStorageData(ctx, fingerprintStorageKey, &saved); err != nil {
-		return errors.Join(fmt.Errorf("load log types: %w", err), client.Close(ctx))
+		p.logger.Warn("Discarding stored log types.", zap.Error(err))
+		saved = persistedFingerprints{}
 	}
 	p.storageClient = client
 
