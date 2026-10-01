@@ -1,7 +1,5 @@
 # Throughput processor: count only delivered payloads
 
-Linear: [BPOP-5831](https://linear.app/bindplane/issue/BPOP-5831/count-throughput-bytes-only-after-successful-exporter-delivery)
-
 ## Problem
 
 The throughput measurement processor records bytes and item counts before it

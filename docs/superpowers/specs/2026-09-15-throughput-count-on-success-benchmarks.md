@@ -1,7 +1,5 @@
 # Throughput processor: count-on-success benchmarks
 
-Linear: [BPOP-5831](https://linear.app/bindplane/issue/BPOP-5831/count-throughput-bytes-only-after-successful-exporter-delivery)
-
 ## Purpose
 
 This document records the before and after benchmarks for the change described
