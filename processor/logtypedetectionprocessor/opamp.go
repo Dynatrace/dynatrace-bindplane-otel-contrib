@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/go-version"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
+	"github.com/hashicorp/go-version"
 	"github.com/open-telemetry/opamp-go/client/types"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampcustommessages"
