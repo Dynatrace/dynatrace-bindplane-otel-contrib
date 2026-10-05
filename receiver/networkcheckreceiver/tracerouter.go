@@ -211,9 +211,9 @@ type tracerouter struct {
 	cfg  TracerouteConfig
 	host string
 
-	// dnsServer is the resolver the target is configured with ("" = system),
-	// so the trace resolves the destination the same way the probe does.
-	dnsServer string
+	// resolver resolves host the way the target's probe does: through the
+	// target's DNS server when one is set, the system resolver otherwise.
+	resolver *net.Resolver
 
 	// failStreak counts consecutive checks that met the on_failure condition.
 	// A tracerouter belongs to one target, which is probed by one goroutine at
@@ -222,25 +222,51 @@ type tracerouter struct {
 }
 
 func newTracerouter(cfg TracerouteConfig, endpoint string, dnsServer string) *tracerouter {
-	return &tracerouter{cfg: cfg, host: hostFromEndpoint(endpoint), dnsServer: dnsServer}
+	return &tracerouter{cfg: cfg, host: hostFromEndpoint(endpoint), resolver: newResolver(dnsServer)}
 }
 
-// hostFromEndpoint extracts the bare hostname from an endpoint that may be a
-// full URL (e.g. "https://example.com/path") or a plain host/IP. The port is
-// stripped so the result can be passed to net.LookupHost.
+// newResolver returns a resolver that queries dnsServer, or the system
+// resolver when dnsServer is empty.
+func newResolver(dnsServer string) *net.Resolver {
+	if dnsServer == "" {
+		return net.DefaultResolver
+	}
+	addr := dnsServerAddr(dnsServer)
+	return &net.Resolver{
+		PreferGo: true,
+		// network is "udp", or "tcp" to retry a truncated answer.
+		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, network, addr)
+		},
+	}
+}
+
+// dnsServerAddr turns a configured DNS server into a dialable host:port. The
+// port defaults to 53, and an IPv6 address may come with or without brackets.
+func dnsServerAddr(server string) string {
+	if _, _, err := net.SplitHostPort(server); err == nil {
+		return server
+	}
+	return net.JoinHostPort(strings.Trim(server, "[]"), "53")
+}
+
+// hostFromEndpoint extracts the bare host from an endpoint that may be a full
+// URL (e.g. "https://example.com/path") or a plain host/IP with or without a
+// port. IPv6 literals come back without brackets, ready for a lookup, and
+// userinfo is dropped even without a scheme, so a credential never becomes the
+// host.
 func hostFromEndpoint(endpoint string) string {
 	if u, err := url.Parse(endpoint); err == nil && u.Host != "" {
-		h, _, err := net.SplitHostPort(u.Host)
-		if err != nil {
-			return u.Host
-		}
+		return u.Hostname()
+	}
+	if i := strings.LastIndex(endpoint, "@"); i >= 0 {
+		endpoint = endpoint[i+1:]
+	}
+	if h, _, err := net.SplitHostPort(endpoint); err == nil {
 		return h
 	}
-	h, _, err := net.SplitHostPort(endpoint)
-	if err != nil {
-		return endpoint
-	}
-	return h
+	return strings.Trim(endpoint, "[]")
 }
 
 // shouldRun returns true if a traceroute should be performed given the current
@@ -269,6 +295,33 @@ func (t *tracerouter) shouldRun(checkCount int, result PingResult) bool {
 	return run || (t.cfg.Interval <= 0 && (t.failStreak-1)%failureTraceEvery == 0)
 }
 
+// resolveIPv4 resolves the host to the IPv4 address the trace probes.
+// Deliberate simplification: IPv4 only. IPv6 traceroute needs ICMPv6 probes
+// and IPV6_RECVERR on Linux; add it when IPv6-only targets need a path.
+func (t *tracerouter) resolveIPv4(ctx context.Context) (string, error) {
+	ips, err := t.resolver.LookupIP(ctx, "ip4", t.host)
+	if err == nil && len(ips) > 0 {
+		return ips[0].String(), nil
+	}
+	host := redactEndpoint(t.host)
+	errIPv4Only := fmt.Errorf("traceroute supports IPv4 destinations only: %s has no A record", host)
+
+	var addrErr *net.AddrError
+	var dnsErr *net.DNSError
+	switch {
+	case err == nil, errors.As(err, &addrErr):
+		// An IPv6 literal.
+		return "", errIPv4Only
+	case errors.As(err, &dnsErr) && dnsErr.IsNotFound:
+		// A name that exists only as IPv6 is not "not found"; say what is
+		// actually wrong.
+		if v6, _ := t.resolver.LookupIP(ctx, "ip6", t.host); len(v6) > 0 {
+			return "", errIPv4Only
+		}
+	}
+	return "", fmt.Errorf("resolving %s: %w", host, err)
+}
+
 // trace performs a traceroute to t.host and returns per-hop results.
 // It uses UDP probes by default (method "udp") or ICMP echo probes (method "icmp").
 // UDP traceroute does not require root on most Linux kernels.
@@ -283,17 +336,10 @@ func (t *tracerouter) trace(ctx context.Context) (TraceResult, error) {
 		maxHops = 30
 	}
 
-	// Resolve target to an IP address. The context-aware form so a cancelled
-	// scrape does not block on the resolver.
-	addrs, err := net.DefaultResolver.LookupHost(ctx, t.host)
+	dest, err := t.resolveIPv4(ctx)
 	if err != nil {
-		return TraceResult{Method: method, MaxHops: maxHops}, fmt.Errorf("resolving %s: %w", t.host, err)
+		return TraceResult{Method: method, MaxHops: maxHops}, err
 	}
-	if len(addrs) == 0 {
-		// No error but no address: %w on a nil error renders as "%!w(<nil>)".
-		return TraceResult{Method: method, MaxHops: maxHops}, fmt.Errorf("resolving %s: no addresses returned", t.host)
-	}
-	dest := addrs[0]
 
 	// Some platforms cannot map a path with raw sockets and need a native API
 	// instead. Windows is the case that matters today: it does not deliver

@@ -16,11 +16,13 @@ package networkcheckreceiver
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/dns/dnsmessage"
 	"golang.org/x/net/icmp"
 )
 
@@ -35,6 +37,16 @@ func TestHostFromEndpoint(t *testing.T) {
 		{"8.8.8.8", "8.8.8.8"},
 		{"example.com", "example.com"},
 		{"example.com:443", "example.com"},
+		{"http://user:pw@example.com/", "example.com"},
+		{"user:pw@example.com", "example.com"},
+		{"user:pw@example.com:443", "example.com"},
+		{"token@[::1]:53", "::1"},
+		{"10.0.0.1:80", "10.0.0.1"},
+		{"https://[::1]/x", "::1"},
+		{"https://[2001:db8::1]:8443/", "2001:db8::1"},
+		{"[::1]:53", "::1"},
+		{"[::1]", "::1"},
+		{"::1", "::1"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
@@ -252,4 +264,101 @@ func TestShouldRunRateLimitsOnFailure(t *testing.T) {
 		cfg.Interval = 1
 		require.Empty(t, run(cfg, repeat(fail, 5)))
 	})
+}
+
+// fakeDNS serves A and AAAA answers from records over UDP on loopback and
+// returns its address. A name with no record of the asked type gets an empty
+// NOERROR answer.
+func fakeDNS(t *testing.T, records map[string][]net.IP) string {
+	t.Helper()
+	pc, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pc.Close() })
+
+	go func() {
+		buf := make([]byte, 512)
+		for {
+			n, peer, err := pc.ReadFrom(buf)
+			if err != nil {
+				return
+			}
+			var p dnsmessage.Parser
+			hdr, err := p.Start(buf[:n])
+			if err != nil {
+				continue
+			}
+			q, err := p.Question()
+			if err != nil {
+				continue
+			}
+			b := dnsmessage.NewBuilder(nil, dnsmessage.Header{ID: hdr.ID, Response: true, Authoritative: true})
+			_ = b.StartQuestions()
+			_ = b.Question(q)
+			_ = b.StartAnswers()
+			rh := dnsmessage.ResourceHeader{Name: q.Name, Class: dnsmessage.ClassINET, TTL: 60}
+			for _, ip := range records[q.Name.String()] {
+				if v4 := ip.To4(); v4 != nil && q.Type == dnsmessage.TypeA {
+					_ = b.AResource(rh, dnsmessage.AResource{A: [4]byte(v4)})
+				} else if v4 == nil && q.Type == dnsmessage.TypeAAAA {
+					_ = b.AAAAResource(rh, dnsmessage.AAAAResource{AAAA: [16]byte(ip.To16())})
+				}
+			}
+			msg, err := b.Finish()
+			if err != nil {
+				continue
+			}
+			_, _ = pc.WriteTo(msg, peer)
+		}
+	}()
+	return pc.LocalAddr().String()
+}
+
+func TestResolveIPv4(t *testing.T) {
+	server := fakeDNS(t, map[string][]net.IP{
+		"dual.test.":   {net.ParseIP("2001:db8::1"), net.IPv4(192, 0, 2, 7)},
+		"v6only.test.": {net.ParseIP("2001:db8::2")},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	resolve := func(endpoint string) (string, error) {
+		return newTracerouter(TracerouteConfig{}, endpoint, server).resolveIPv4(ctx)
+	}
+
+	t.Run("uses the target's DNS server and picks the A record", func(t *testing.T) {
+		ip, err := resolve("https://dual.test/health")
+		require.NoError(t, err)
+		require.Equal(t, "192.0.2.7", ip)
+	})
+	t.Run("IPv6-only name is an explicit IPv4-only error", func(t *testing.T) {
+		_, err := resolve("v6only.test")
+		require.EqualError(t, err, "traceroute supports IPv4 destinations only: v6only.test has no A record")
+	})
+	t.Run("IPv6 literal is an explicit IPv4-only error", func(t *testing.T) {
+		_, err := resolve("https://[2001:db8::3]/")
+		require.EqualError(t, err, "traceroute supports IPv4 destinations only: 2001:db8::3 has no A record")
+	})
+	t.Run("missing name stays a resolution error", func(t *testing.T) {
+		_, err := resolve("missing.test")
+		require.ErrorContains(t, err, "resolving missing.test")
+		var dnsErr *net.DNSError
+		require.True(t, errors.As(err, &dnsErr) && dnsErr.IsNotFound, "got %v", err)
+	})
+	t.Run("IPv4 literal needs no DNS", func(t *testing.T) {
+		ip, err := newTracerouter(TracerouteConfig{}, "192.0.2.9:53", "").resolveIPv4(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "192.0.2.9", ip)
+	})
+}
+
+func TestDNSServerAddr(t *testing.T) {
+	for in, want := range map[string]string{
+		"8.8.8.8":           "8.8.8.8:53",
+		"8.8.8.8:5353":      "8.8.8.8:5353",
+		"2001:db8::53":      "[2001:db8::53]:53",
+		"[2001:db8::53]":    "[2001:db8::53]:53",
+		"[2001:db8::53]:54": "[2001:db8::53]:54",
+		"fe80::1%en0":       "[fe80::1%en0]:53",
+	} {
+		require.Equal(t, want, dnsServerAddr(in), in)
+	}
 }
