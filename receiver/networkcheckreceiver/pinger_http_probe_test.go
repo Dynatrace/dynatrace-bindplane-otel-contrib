@@ -425,3 +425,18 @@ func TestHTTPPinger_RedirectNotFollowed(t *testing.T) {
 	require.Equal(t, http.StatusFound, r.StatusCode)
 	require.Empty(t, followed.seen())
 }
+
+func TestHTTPPinger_BodyReadIsCapped(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(make([]byte, 2<<20))
+	}))
+	defer srv.Close()
+
+	get := probeHTTP(t, httpTarget(srv.URL, func(tc *TargetConfig) { tc.HTTPMethod = http.MethodGet }))
+	require.Equal(t, http.StatusOK, get.StatusCode, get.ErrMessage)
+	require.Equal(t, int64(maxBodyRead), get.ResponseSize)
+
+	head := probeHTTP(t, httpTarget(srv.URL, nil))
+	require.Equal(t, http.StatusOK, head.StatusCode, head.ErrMessage)
+	require.Zero(t, head.ResponseSize)
+}

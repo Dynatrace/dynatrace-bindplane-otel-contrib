@@ -46,8 +46,13 @@ type httpPinger struct {
 	proxied bool
 }
 
-// defaultHTTPTimeout bounds a probe whose target sets no timeout.
-const defaultHTTPTimeout = 10 * time.Second
+const (
+	// defaultHTTPTimeout bounds a probe whose target sets no timeout.
+	defaultHTTPTimeout = 10 * time.Second
+
+	// maxBodyRead caps how much of a response body a probe reads (1 MiB).
+	maxBodyRead = 1 << 20
+)
 
 // newHTTPPinger builds the probe client for one HTTP target. ctx loads the TLS
 // config; host and set are unused until the client comes from
@@ -212,7 +217,11 @@ func (p *httpPinger) ping(ctx context.Context) (PingResult, error) {
 
 	res.StatusCode = resp.StatusCode
 	res.Protocol = resp.Proto
-	res.ResponseSize, _ = io.Copy(io.Discard, resp.Body)
+	// Deliberate simplification: the body is read only to size it, and at most
+	// maxBodyRead of it, so a large or endless GET cannot turn every probe into
+	// a download. ResponseSize is therefore capped and a bigger body reads as
+	// exactly maxBodyRead; a truncation flag would need a PingResult field.
+	res.ResponseSize, _ = io.CopyN(io.Discard, resp.Body, maxBodyRead)
 	return res, nil
 }
 
