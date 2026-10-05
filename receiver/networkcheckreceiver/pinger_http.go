@@ -17,11 +17,13 @@ package networkcheckreceiver // import "github.com/dynatrace/dynatrace-bindplane
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptrace"
+	"net/url"
 	"strings"
 	"time"
 
@@ -31,17 +33,29 @@ import (
 // httpPinger performs a single HTTP request and records per-phase timings using httptrace.
 type httpPinger struct {
 	client     *http.Client
-	url        string
+	url        *url.URL
 	httpMethod string
 	dnsServer  string
 }
 
 // newHTTPPinger builds the probe client for one HTTP target. ctx, host and set
 // are what confighttp needs to resolve auth and middleware extensions.
-func newHTTPPinger(_ context.Context, _ component.Host, _ component.TelemetrySettings, target TargetConfig, dnsServer string) (*httpPinger, error) {
+func newHTTPPinger(ctx context.Context, _ component.Host, _ component.TelemetrySettings, target TargetConfig, dnsServer string) (*httpPinger, error) {
+	ep := target.Endpoint
+	u, err := url.Parse(ep)
+	if err != nil {
+		return nil, fmt.Errorf("target %s: invalid endpoint: %w", redactEndpoint(ep), urlErrReason(err))
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, fmt.Errorf("target %s: invalid endpoint: want an http or https URL with a host", redactEndpoint(ep))
+	}
+
 	httpMethod := target.HTTPMethod
 	if httpMethod == "" {
 		httpMethod = http.MethodHead
+	}
+	if _, err := http.NewRequest(httpMethod, ep, nil); err != nil {
+		return nil, fmt.Errorf("target %s: invalid http_method %q", redactEndpoint(ep), httpMethod)
 	}
 
 	// Build a custom dialer that uses the specified DNS server if provided.
@@ -82,9 +96,9 @@ func newHTTPPinger(_ context.Context, _ component.Host, _ component.TelemetrySet
 	}
 
 	// Apply TLS config from ClientConfig if specified.
-	tlsCfg, err := target.TLS.LoadTLSConfig(context.Background())
+	tlsCfg, err := target.TLS.LoadTLSConfig(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("loading TLS config for %s: %w", target.Endpoint, err)
+		return nil, fmt.Errorf("target %s: loading TLS config: %w", redactEndpoint(ep), redactErr(err))
 	}
 	if tlsCfg != nil {
 		transport.TLSClientConfig = tlsCfg
@@ -101,7 +115,7 @@ func newHTTPPinger(_ context.Context, _ component.Host, _ component.TelemetrySet
 
 	return &httpPinger{
 		client:     client,
-		url:        target.Endpoint,
+		url:        u,
 		httpMethod: httpMethod,
 		dnsServer:  dialServer,
 	}, nil
@@ -163,11 +177,10 @@ func (p *httpPinger) ping(ctx context.Context) (PingResult, error) {
 		GotFirstResponseByte: func() { gotFirstResponseByte = time.Now() },
 	}
 
-	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), p.httpMethod, p.url, nil)
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), p.httpMethod, p.url.String(), nil)
 	if err != nil {
-		// The endpoint may carry credentials, and this error propagates into
-		// scrape errors, so it must not embed the raw URL.
-		return PingResult{}, fmt.Errorf("building request for %s: %w", redactEndpoint(p.url), redactErr(err))
+		// Unreachable: the URL and method were validated in newHTTPPinger.
+		return PingResult{}, fmt.Errorf("building request for %s: %w", redactEndpoint(p.url.String()), urlErrReason(err))
 	}
 
 	requestStart = time.Now()
@@ -193,7 +206,7 @@ func (p *httpPinger) ping(ctx context.Context) (PingResult, error) {
 			StatusCode:    0,
 			Method:        MethodHTTP,
 			ResolvedIP:    resolvedIP,
-			ErrMessage:    err.Error(),
+			ErrMessage:    urlErrReason(err).Error(),
 			ErrPhase: failurePhase(phaseTimings{
 				dnsStart: dnsStart, dnsDone: dnsDone,
 				connectStart: connectStart, connectDone: connectDone,
@@ -244,6 +257,19 @@ func (p *httpPinger) ping(ctx context.Context) (PingResult, error) {
 		res.TLS = tlsDetailsFrom(tlsState, end)
 	}
 	return res, nil
+}
+
+// urlErrReason returns err without the URL that *url.Error quotes. That URL is
+// the configured endpoint: the record already carries it redacted as
+// server.address, net/http keeps the username when it masks the password, and a
+// password with characters the URL grammar rejects is quoted in a form the
+// free-text redaction cannot recognise.
+func urlErrReason(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		err = ue.Err
+	}
+	return redactErr(err)
 }
 
 // phaseTimings carries what the trace hooks observed about one request.
