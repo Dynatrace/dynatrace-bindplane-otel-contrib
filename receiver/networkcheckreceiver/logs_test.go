@@ -189,28 +189,99 @@ func TestBuildTracerouteLogRecord(t *testing.T) {
 	require.Equal(t, unansweredHopAddress, addr.Str())
 }
 
+// A trace that did not reach its destination is a path problem worth
+// surfacing without making it an error, whether it gave up early or walked to
+// the TTL ceiling.
 func TestBuildTracerouteLogRecord_IncompleteIsWarn(t *testing.T) {
-	ts := &targetState{cfg: TargetConfig{}}
-	ts.cfg.Endpoint = "blackhole.example"
-
-	tr := TraceResult{
-		Method:       "udp",
-		MaxHops:      30,
-		Reached:      false,
-		AbortedEarly: true,
-		Hops: []HopResult{
-			{Index: 1, Address: "172.16.1.1", RTT: time.Millisecond},
-			{Index: 2, Address: unansweredHopAddress, TimedOut: true},
+	cases := []struct {
+		name    string
+		tr      TraceResult
+		aborted bool
+	}{
+		{
+			name: "aborted early",
+			tr: TraceResult{Method: "udp", MaxHops: 30, AbortedEarly: true, Hops: []HopResult{
+				{Index: 1, Address: "172.16.1.1", RTT: time.Millisecond},
+				{Index: 2, Address: unansweredHopAddress, TimedOut: true},
+			}},
+			aborted: true,
+		},
+		{
+			name: "hit the ttl ceiling",
+			tr: TraceResult{Method: "udp", MaxHops: 2, Hops: []HopResult{
+				{Index: 1, Address: "172.16.1.1", RTT: time.Millisecond},
+				{Index: 2, Address: "10.0.0.1", RTT: 2 * time.Millisecond},
+			}},
 		},
 	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := &targetState{cfg: TargetConfig{}}
+			ts.cfg.Endpoint = "blackhole.example"
 
-	rec := plog.NewLogRecord()
-	buildTracerouteLogRecord(rec, ts, tr, time.Now(), time.Now(), defaultLogsConfig())
+			rec := plog.NewLogRecord()
+			buildTracerouteLogRecord(rec, ts, tc.tr, time.Now(), time.Now(), defaultLogsConfig())
 
-	require.Equal(t, plog.SeverityNumberWarn, rec.SeverityNumber())
-	aborted, _ := rec.Attributes().Get("traceroute.aborted_early")
-	require.True(t, aborted.Bool(),
-		"an early bail-out must be distinguishable from a genuinely short path")
+			require.Equal(t, plog.SeverityNumberWarn, rec.SeverityNumber())
+			reached, _ := rec.Attributes().Get("traceroute.reached_dest")
+			require.False(t, reached.Bool())
+			aborted, _ := rec.Attributes().Get("traceroute.aborted_early")
+			require.Equal(t, tc.aborted, aborted.Bool(),
+				"an early bail-out must be distinguishable from a genuinely short path")
+		})
+	}
+}
+
+// A failed request stops partway through. Phases after the break never ran,
+// and reporting them as 0ms hid which phases did complete. A successful
+// request keeps all six entries, so its shape is unchanged.
+func TestBuildHTTPLogRecord_PhasesShape(t *testing.T) {
+	cases := []struct {
+		name string
+		r    PingResult
+		want map[string]float64
+	}{
+		{
+			name: "failure after dns keeps dns and total",
+			r: PingResult{Method: MethodHTTP, DNSLookup: 3 * time.Millisecond, TotalDuration: 5 * time.Second,
+				ErrPhase: "connect", ErrMessage: "connection refused"},
+			want: map[string]float64{"dns_ms": 3, "total_ms": 5000},
+		},
+		{
+			name: "failure in tls keeps the phases before it",
+			r: PingResult{Method: MethodHTTP, DNSLookup: time.Millisecond, TCPConnect: 2 * time.Millisecond,
+				TotalDuration: 10 * time.Millisecond, ErrPhase: "tls", ErrMessage: "bad certificate"},
+			want: map[string]float64{"dns_ms": 1, "connect_ms": 2, "total_ms": 10},
+		},
+		{
+			name: "failure before any phase keeps only total",
+			r:    PingResult{Method: MethodHTTP, TotalDuration: time.Millisecond, ErrPhase: "setup", ErrMessage: "bad url"},
+			want: map[string]float64{"total_ms": 1},
+		},
+		{
+			name: "plain http success keeps a zero tls phase",
+			r: PingResult{Method: MethodHTTP, StatusCode: 200, DNSLookup: time.Millisecond, TCPConnect: time.Millisecond,
+				RequestWrite: time.Millisecond, ResponseRead: time.Millisecond, TotalDuration: 4 * time.Millisecond},
+			want: map[string]float64{"dns_ms": 1, "connect_ms": 1, "tls_ms": 0, "write_ms": 1, "ttfb_ms": 1, "total_ms": 4},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := &targetState{cfg: TargetConfig{Method: MethodHTTP}}
+			ts.cfg.Endpoint = "https://example.com"
+
+			rec := plog.NewLogRecord()
+			buildHTTPLogRecord(rec, ts, tc.r, time.Now(), time.Now(), defaultLogsConfig())
+
+			phases, ok := rec.Body().Map().Get("phases")
+			require.True(t, ok)
+			got := map[string]float64{}
+			for k, v := range phases.Map().All() {
+				got[k] = v.Double()
+			}
+			require.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func TestTLSDetailsOmittedWhenDisabled(t *testing.T) {

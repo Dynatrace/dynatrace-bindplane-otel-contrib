@@ -140,6 +140,7 @@ func buildHTTPLogRecord(lr plog.LogRecord, ts *targetState, r PingResult, starte
 	}
 
 	attrs := lr.Attributes()
+	attrs.EnsureCapacity(9)
 	attrs.PutStr("server.address", endpoint)
 	attrs.PutStr("http.request.method", methodOrDefault(ts.cfg.HTTPMethod))
 	if r.StatusCode != 0 {
@@ -171,11 +172,20 @@ func buildHTTPLogRecord(lr plog.LogRecord, ts *targetState, r PingResult, starte
 	// write_ms spans the TLS handshake, and ttfb_ms is time to first byte
 	// rather than a full body read.
 	phases := body.PutEmptyMap("phases")
-	phases.PutDouble("dns_ms", msFloat(r.DNSLookup))
-	phases.PutDouble("connect_ms", msFloat(r.TCPConnect))
-	phases.PutDouble("tls_ms", msFloat(r.TLSHandshake))
-	phases.PutDouble("write_ms", msFloat(r.RequestWrite))
-	phases.PutDouble("ttfb_ms", msFloat(r.ResponseRead))
+	phases.EnsureCapacity(6)
+	putPhase := func(k string, d time.Duration) {
+		// A failed request stops partway: the phases after the break never
+		// ran, and six zeros would hide which ones did complete.
+		if failed && d == 0 {
+			return
+		}
+		phases.PutDouble(k, msFloat(d))
+	}
+	putPhase("dns_ms", r.DNSLookup)
+	putPhase("connect_ms", r.TCPConnect)
+	putPhase("tls_ms", r.TLSHandshake)
+	putPhase("write_ms", r.RequestWrite)
+	putPhase("ttfb_ms", r.ResponseRead)
 	phases.PutDouble("total_ms", msFloat(r.TotalDuration))
 
 	if r.TLS != nil && cfg.IncludeTLSDetails {
@@ -237,6 +247,7 @@ func buildTracerouteLogRecord(lr plog.LogRecord, ts *targetState, tr TraceResult
 	}
 
 	attrs := lr.Attributes()
+	attrs.EnsureCapacity(9)
 	attrs.PutStr("server.address", endpoint)
 	if tr.DestIP != "" {
 		attrs.PutStr("server.resolved_ip", tr.DestIP)
@@ -257,8 +268,10 @@ func buildTracerouteLogRecord(lr plog.LogRecord, ts *targetState, tr TraceResult
 
 	body := lr.Body().SetEmptyMap()
 	hops := body.PutEmptySlice("hops")
+	hops.EnsureCapacity(len(tr.Hops))
 	for _, h := range tr.Hops {
 		m := hops.AppendEmpty().SetEmptyMap()
+		m.EnsureCapacity(5)
 		m.PutInt("index", int64(h.Index))
 		m.PutStr("address", h.Address)
 		m.PutBool("timed_out", h.TimedOut)
