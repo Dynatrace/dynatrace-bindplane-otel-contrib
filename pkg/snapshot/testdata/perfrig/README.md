@@ -18,8 +18,7 @@ needed to run it again.
 | `analyze.sh` | extracts the cum % of the snapshot-path symbols from a saved profile |
 | `Dockerfile.patched` | drop-in image with the same layout as `observiq/bindplane-agent` built from a locally compiled collector binary (`--build-arg BIN=<file>`) |
 | `telemetrygen/Dockerfile` | `FROM scratch` image around a cross-compiled telemetrygen binary, for hosts that cannot pull the upstream image |
-| `remote-setup.sh` | Docker install, image builds and architecture checks for a fresh Ubuntu VM |
-| `RUNBOOK.md` | every command used for the GCP VM run, including the failures |
+| `remote-setup.sh` | Docker install, image builds and architecture checks for a fresh Ubuntu VM (copy the directory and the collector binaries to the VM, run it once, then `run.sh` as above) |
 
 ## Quick start (local Docker)
 
