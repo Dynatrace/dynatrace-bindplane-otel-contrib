@@ -81,19 +81,19 @@ func TestNewHTTPPinger_ErrorsCarryNoCredentials(t *testing.T) {
 		},
 		{
 			name: "TLS config that fails to load",
-			target: httpTarget("https://admin:hunter2@example.test/", func(tc *TargetConfig) {
+			target: httpTarget("https://admin:pw7@example.test/", func(tc *TargetConfig) {
 				tc.TLS.CAFile = "/nonexistent/ca.pem"
 			}),
 			wantText: "loading TLS config",
 		},
 		{
 			name:     "no host",
-			target:   httpTarget("http://admin:hunter2@/", nil),
+			target:   httpTarget("http://admin:pw7@/", nil),
 			wantText: "want an http or https URL",
 		},
 		{
 			name:     "invalid method",
-			target:   httpTarget("http://admin:hunter2@example.test/", func(tc *TargetConfig) { tc.HTTPMethod = "GE T" }),
+			target:   httpTarget("http://admin:pw7@example.test/", func(tc *TargetConfig) { tc.HTTPMethod = "GE T" }),
 			wantText: "invalid http_method",
 		},
 	}
@@ -102,7 +102,7 @@ func TestNewHTTPPinger_ErrorsCarryNoCredentials(t *testing.T) {
 			_, err := newHTTPPinger(context.Background(), componenttest.NewNopHost(), componenttest.NewNopTelemetrySettings(), tc.target, "")
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tc.wantText)
-			require.NotContains(t, err.Error(), "hunter2")
+			require.NotContains(t, err.Error(), "pw7")
 			require.NotContains(t, err.Error(), "ter2")
 		})
 	}
@@ -111,12 +111,12 @@ func TestNewHTTPPinger_ErrorsCarryNoCredentials(t *testing.T) {
 // net/http masks only the password in the URL it quotes, so a token passed as
 // the username used to reach error.message on every failed probe.
 func TestHTTPPinger_ErrMessageCarriesNoCredentials(t *testing.T) {
-	r := probeHTTP(t, httpTarget("http://opaque_tok3n:hunter2@"+closedPort(t)+"/", nil))
+	r := probeHTTP(t, httpTarget("http://opaque_tok3n:pw7@"+closedPort(t)+"/", nil))
 	require.Equal(t, 0, r.StatusCode)
 	require.Equal(t, "connect", r.ErrPhase)
 	require.Contains(t, r.ErrMessage, "refused")
 	require.NotContains(t, r.ErrMessage, "opaque_tok3n")
-	require.NotContains(t, r.ErrMessage, "hunter2")
+	require.NotContains(t, r.ErrMessage, "pw7")
 }
 
 // recorder captures what a test server saw, guarded for the race detector.
