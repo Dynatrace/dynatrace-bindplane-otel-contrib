@@ -67,13 +67,13 @@ func TestICMPPingResolveFailureIsMeasurement(t *testing.T) {
 
 func TestICMPPingDropsEndpointUserinfo(t *testing.T) {
 	s := startFakeDNS(t, "127.0.0.1")
-	tc := icmpTarget("user:secret@nonexistent.invalid", 1, time.Second)
-	tc.DNSServer = "user:secret@" + s.addr
+	tc := icmpTarget("user:pw@nonexistent.invalid", 1, time.Second)
+	tc.DNSServer = "user:pw@" + s.addr
 
 	r, err := newICMPPinger(tc, false).ping(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, "dns", r.ErrPhase)
-	require.NotContains(t, r.ErrMessage, "secret")
+	require.NotContains(t, r.ErrMessage, "pw")
 	require.Contains(t, s.queries(), "udp A nonexistent.invalid.")
 }
 

@@ -345,12 +345,12 @@ func TestDNSPingIPv6Server(t *testing.T) {
 func TestDNSPingDropsEndpointUserinfo(t *testing.T) {
 	s := startFakeDNS(t, "127.0.0.1")
 
-	r, _ := dnsProbe(t, "user:secret@"+s.addr, "a.test", "A", 2*time.Second)
+	r, _ := dnsProbe(t, "user:pw@"+s.addr, "a.test", "A", 2*time.Second)
 	require.True(t, r.QuerySuccess, r.ErrMessage)
 
-	r, _ = dnsProbe(t, "user:secret@127.0.0.1:1", "a.test", "A", 300*time.Millisecond)
+	r, _ = dnsProbe(t, "user:pw@127.0.0.1:1", "a.test", "A", 300*time.Millisecond)
 	require.False(t, r.QuerySuccess)
-	require.NotContains(t, r.ErrMessage, "secret")
+	require.NotContains(t, r.ErrMessage, "pw")
 }
 
 func TestDNSServerAddrForDNSTarget(t *testing.T) {
