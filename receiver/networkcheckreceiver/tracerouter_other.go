@@ -16,10 +16,59 @@
 
 package networkcheckreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/networkcheckreceiver"
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"net"
+	"time"
 
-// traceNative reports handled=false on platforms where the portable raw-socket
-// traceroute implementations work, leaving trace() to use them.
-func (t *tracerouter) traceNative(_ context.Context, _ string) (hops []HopResult, handled bool, err error) {
-	return nil, false, nil
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv4"
+)
+
+// tracePath maps the path with the portable raw-socket probes. Both methods
+// read the ICMP errors from a raw socket, so both need root or CAP_NET_RAW.
+func (t *tracerouter) tracePath(ctx context.Context, method, dest string) (TraceResult, error) {
+	if method == "icmp" {
+		return t.traceICMP(ctx, dest)
+	}
+	return t.traceUDP(ctx, dest)
+}
+
+// traceUDP sends UDP datagrams with incrementing TTL and reads the ICMP errors
+// they provoke from a raw ICMP socket.
+func (t *tracerouter) traceUDP(ctx context.Context, dest string) (TraceResult, error) {
+	icmpConn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
+	if err != nil {
+		return TraceResult{}, fmt.Errorf("opening ICMP listener for traceroute: %w", err)
+	}
+	defer func() { _ = icmpConn.Close() }()
+	stop := context.AfterFunc(ctx, func() { _ = icmpConn.SetReadDeadline(time.Now()) })
+	defer stop()
+
+	destAddr := &net.UDPAddr{IP: net.ParseIP(dest), Port: traceroutePort}
+	return t.walk(ctx, dest, func(ttl int, deadline time.Time) (string, bool, time.Duration, error) {
+		udpConn, err := net.DialUDP("udp4", nil, destAddr)
+		if err != nil {
+			return "", false, 0, fmt.Errorf("dialing UDP: %w", err)
+		}
+		// Held open until the answer is in, so no other socket can take the
+		// source port that identifies this probe in the ICMP error.
+		defer func() { _ = udpConn.Close() }()
+		if err := ipv4.NewConn(udpConn).SetTTL(ttl); err != nil {
+			return "", false, 0, fmt.Errorf("setting TTL %d: %w", ttl, err)
+		}
+
+		sent := time.Now()
+		if _, err := udpConn.Write(probePayload); err != nil {
+			return "", false, 0, fmt.Errorf("sending UDP probe: %w", err)
+		}
+		from, reached, err := awaitProbeReply(ctx, icmpConn, deadline, probeKey{
+			dst:     destAddr.IP,
+			udp:     true,
+			srcPort: udpConn.LocalAddr().(*net.UDPAddr).Port,
+			dstPort: traceroutePort,
+		})
+		return from, reached, time.Since(sent), err
+	})
 }

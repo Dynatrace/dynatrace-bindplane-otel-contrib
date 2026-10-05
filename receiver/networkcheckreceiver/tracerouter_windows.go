@@ -46,20 +46,22 @@ const (
 	ipTTLExpiredTransit = 11013
 )
 
-// ipOptionInformation mirrors IP_OPTION_INFORMATION from ipexport.h. On 64-bit
-// Windows OptionsData is a pointer, so it is 8-byte aligned and the struct is
-// 16 bytes wide; the explicit padding field keeps the Go layout identical.
+// ipOptionInformation mirrors IP_OPTION_INFORMATION from ipexport.h. Go lays
+// it out exactly as the C compiler does on both 64-bit and 32-bit Windows:
+// OptionsData is pointer-aligned, which pads the struct to 16 bytes on 64-bit
+// and leaves it at 8 on 32-bit.
 type ipOptionInformation struct {
 	TTL         uint8
 	TOS         uint8
 	Flags       uint8
 	OptionsSize uint8
-	_           [4]byte
 	OptionsData uintptr
 }
 
-// icmpEchoReply mirrors ICMP_ECHO_REPLY from ipexport.h (64-bit layout, 40
-// bytes). Data is a pointer into the reply buffer, which we never dereference.
+// icmpEchoReply mirrors ICMP_ECHO_REPLY from ipexport.h: 40 bytes on 64-bit
+// Windows, 28 on 32-bit, with Go's layout matching C's on both. Only Address,
+// Status and RoundTripTime are read back, and they sit at offsets 0-11 on every
+// architecture. Data points into the reply buffer and is never dereferenced.
 type icmpEchoReply struct {
 	Address       uint32
 	Status        uint32
@@ -70,12 +72,24 @@ type icmpEchoReply struct {
 	Options       ipOptionInformation
 }
 
+// tracePath maps the path with the IP Helper API whichever method is
+// configured; the method only chooses a probe type on the other platforms.
+func (t *tracerouter) tracePath(ctx context.Context, _ string, dest string) (TraceResult, error) {
+	hops, err := t.traceNative(ctx, dest)
+	return TraceResult{
+		Hops:         hops,
+		Method:       "native",
+		Reached:      hopsReachedDest(hops, dest),
+		AbortedEarly: hopsAbortedEarly(hops, t.maxHops(), t.abortAfter()),
+	}, err
+}
+
 // traceNative maps the path to dest using IcmpSendEcho with an incrementing
-// TTL. handled is always true on Windows.
-func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopResult, handled bool, err error) {
+// TTL. It needs no Administrator rights.
+func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopResult, err error) {
 	destIP := net.ParseIP(dest).To4()
 	if destIP == nil {
-		return nil, true, fmt.Errorf("traceroute requires an IPv4 destination, got %q", dest)
+		return nil, fmt.Errorf("traceroute requires an IPv4 destination, got %q", dest)
 	}
 	// IPAddr is a DWORD holding the octets in network byte order, which is the
 	// same as reading the 4 bytes in memory order on a little-endian host.
@@ -83,18 +97,9 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 
 	handle, _, createErr := procIcmpCreateFile.Call()
 	if windows.Handle(handle) == windows.InvalidHandle {
-		return nil, true, fmt.Errorf("IcmpCreateFile: %w", createErr)
+		return nil, fmt.Errorf("IcmpCreateFile: %w", createErr)
 	}
 	defer procIcmpCloseHandle.Call(handle)
-
-	hopTimeout := t.cfg.Timeout
-	if hopTimeout == 0 {
-		hopTimeout = 3 * time.Second
-	}
-	maxHops := t.cfg.MaxHops
-	if maxHops <= 0 {
-		maxHops = 30
-	}
 
 	// The reply buffer must hold an ICMP_ECHO_REPLY plus the echoed request
 	// data and any ICMP error payload. The API requires at least
@@ -104,8 +109,8 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 	replyBuf := make([]byte, int(unsafe.Sizeof(icmpEchoReply{}))+len(payload)+256)
 
 	consecutiveTimeouts := 0
-	for ttl := 1; ttl <= maxHops; ttl++ {
-		if ctx.Err() != nil {
+	for ttl := 1; ttl <= t.maxHops(); ttl++ {
+		if ctxDone(ctx) {
 			break
 		}
 
@@ -118,13 +123,18 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 			probes  int
 		)
 		for attempt := 0; attempt < t.probesPerHop(); attempt++ {
-			if ctx.Err() != nil {
+			// IcmpSendEcho blocks for its whole timeout and cannot be
+			// cancelled, so the wait is cut to ctx's deadline up front.
+			waitMs := time.Until(t.hopDeadline(ctx)).Milliseconds()
+			if ctxDone(ctx) || waitMs <= 0 {
 				break
 			}
 			probes++
 
-			opts := ipOptionInformation{TTL: uint8(ttl)}
+			// #nosec G115 -- ttl <= maxHops() <= maxTTL (255), and min() keeps it there.
+			opts := ipOptionInformation{TTL: uint8(min(ttl, maxTTL))}
 			sent := time.Now()
+			// #nosec G103 -- the buffers are Go-owned and stay live for this synchronous call; replyBuf is oversized for the reply.
 			n, _, sendErr = procIcmpSendEcho.Call(
 				handle,
 				uintptr(destAddr),
@@ -133,7 +143,7 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 				uintptr(unsafe.Pointer(&opts)),
 				uintptr(unsafe.Pointer(&replyBuf[0])),
 				uintptr(len(replyBuf)),
-				uintptr(hopTimeout.Milliseconds()),
+				uintptr(waitMs),
 			)
 			elapsed = time.Since(sent)
 
@@ -143,14 +153,14 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 			if errno, ok := sendErr.(windows.Errno); ok && uint32(errno) != ipReqTimedOut && uint32(errno) != 0 {
 				// Anything other than a timeout is a real failure worth
 				// surfacing rather than retried or recorded as a silent hop.
-				return hops, true, fmt.Errorf("IcmpSendEcho (ttl %d): %w", ttl, sendErr)
+				return hops, fmt.Errorf("IcmpSendEcho (ttl %d): %w", ttl, sendErr)
 			}
 		}
 
 		// A cancelled retry loop leaves n at 0 without the hop having been
 		// given its full chance, so stop rather than recording a silent hop
 		// that was never really probed.
-		if ctx.Err() != nil {
+		if n == 0 && ctxDone(ctx) {
 			break
 		}
 
@@ -165,6 +175,7 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 			continue
 		}
 
+		// #nosec G103 -- replyBuf holds a full ICMP_ECHO_REPLY (see icmpEchoReply) and only fixed-offset fields are read.
 		reply := (*icmpEchoReply)(unsafe.Pointer(&replyBuf[0]))
 		if reply.Status != ipSuccess && reply.Status != ipTTLExpiredTransit {
 			// Unreachable and similar errors identify a real router, but the
@@ -196,5 +207,5 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 		}
 	}
 
-	return hops, true, nil
+	return hops, nil
 }

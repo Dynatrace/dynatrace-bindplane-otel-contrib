@@ -113,17 +113,12 @@ func TestTraceUnansweredHopsAreMarkedAndBounded(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	hops, handled, err := tr.traceNative(ctx, blackhole)
-	if handled {
-		require.NoError(t, err)
-	} else {
-		var res TraceResult
-		res, err = tr.traceUDP(ctx, blackhole)
-		if err != nil {
-			t.Skipf("raw ICMP socket unavailable in this environment: %v", err)
-		}
-		hops = res.Hops
+	res, err := tr.trace(ctx)
+	if err != nil {
+		// No raw ICMP socket (macOS without root) or no route to the blackhole.
+		t.Skipf("traceroute unavailable in this environment: %v", err)
 	}
+	hops := res.Hops
 
 	// Early hops toward the blackhole are real routers that do answer, so the
 	// bound is on the run of consecutive silent hops, not the total.
@@ -212,6 +207,48 @@ func TestHopsAbortedEarly(t *testing.T) {
 	})
 }
 
+// quotedProbe builds what an ICMP error quotes back: the probe's IPv4 header
+// and the first 8 bytes of its payload.
+func quotedProbe(t *testing.T, dst net.IP, proto int, first8 []byte) []byte {
+	t.Helper()
+	h := ipv4.Header{Version: 4, Len: ipv4.HeaderLen, TotalLen: ipv4.HeaderLen + 8, TTL: 1, Protocol: proto, Src: net.IPv4(10, 0, 0, 1), Dst: dst}
+	b, err := h.Marshal()
+	require.NoError(t, err)
+	return append(b, first8...)
+}
+
+func TestMatchesProbeRequiresDestination(t *testing.T) {
+	dest, other := net.IPv4(192, 0, 2, 10), net.IPv4(192, 0, 2, 20)
+
+	// UDP: source port 40000 -> 33434.
+	udpQuote := []byte{0x9c, 0x40, 0x82, 0x9a, 0, 0, 0, 0}
+	udpKey := probeKey{dst: dest, udp: true, srcPort: 40000, dstPort: traceroutePort}
+	require.True(t, matchesProbe(quotedProbe(t, dest, 17, udpQuote), udpKey))
+	require.False(t, matchesProbe(quotedProbe(t, other, 17, udpQuote), udpKey),
+		"same ports toward another destination belong to another trace")
+	require.False(t, matchesProbe(quotedProbe(t, dest, 17, udpQuote), probeKey{dst: dest, udp: true, srcPort: 40001, dstPort: traceroutePort}))
+
+	// ICMP echo: type 8, code 0, checksum, id 0x1234, seq 7.
+	echoQuote := []byte{8, 0, 0, 0, 0x12, 0x34, 0, 7}
+	echoKey := probeKey{dst: dest, echoID: 0x1234, echoSeq: 7}
+	require.True(t, matchesProbe(quotedProbe(t, dest, 1, echoQuote), echoKey))
+	require.False(t, matchesProbe(quotedProbe(t, other, 1, echoQuote), echoKey),
+		"same echo id and seq toward another destination belong to another trace")
+	require.False(t, matchesProbe(quotedProbe(t, dest, 1, echoQuote), probeKey{dst: dest, echoID: 0x1234, echoSeq: 8}))
+
+	require.False(t, matchesProbe(nil, echoKey))
+	require.False(t, matchesProbe(quotedProbe(t, dest, 1, echoQuote)[:ipv4.HeaderLen+4], echoKey), "short quote")
+}
+
+func TestEchoIDIsRandomPerTracerouter(t *testing.T) {
+	// Four draws from 65536 values all colliding has odds of 1 in 2^48.
+	seen := map[uint16]bool{}
+	for range 4 {
+		seen[newTracerouter(TracerouteConfig{}, "example.com", "").echoID] = true
+	}
+	require.Greater(t, len(seen), 1, "tracerouters must not share an echo ID")
+}
+
 func TestShouldRunRateLimitsOnFailure(t *testing.T) {
 	fail := PingResult{Method: MethodICMP, PacketLoss: 1}
 	pass := PingResult{Method: MethodICMP}
@@ -265,48 +302,6 @@ func TestShouldRunRateLimitsOnFailure(t *testing.T) {
 		cfg.Interval = 1
 		require.Empty(t, run(cfg, repeat(fail, 5)))
 	})
-}
-
-// quotedProbe builds what an ICMP error quotes back: the probe's IPv4 header
-// and the first 8 bytes of its payload.
-func quotedProbe(t *testing.T, dst net.IP, proto int, first8 []byte) []byte {
-	t.Helper()
-	h := ipv4.Header{Version: 4, Len: ipv4.HeaderLen, TotalLen: ipv4.HeaderLen + 8, TTL: 1, Protocol: proto, Src: net.IPv4(10, 0, 0, 1), Dst: dst}
-	b, err := h.Marshal()
-	require.NoError(t, err)
-	return append(b, first8...)
-}
-
-func TestMatchesProbeRequiresDestination(t *testing.T) {
-	dest, other := net.IPv4(192, 0, 2, 10), net.IPv4(192, 0, 2, 20)
-
-	// UDP: source port 40000 -> 33434.
-	udpQuote := []byte{0x9c, 0x40, 0x82, 0x9a, 0, 0, 0, 0}
-	udpKey := probeKey{dst: dest, udp: true, srcPort: 40000, dstPort: 33434}
-	require.True(t, matchesProbe(quotedProbe(t, dest, 17, udpQuote), udpKey))
-	require.False(t, matchesProbe(quotedProbe(t, other, 17, udpQuote), udpKey),
-		"same ports toward another destination belong to another trace")
-	require.False(t, matchesProbe(quotedProbe(t, dest, 17, udpQuote), probeKey{dst: dest, udp: true, srcPort: 40001, dstPort: 33434}))
-
-	// ICMP echo: type 8, code 0, checksum, id 0x1234, seq 7.
-	echoQuote := []byte{8, 0, 0, 0, 0x12, 0x34, 0, 7}
-	echoKey := probeKey{dst: dest, echoID: 0x1234, echoSeq: 7}
-	require.True(t, matchesProbe(quotedProbe(t, dest, 1, echoQuote), echoKey))
-	require.False(t, matchesProbe(quotedProbe(t, other, 1, echoQuote), echoKey),
-		"same echo id and seq toward another destination belong to another trace")
-	require.False(t, matchesProbe(quotedProbe(t, dest, 1, echoQuote), probeKey{dst: dest, echoID: 0x1234, echoSeq: 8}))
-
-	require.False(t, matchesProbe(nil, echoKey))
-	require.False(t, matchesProbe(quotedProbe(t, dest, 1, echoQuote)[:ipv4.HeaderLen+4], echoKey), "short quote")
-}
-
-func TestEchoIDIsRandomPerTracerouter(t *testing.T) {
-	// Four draws from 65536 values all colliding has odds of 1 in 2^48.
-	seen := map[uint16]bool{}
-	for range 4 {
-		seen[newTracerouter(TracerouteConfig{}, "example.com", "").echoID] = true
-	}
-	require.Greater(t, len(seen), 1, "tracerouters must not share an echo ID")
 }
 
 // fakeDNS serves A and AAAA answers from records over UDP on loopback and
@@ -404,4 +399,127 @@ func TestDNSServerAddr(t *testing.T) {
 	} {
 		require.Equal(t, want, dnsServerAddr(in), in)
 	}
+}
+
+func TestMaxHopsAndHopTimeoutClamp(t *testing.T) {
+	for _, tc := range []struct{ cfg, want int }{{0, defaultMaxHops}, {-1, defaultMaxHops}, {12, 12}, {255, 255}, {256, maxTTL}, {10000, maxTTL}} {
+		require.Equal(t, tc.want, newTracerouter(TracerouteConfig{MaxHops: tc.cfg}, "h", "").maxHops(), tc.cfg)
+	}
+	for _, tc := range []struct{ cfg, want time.Duration }{{0, defaultHopTimeout}, {-time.Second, defaultHopTimeout}, {time.Second, time.Second}} {
+		require.Equal(t, tc.want, newTracerouter(TracerouteConfig{Timeout: tc.cfg}, "h", "").hopTimeout(), tc.cfg)
+	}
+}
+
+func TestHopDeadlineStopsAtCtxDeadline(t *testing.T) {
+	tr := newTracerouter(TracerouteConfig{Timeout: time.Hour}, "h", "")
+	require.WithinDuration(t, time.Now().Add(time.Hour), tr.hopDeadline(context.Background()), time.Minute)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	ctxDeadline, _ := ctx.Deadline()
+	require.Equal(t, ctxDeadline, tr.hopDeadline(ctx))
+}
+
+// scriptedProbe answers probes from a per-TTL script of attempt outcomes: an
+// address answers, "" stays silent. TTLs past the script stay silent.
+func scriptedProbe(script map[int][]string, dest string) (probeFunc, *[]int) {
+	var sent []int
+	attempt := map[int]int{}
+	return func(ttl int, _ time.Time) (string, bool, time.Duration, error) {
+		sent = append(sent, ttl)
+		answers := script[ttl]
+		i := attempt[ttl]
+		attempt[ttl]++
+		if i >= len(answers) || answers[i] == "" {
+			return "", false, 0, nil
+		}
+		return answers[i], answers[i] == dest, time.Millisecond, nil
+	}, &sent
+}
+
+func TestWalkRetriesOnlySilentHops(t *testing.T) {
+	const dest = "192.0.2.1"
+	probe, _ := scriptedProbe(map[int][]string{
+		1: {"10.0.0.1"},
+		2: {"", "", "10.0.0.2"},
+		3: {dest},
+	}, dest)
+	tr := newTracerouter(TracerouteConfig{ProbesPerHop: 3, MaxConsecutiveTimeouts: 5}, dest, "")
+
+	res, err := tr.walk(context.Background(), dest, probe)
+	require.NoError(t, err)
+	require.True(t, res.Reached)
+	require.False(t, res.AbortedEarly)
+	require.Equal(t, []HopResult{
+		{Index: 1, Address: "10.0.0.1", RTT: time.Millisecond, Probes: 1},
+		{Index: 2, Address: "10.0.0.2", RTT: time.Millisecond, Probes: 3},
+		{Index: 3, Address: dest, RTT: time.Millisecond, Probes: 1},
+	}, res.Hops)
+}
+
+func TestWalkAbortsAfterConsecutiveTimeouts(t *testing.T) {
+	probe, sent := scriptedProbe(map[int][]string{1: {"10.0.0.1"}}, "192.0.2.1")
+	tr := newTracerouter(TracerouteConfig{ProbesPerHop: 2, MaxConsecutiveTimeouts: 3, MaxHops: 30}, "192.0.2.1", "")
+
+	res, err := tr.walk(context.Background(), "192.0.2.1", probe)
+	require.NoError(t, err)
+	require.True(t, res.AbortedEarly)
+	require.False(t, res.Reached)
+	require.Len(t, res.Hops, 4, "one answered hop, then the 3 silent hops that trigger the abort")
+	require.Len(t, *sent, 1+3*2, "each silent hop is retried probes_per_hop times")
+}
+
+func TestWalkStopsAtClampedMaxHops(t *testing.T) {
+	// Every hop answers but never as the destination, and the abort is off:
+	// only the TTL ceiling ends the walk.
+	tr := newTracerouter(TracerouteConfig{MaxHops: 1000, MaxConsecutiveTimeouts: 0}, "192.0.2.1", "")
+	res, err := tr.walk(context.Background(), "192.0.2.1", func(int, time.Time) (string, bool, time.Duration, error) {
+		return "10.0.0.1", false, 0, nil
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Hops, maxTTL)
+}
+
+func TestWalkCancelDoesNotRecordBogusHop(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tr := newTracerouter(TracerouteConfig{ProbesPerHop: 3, MaxConsecutiveTimeouts: 5}, "192.0.2.1", "")
+
+	res, err := tr.walk(ctx, "192.0.2.1", func(ttl int, _ time.Time) (string, bool, time.Duration, error) {
+		if ttl == 1 {
+			return "10.0.0.1", false, time.Millisecond, nil
+		}
+		cancel() // the cycle ends while hop 2 is being probed
+		return "", false, 0, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, []HopResult{{Index: 1, Address: "10.0.0.1", RTT: time.Millisecond, Probes: 1}}, res.Hops,
+		"hop 2 was cut short by cancellation, not observed as silent")
+	require.False(t, res.AbortedEarly)
+}
+
+func TestWalkKeepsAnswerThatArrivesAsCtxEnds(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tr := newTracerouter(TracerouteConfig{}, "192.0.2.1", "")
+
+	res, err := tr.walk(ctx, "192.0.2.1", func(int, time.Time) (string, bool, time.Duration, error) {
+		cancel()
+		return "10.0.0.1", false, time.Millisecond, nil
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Hops, 1, "an answer that arrived is a real hop even if ctx ended meanwhile")
+}
+
+func TestWalkStopsOnProbeError(t *testing.T) {
+	tr := newTracerouter(TracerouteConfig{}, "192.0.2.1", "")
+	boom := errors.New("sendto: no buffer space")
+	res, err := tr.walk(context.Background(), "192.0.2.1", func(ttl int, _ time.Time) (string, bool, time.Duration, error) {
+		if ttl == 2 {
+			return "", false, 0, boom
+		}
+		return "10.0.0.1", false, 0, nil
+	})
+	require.ErrorIs(t, err, boom)
+	require.Len(t, res.Hops, 1, "hops gathered before the failure are kept")
 }

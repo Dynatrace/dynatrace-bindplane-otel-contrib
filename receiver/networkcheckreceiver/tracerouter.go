@@ -22,6 +22,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -45,6 +46,34 @@ const defaultMaxConsecutiveTimeouts = 5
 // hop regularly misses a router that is answering perfectly well.
 const defaultProbesPerHop = 3
 
+// defaultMaxHops and defaultHopTimeout apply when max_hops or timeout is unset.
+const (
+	defaultMaxHops    = 30
+	defaultHopTimeout = 3 * time.Second
+)
+
+// maxTTL is the largest TTL an IPv4 header can carry, so the deepest hop a
+// trace can probe. Config validation rejects a larger max_hops; this clamp is
+// the backstop.
+const maxTTL = 255
+
+// failureTraceEvery is how many consecutive failing checks pass between
+// on_failure traces when no interval is configured. Without a limit a target
+// that stays down is traced on every check, and a trace into a dead path is the
+// most expensive thing the receiver does: it walks silent hops at the full hop
+// timeout until the early abort.
+// Deliberate simplification: a fixed cadence; make it configurable if one
+// value does not fit every deployment.
+const failureTraceEvery = 10
+
+// traceroutePort is the destination port of UDP probes, the conventional
+// traceroute base port. Nothing normally listens there, so the destination
+// answers with ICMP port unreachable, which is how arrival is detected.
+const traceroutePort = 33434
+
+// probePayload is the body of every UDP and ICMP probe.
+var probePayload = []byte("networkcheck")
+
 // probesPerHop is the configured maximum probes for one hop, clamped to at
 // least 1.
 func (t *tracerouter) probesPerHop() int {
@@ -63,22 +92,51 @@ func (t *tracerouter) abortAfter() int {
 	return t.cfg.MaxConsecutiveTimeouts
 }
 
-// failureTraceEvery is how many consecutive failing checks pass between
-// on_failure traces when no interval is configured. Without a limit a target
-// that stays down is traced on every check, and a trace into a dead path is the
-// most expensive thing the receiver does: it walks silent hops at the full hop
-// timeout until the early abort.
-// Deliberate simplification: a fixed cadence; make it configurable if one
-// value does not fit every deployment.
-const failureTraceEvery = 10
+// maxHops is the configured TTL ceiling, defaulted when unset and clamped to
+// what an IPv4 header can carry.
+func (t *tracerouter) maxHops() int {
+	switch {
+	case t.cfg.MaxHops <= 0:
+		return defaultMaxHops
+	case t.cfg.MaxHops > maxTTL:
+		return maxTTL
+	}
+	return t.cfg.MaxHops
+}
+
+// hopTimeout is how long one probe waits for its answer.
+func (t *tracerouter) hopTimeout() time.Duration {
+	if t.cfg.Timeout <= 0 {
+		return defaultHopTimeout
+	}
+	return t.cfg.Timeout
+}
+
+// hopDeadline is when a probe sent now stops waiting: after the hop timeout,
+// or at ctx's deadline if that comes first, so a trace never outlives the
+// cycle that started it.
+func (t *tracerouter) hopDeadline(ctx context.Context) time.Time {
+	d := time.Now().Add(t.hopTimeout())
+	if cd, ok := ctx.Deadline(); ok && cd.Before(d) {
+		return cd
+	}
+	return d
+}
+
+// ctxDone reports whether ctx is cancelled or past its deadline. The deadline
+// is compared directly because a probe that waited until exactly that moment
+// can return before ctx's own timer has fired.
+func ctxDone(ctx context.Context) bool {
+	if ctx.Err() != nil {
+		return true
+	}
+	d, ok := ctx.Deadline()
+	return ok && !time.Now().Before(d)
+}
 
 // icmpProtocolIPv4 is the IANA protocol number for ICMP, required by
 // icmp.ParseMessage to interpret an IPv4 ICMP message.
 const icmpProtocolIPv4 = 1
-
-// errProbeTimeout is returned when no reply matching the probe arrived before
-// the hop deadline.
-var errProbeTimeout = errors.New("no matching ICMP reply before deadline")
 
 // probeKey identifies the probe that a reply must correspond to. A raw ICMP
 // socket receives every ICMP packet the host sees, so a reply has to be matched
@@ -121,25 +179,34 @@ func matchesProbe(inner []byte, k probeKey) bool {
 }
 
 // awaitProbeReply reads from conn until a message matching k arrives or the
-// deadline passes. Unrelated ICMP traffic - echo replies belonging to this
-// receiver's own ping, late replies to earlier TTLs, other processes' ICMP - is
-// discarded instead of being attributed to the current hop. reachedDest is true
-// when the reply shows the probe arrived at the target rather than expiring in
-// transit.
-func awaitProbeReply(conn *icmp.PacketConn, deadline time.Time, k probeKey) (from net.Addr, reachedDest bool, err error) {
+// deadline passes, returning the answering address, or "" when nothing
+// matching arrived in time. Unrelated ICMP traffic - echo replies belonging to
+// this receiver's own ping, late replies to earlier TTLs, other traces, other
+// processes' ICMP - is discarded instead of being attributed to the current
+// hop. reachedDest is true when the reply shows the probe arrived at the
+// target rather than expiring in transit.
+//
+// The caller cuts the read deadline short when ctx is cancelled.
+func awaitProbeReply(ctx context.Context, conn *icmp.PacketConn, deadline time.Time, k probeKey) (from string, reachedDest bool, err error) {
+	if err := conn.SetReadDeadline(deadline); err != nil {
+		return "", false, err
+	}
+	// Checked after arming the deadline: a cancellation that landed earlier
+	// already cut the deadline short, and the line above just undid that.
+	if ctx.Err() != nil {
+		return "", false, nil
+	}
 	buf := make([]byte, 1500)
 	for {
-		if time.Now().After(deadline) {
-			return nil, false, errProbeTimeout
-		}
-		if err := conn.SetReadDeadline(deadline); err != nil {
-			return nil, false, err
-		}
 		n, peer, readErr := conn.ReadFrom(buf)
-		if readErr != nil {
-			return nil, false, readErr
+		if errors.Is(readErr, os.ErrDeadlineExceeded) {
+			return "", false, nil
 		}
-		if peer == nil {
+		if readErr != nil {
+			return "", false, fmt.Errorf("reading ICMP reply: %w", readErr)
+		}
+		peerAddr, ok := peer.(*net.IPAddr)
+		if !ok {
 			continue
 		}
 		msg, parseErr := icmp.ParseMessage(icmpProtocolIPv4, buf[:n])
@@ -149,18 +216,18 @@ func awaitProbeReply(conn *icmp.PacketConn, deadline time.Time, k probeKey) (fro
 		switch body := msg.Body.(type) {
 		case *icmp.TimeExceeded:
 			if matchesProbe(body.Data, k) {
-				return peer, false, nil
+				return peerAddr.String(), false, nil
 			}
 		case *icmp.DstUnreach:
 			// The target answering our UDP probe on a closed port means the
 			// probe arrived: the path is complete.
 			if matchesProbe(body.Data, k) {
-				return peer, true, nil
+				return peerAddr.String(), true, nil
 			}
 		case *icmp.Echo:
-			if ipa, ok := peer.(*net.IPAddr); ok && !k.udp && msg.Type == ipv4.ICMPTypeEchoReply &&
-				body.ID == k.echoID && body.Seq == k.echoSeq && ipa.IP.Equal(k.dst) {
-				return peer, true, nil
+			if !k.udp && msg.Type == ipv4.ICMPTypeEchoReply &&
+				body.ID == k.echoID && body.Seq == k.echoSeq && peerAddr.IP.Equal(k.dst) {
+				return peerAddr.String(), true, nil
 			}
 		}
 	}
@@ -211,7 +278,9 @@ type TraceResult struct {
 	AbortedEarly bool
 }
 
-// tracerouter performs traceroute probes for a single host.
+// tracerouter performs traceroute probes for a single host. It belongs to one
+// target, which is probed by one goroutine at a time, so its state needs no
+// locking.
 type tracerouter struct {
 	cfg  TracerouteConfig
 	host string
@@ -226,8 +295,6 @@ type tracerouter struct {
 	echoID uint16
 
 	// failStreak counts consecutive checks that met the on_failure condition.
-	// A tracerouter belongs to one target, which is probed by one goroutine at
-	// a time, so it needs no locking.
 	failStreak int
 }
 
@@ -338,53 +405,105 @@ func (t *tracerouter) resolveIPv4(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("resolving %s: %w", host, err)
 }
 
-// trace performs a traceroute to t.host and returns per-hop results.
-// It uses UDP probes by default (method "udp") or ICMP echo probes (method "icmp").
-// UDP traceroute does not require root on most Linux kernels.
-// ICMP traceroute requires root / CAP_NET_RAW.
+// trace maps the path to t.host. UDP probes are the default; method "icmp"
+// sends ICMP echo requests instead. The mechanism that carries them, and the
+// privilege it needs, is per platform: see tracePath in tracerouter_windows.go
+// and tracerouter_other.go.
 func (t *tracerouter) trace(ctx context.Context) (TraceResult, error) {
 	method := strings.ToLower(t.cfg.Method)
 	if method == "" {
 		method = "udp"
 	}
-	maxHops := t.cfg.MaxHops
-	if maxHops <= 0 {
-		maxHops = 30
-	}
 
 	dest, err := t.resolveIPv4(ctx)
 	if err != nil {
-		return TraceResult{Method: method, MaxHops: maxHops}, err
+		return TraceResult{Method: method, MaxHops: t.maxHops()}, err
 	}
 
-	// Some platforms cannot map a path with raw sockets and need a native API
-	// instead. Windows is the case that matters today: it does not deliver
-	// unsolicited inbound ICMP time-exceeded messages to a raw socket, so both
-	// the UDP and ICMP methods below time out on every hop there regardless of
-	// privileges. traceNative reports handled=false everywhere else.
-	if hops, handled, nativeErr := t.traceNative(ctx, dest); handled {
-		return TraceResult{
-			Hops:         hops,
-			DestIP:       dest,
-			Method:       "native",
-			MaxHops:      maxHops,
-			Reached:      hopsReachedDest(hops, dest),
-			AbortedEarly: hopsAbortedEarly(hops, maxHops, t.abortAfter()),
-		}, nativeErr
-	}
-
-	var res TraceResult
-	var traceErr error
-	switch method {
-	case "icmp":
-		res, traceErr = t.traceICMP(ctx, dest)
-	default:
-		res, traceErr = t.traceUDP(ctx, dest)
-	}
+	res, err := t.tracePath(ctx, method, dest)
 	res.DestIP = dest
-	res.Method = method
-	res.MaxHops = maxHops
-	return res, traceErr
+	res.MaxHops = t.maxHops()
+	if res.Method == "" {
+		res.Method = method
+	}
+	return res, err
+}
+
+// probeFunc sends one probe with the given TTL and waits until deadline for
+// the hop to answer. from is the answering address, "" when the hop stayed
+// silent; reached is true when the answer shows the probe arrived at the
+// destination. A non-nil error is a local failure that ends the trace.
+type probeFunc func(ttl int, deadline time.Time) (from string, reached bool, rtt time.Duration, err error)
+
+// walk maps the path to dest one TTL at a time. Every probe mechanism goes
+// through it, so retries, the early abort and cancellation behave the same
+// whichever one sends the packets.
+func (t *tracerouter) walk(ctx context.Context, dest string, probe probeFunc) (TraceResult, error) {
+	var res TraceResult
+	consecutiveTimeouts := 0
+
+	for ttl := 1; ttl <= t.maxHops(); ttl++ {
+		if ctxDone(ctx) {
+			break
+		}
+
+		// Probe until this hop answers or the attempts are exhausted. A hop
+		// that replies costs a single probe; only a silent one is retried, so
+		// a healthy path generates no more traffic than a single-probe trace.
+		var (
+			from    string
+			reached bool
+			rtt     time.Duration
+			probes  int
+		)
+		for attempt := 0; attempt < t.probesPerHop() && !ctxDone(ctx); attempt++ {
+			probes++
+			var err error
+			from, reached, rtt, err = probe(ttl, t.hopDeadline(ctx))
+			if err != nil {
+				return res, err
+			}
+			if from != "" {
+				break
+			}
+		}
+
+		// A cancelled retry loop never gave a silent hop its full chance, so
+		// stop rather than record a timeout that was never really observed.
+		if from == "" && ctxDone(ctx) {
+			break
+		}
+
+		if from == "" {
+			res.Hops = append(res.Hops, HopResult{
+				Index:    ttl,
+				Address:  unansweredHopAddress,
+				TimedOut: true,
+				Probes:   probes,
+			})
+			consecutiveTimeouts++
+			if abort := t.abortAfter(); abort > 0 && consecutiveTimeouts >= abort {
+				res.AbortedEarly = true
+				break
+			}
+			continue
+		}
+		consecutiveTimeouts = 0
+
+		res.Hops = append(res.Hops, HopResult{
+			Index:   ttl,
+			Address: from,
+			RTT:     rtt,
+			Probes:  probes,
+		})
+
+		if reached || from == dest {
+			res.Reached = true
+			break
+		}
+	}
+
+	return res, nil
 }
 
 // hopsReachedDest reports whether the last answering hop was the destination.
@@ -412,251 +531,53 @@ func hopsAbortedEarly(hops []HopResult, maxHops, abortAfter int) bool {
 	return trailing >= abortAfter
 }
 
-// traceUDP sends UDP packets with incrementing TTL and listens for ICMP
-// time-exceeded responses to map the path.
-func (t *tracerouter) traceUDP(ctx context.Context, dest string) (TraceResult, error) {
-	destAddr, err := net.ResolveUDPAddr("udp4", net.JoinHostPort(dest, "33434"))
-	if err != nil {
-		return TraceResult{}, fmt.Errorf("resolving UDP dest: %w", err)
-	}
-
-	// Open raw ICMP socket to receive time-exceeded responses.
-	icmpConn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
-	if err != nil {
-		return TraceResult{}, fmt.Errorf("opening ICMP listener for traceroute: %w", err)
-	}
-	defer func() { _ = icmpConn.Close() }()
-
-	var hops []HopResult
-	maxHops := t.cfg.MaxHops
-	if maxHops <= 0 {
-		maxHops = 30
-	}
-	consecutiveTimeouts := 0
-	var reached, aborted bool
-
-	for ttl := 1; ttl <= maxHops; ttl++ {
-		if ctx.Err() != nil {
-			break
-		}
-
-		hopTimeout := t.cfg.Timeout
-		if hopTimeout == 0 {
-			hopTimeout = 3 * time.Second
-		}
-
-		// Probe until this hop answers or the attempts are exhausted. A hop
-		// that replies costs a single probe; only a silent one is retried, so
-		// a healthy path generates no more traffic than a single-probe trace.
-		var (
-			from        net.Addr
-			reachedDest bool
-			rtt         time.Duration
-			probes      int
-		)
-		for attempt := 0; attempt < t.probesPerHop(); attempt++ {
-			if ctx.Err() != nil {
-				break
-			}
-			probes++
-
-			// Send a UDP packet with the given TTL.
-			udpConn, dialErr := net.DialUDP("udp4", nil, destAddr)
-			if dialErr != nil {
-				return TraceResult{Hops: hops, Reached: reached, AbortedEarly: aborted}, fmt.Errorf("dialing UDP: %w", dialErr)
-			}
-			ipConn := ipv4.NewConn(udpConn)
-			if ttlErr := ipConn.SetTTL(ttl); ttlErr != nil {
-				_ = udpConn.Close()
-				return TraceResult{Hops: hops, Reached: reached, AbortedEarly: aborted}, fmt.Errorf("setting TTL %d: %w", ttl, ttlErr)
-			}
-
-			// The source port identifies this probe in the ICMP error that
-			// comes back, so it must be read before the socket is closed. It
-			// changes per attempt, which is what keeps a late reply to an
-			// earlier attempt from being matched here.
-			localPort := 0
-			if la, ok := udpConn.LocalAddr().(*net.UDPAddr); ok {
-				localPort = la.Port
-			}
-
-			sent := time.Now()
-			if _, writeErr := udpConn.Write([]byte("ping")); writeErr != nil {
-				_ = udpConn.Close()
-				return TraceResult{Hops: hops, Reached: reached, AbortedEarly: aborted}, fmt.Errorf("sending UDP probe: %w", writeErr)
-			}
-			_ = udpConn.Close()
-
-			var awaitErr error
-			from, reachedDest, awaitErr = awaitProbeReply(icmpConn, time.Now().Add(hopTimeout), probeKey{
-				dst:     destAddr.IP,
-				udp:     true,
-				srcPort: localPort,
-				dstPort: destAddr.Port,
-			})
-			rtt = time.Since(sent)
-
-			if awaitErr == nil && from != nil {
-				break
-			}
-			from = nil
-		}
-
-		if from == nil {
-			hops = append(hops, HopResult{
-				Index:    ttl,
-				Address:  unansweredHopAddress,
-				TimedOut: true,
-				Probes:   probes,
-			})
-			consecutiveTimeouts++
-			if abort := t.abortAfter(); abort > 0 && consecutiveTimeouts >= abort {
-				aborted = true
-				break
-			}
-			continue
-		}
-		consecutiveTimeouts = 0
-
-		hops = append(hops, HopResult{
-			Index:   ttl,
-			Address: from.String(),
-			RTT:     rtt,
-			Probes:  probes,
-		})
-
-		// Stop when we reach the destination.
-		fromHost, _, splitErr := net.SplitHostPort(from.String())
-		if splitErr != nil {
-			fromHost = from.String()
-		}
-		if reachedDest || fromHost == dest {
-			reached = true
-			break
-		}
-	}
-
-	return TraceResult{Hops: hops, Reached: reached, AbortedEarly: aborted}, nil
-}
-
-// traceICMP sends ICMP echo requests with incrementing TTL values and collects
-// ICMP time-exceeded responses. Requires root / CAP_NET_RAW.
+// traceICMP maps the path with ICMP echo requests. The answers are read from a
+// raw ICMP socket, so this needs root or CAP_NET_RAW on every platform.
 func (t *tracerouter) traceICMP(ctx context.Context, dest string) (TraceResult, error) {
 	conn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
 	if err != nil {
 		return TraceResult{}, fmt.Errorf("opening raw ICMP socket for traceroute: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
+	stop := context.AfterFunc(ctx, func() { _ = conn.SetReadDeadline(time.Now()) })
+	defer stop()
 
-	destAddr, err := net.ResolveIPAddr("ip4", dest)
-	if err != nil {
-		return TraceResult{}, fmt.Errorf("resolving ICMP dest: %w", err)
+	// Use the connection's own IPv4 accessor rather than ipv4.NewPacketConn:
+	// that constructor type-asserts to net.Conn without a comma-ok, and
+	// *icmp.PacketConn implements net.PacketConn but not net.Conn, so passing
+	// one panics.
+	p4 := conn.IPv4PacketConn()
+	if p4 == nil {
+		return TraceResult{}, errors.New("ICMP traceroute requires an IPv4 connection")
 	}
 
-	var hops []HopResult
-	maxHops := t.cfg.MaxHops
-	if maxHops <= 0 {
-		maxHops = 30
-	}
-	hopTimeout := t.cfg.Timeout
-	if hopTimeout == 0 {
-		hopTimeout = 3 * time.Second
-	}
-	consecutiveTimeouts := 0
-	var reached, aborted bool
-	seq := 0
-
-	for ttl := 1; ttl <= maxHops; ttl++ {
-		if ctx.Err() != nil {
-			break
+	destAddr := &net.IPAddr{IP: net.ParseIP(dest)}
+	var seq uint16
+	return t.walk(ctx, dest, func(ttl int, deadline time.Time) (string, bool, time.Duration, error) {
+		// The sequence number is unique per attempt so a late reply to an
+		// earlier attempt cannot be matched against this one.
+		seq++
+		msg := icmp.Message{
+			Type: ipv4.ICMPTypeEcho,
+			Body: &icmp.Echo{ID: int(t.echoID), Seq: int(seq), Data: probePayload},
+		}
+		wb, err := msg.Marshal(nil)
+		if err != nil {
+			return "", false, 0, fmt.Errorf("marshaling ICMP echo: %w", err)
+		}
+		if err := p4.SetTTL(ttl); err != nil {
+			return "", false, 0, fmt.Errorf("setting ICMP TTL %d: %w", ttl, err)
 		}
 
-		// Probe until this hop answers or the attempts are exhausted. Only a
-		// silent hop is retried, so a healthy path costs one probe per hop.
-		var (
-			from        net.Addr
-			reachedDest bool
-			rtt         time.Duration
-			probes      int
-		)
-		for attempt := 0; attempt < t.probesPerHop(); attempt++ {
-			if ctx.Err() != nil {
-				break
-			}
-			probes++
-
-			// The sequence number is unique per attempt so a late reply to an
-			// earlier attempt cannot be matched against this one.
-			seq++
-			msg := icmp.Message{
-				Type: ipv4.ICMPTypeEcho,
-				Code: 0,
-				Body: &icmp.Echo{ID: int(t.echoID), Seq: seq, Data: []byte("networkcheck")},
-			}
-			wb, marshalErr := msg.Marshal(nil)
-			if marshalErr != nil {
-				return TraceResult{Hops: hops, Reached: reached, AbortedEarly: aborted}, fmt.Errorf("marshaling ICMP echo: %w", marshalErr)
-			}
-
-			// Use the connection's own IPv4 accessor rather than
-			// ipv4.NewPacketConn: that constructor type-asserts to net.Conn
-			// without a comma-ok, and *icmp.PacketConn implements
-			// net.PacketConn but not net.Conn, so passing one panics.
-			p4 := conn.IPv4PacketConn()
-			if p4 == nil {
-				return TraceResult{Hops: hops, Reached: reached, AbortedEarly: aborted}, fmt.Errorf("ICMP traceroute requires an IPv4 connection")
-			}
-			if ttlErr := p4.SetTTL(ttl); ttlErr != nil {
-				return TraceResult{Hops: hops, Reached: reached, AbortedEarly: aborted}, fmt.Errorf("setting ICMP TTL %d: %w", ttl, ttlErr)
-			}
-
-			sent := time.Now()
-			if _, writeErr := conn.WriteTo(wb, destAddr); writeErr != nil {
-				return TraceResult{Hops: hops, Reached: reached, AbortedEarly: aborted}, fmt.Errorf("sending ICMP probe: %w", writeErr)
-			}
-
-			var awaitErr error
-			from, reachedDest, awaitErr = awaitProbeReply(conn, time.Now().Add(hopTimeout), probeKey{
-				dst:     destAddr.IP,
-				echoID:  int(t.echoID),
-				echoSeq: seq,
-			})
-			rtt = time.Since(sent)
-
-			if awaitErr == nil && from != nil {
-				break
-			}
-			from = nil
+		sent := time.Now()
+		if _, err := conn.WriteTo(wb, destAddr); err != nil {
+			return "", false, 0, fmt.Errorf("sending ICMP probe: %w", err)
 		}
-
-		if from == nil {
-			hops = append(hops, HopResult{
-				Index:    ttl,
-				Address:  unansweredHopAddress,
-				TimedOut: true,
-				Probes:   probes,
-			})
-			consecutiveTimeouts++
-			if abort := t.abortAfter(); abort > 0 && consecutiveTimeouts >= abort {
-				aborted = true
-				break
-			}
-			continue
-		}
-		consecutiveTimeouts = 0
-
-		hops = append(hops, HopResult{
-			Index:   ttl,
-			Address: from.String(),
-			RTT:     rtt,
-			Probes:  probes,
+		from, reached, err := awaitProbeReply(ctx, conn, deadline, probeKey{
+			dst:     destAddr.IP,
+			echoID:  int(t.echoID),
+			echoSeq: int(seq),
 		})
-
-		if reachedDest || from.String() == destAddr.String() {
-			reached = true
-			break
-		}
-	}
-
-	return TraceResult{Hops: hops, Reached: reached, AbortedEarly: aborted}, nil
+		return from, reached, time.Since(sent), err
+	})
 }
