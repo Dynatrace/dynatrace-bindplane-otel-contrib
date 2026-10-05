@@ -44,6 +44,9 @@ type httpPinger struct {
 	// phases then describe the hop to the proxy, and the address connected to
 	// is the proxy's, not the target's.
 	proxied bool
+
+	// dnsServer is the resolver override address, or "" for the OS resolver.
+	dnsServer string
 }
 
 const (
@@ -98,12 +101,14 @@ func newHTTPPinger(ctx context.Context, _ component.Host, _ component.TelemetryS
 	}
 
 	dialer := &net.Dialer{Timeout: timeout}
+	var dnsServer string
 	// Only an explicit dns_server replaces the resolver. Forcing lookups to
 	// the detected system nameserver bypassed the OS resolver's failover to
 	// further nameservers, its search domains and split DNS, and turned the
 	// probe into a test of one server rather than of what clients on the host
 	// see.
 	if target.DNSServer != "" {
+		dnsServer = dnsServerAddr(target.DNSServer)
 		dialer.Resolver = overrideResolver(target.DNSServer, timeout)
 	}
 
@@ -162,6 +167,7 @@ func newHTTPPinger(ctx context.Context, _ component.Host, _ component.TelemetryS
 		header:     header,
 		host:       host,
 		proxied:    proxy != nil,
+		dnsServer:  dnsServer,
 	}, nil
 }
 
@@ -210,7 +216,7 @@ func (p *httpPinger) ping(ctx context.Context) (PingResult, error) {
 	if err != nil {
 		// A failed request is a measurement, not an error. It keeps the
 		// phases that completed before the one that broke.
-		res.ErrMessage = redactErr(err).Error()
+		res.ErrMessage = redactErr(nameDNSServer(err, p.dnsServer)).Error()
 		res.ErrPhase = failurePhase(t)
 		return res, nil
 	}

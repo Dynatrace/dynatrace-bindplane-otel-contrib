@@ -287,7 +287,9 @@ type tracerouter struct {
 
 	// resolver resolves host the way the target's probe does: through the
 	// target's DNS server when one is set, the system resolver otherwise.
-	resolver *net.Resolver
+	// dnsServer is that server's dial address, or "" for the system resolver.
+	resolver  *net.Resolver
+	dnsServer string
 
 	// echoID identifies this tracerouter's ICMP echo probes. Each tracerouter
 	// picks its own, so concurrent traces in one process do not claim each
@@ -303,6 +305,12 @@ func newTracerouter(cfg TracerouteConfig, endpoint string, dnsServer string) *tr
 		cfg:      cfg,
 		host:     hostFromEndpoint(endpoint),
 		resolver: newResolver(dnsServer),
+		dnsServer: func() string {
+			if dnsServer == "" {
+				return ""
+			}
+			return dnsServerAddr(dnsServer)
+		}(),
 		// #nosec G404 G115 -- correlates probes with their replies, not a secret; the value is in [0, 65535].
 		echoID: uint16(rand.IntN(1 << 16)),
 	}
@@ -379,6 +387,7 @@ func (t *tracerouter) shouldRun(checkCount int, result PingResult) bool {
 // and IPV6_RECVERR on Linux; add it when IPv6-only targets need a path.
 func (t *tracerouter) resolveIPv4(ctx context.Context) (string, error) {
 	ips, err := t.resolver.LookupIP(ctx, "ip4", t.host)
+	err = nameDNSServer(err, t.dnsServer)
 	if err == nil && len(ips) > 0 {
 		return ips[0].String(), nil
 	}

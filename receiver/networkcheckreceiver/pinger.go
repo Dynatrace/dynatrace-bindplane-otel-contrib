@@ -16,6 +16,7 @@ package networkcheckreceiver // import "github.com/dynatrace/dynatrace-bindplane
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strings"
 	"time"
@@ -97,4 +98,16 @@ func dnsServerAddr(server string) string {
 		return server
 	}
 	return net.JoinHostPort(strings.Trim(server, "[]"), "53")
+}
+
+// nameDNSServer makes a DNS error name the server a resolver override actually
+// asked. The Go resolver reports the resolv.conf server it believes it used,
+// while the Dial override sent the query to server instead. The error is
+// changed in place so the wrapping (url.Error, net.OpError) stays intact.
+func nameDNSServer(err error, server string) error {
+	var dnsErr *net.DNSError
+	if server != "" && errors.As(err, &dnsErr) {
+		dnsErr.Server = server
+	}
+	return err
 }

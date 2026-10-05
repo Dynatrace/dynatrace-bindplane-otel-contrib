@@ -259,6 +259,9 @@ func TestHTTPPinger_ResolverOverride(t *testing.T) {
 		require.Equal(t, 0, r.StatusCode)
 		require.Equal(t, "dns", r.ErrPhase)
 		require.Contains(t, r.ErrMessage, "no such host")
+		// The error names the server that was actually asked, not the
+		// resolv.conf server the Go resolver believes it used.
+		require.Contains(t, r.ErrMessage, "on "+dns.addr)
 	})
 }
 

@@ -177,14 +177,7 @@ func (p *icmpPinger) resolve(ctx context.Context) (*net.IPAddr, error) {
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 	addrs, err := p.resolver.LookupIPAddr(ctx, p.host)
-	var dnsErr *net.DNSError
-	if p.dnsServer != "" && errors.As(err, &dnsErr) {
-		// The resolver names the resolv.conf server it believes it asked;
-		// the Dial override sent the query to dnsServer instead.
-		e := *dnsErr
-		e.Server = p.dnsServer
-		err = &e
-	}
+	err = nameDNSServer(err, p.dnsServer)
 	if err != nil {
 		return nil, err
 	}
