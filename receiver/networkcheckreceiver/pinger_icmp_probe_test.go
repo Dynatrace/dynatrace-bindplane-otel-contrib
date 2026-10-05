@@ -16,7 +16,7 @@ package networkcheckreceiver
 
 import (
 	"context"
-	"os/exec"
+	"runtime"
 	"slices"
 	"testing"
 	"time"
@@ -92,6 +92,11 @@ func TestICMPPingResolvesThroughDNSServer(t *testing.T) {
 }
 
 func TestICMPPingSocketPermissionIsMeasurement(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Windows has no datagram ICMP, and a non-elevated raw socket fails
+		// with WSAEACCES, which is not os.ErrPermission, so no hint is added.
+		t.Skip("the root / CAP_NET_RAW / ping_group_range hint is Unix-only")
+	}
 	// Raw mode needs root or CAP_NET_RAW; datagram mode is refused only where
 	// the capability check already found ICMP unavailable.
 	modes := []bool{true}
@@ -139,7 +144,9 @@ func TestICMPPingUnreachableTiming(t *testing.T) {
 
 func TestICMPPingLoopbackUsesShortInterval(t *testing.T) {
 	privileged := requireICMP(t)
-	if exec.Command("/sbin/ping", "-c1", "-t1", "127.0.0.1").Run() != nil {
+	// Probed with the pinger itself rather than /sbin/ping, which Ubuntu and
+	// Windows lack; macOS stealth mode leaves loopback echo unanswered.
+	if r, _ := newICMPPinger(icmpTarget("127.0.0.1", 1, 500*time.Millisecond), privileged).ping(context.Background()); r.PacketLoss != 0 {
 		t.Skip("loopback ICMP is not answered on this host")
 	}
 
@@ -147,7 +154,7 @@ func TestICMPPingLoopbackUsesShortInterval(t *testing.T) {
 	r, err := newICMPPinger(icmpTarget("127.0.0.1", 3, 2*time.Second), privileged).ping(context.Background())
 	require.NoError(t, err)
 	require.Zero(t, r.PacketLoss, r.ErrMessage)
-	require.Positive(t, r.MaxRTT)
+	requireTimed(t, r.MaxRTT)
 	require.Less(t, time.Since(start), time.Second, "3 packets at a 200ms interval")
 }
 

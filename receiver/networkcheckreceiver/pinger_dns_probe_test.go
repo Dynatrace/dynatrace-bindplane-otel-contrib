@@ -270,7 +270,7 @@ func TestDNSPingRecordTypes(t *testing.T) {
 			if tc.wantErr != "" {
 				require.Equal(t, "dns", r.ErrPhase)
 			}
-			require.Positive(t, r.QueryDuration)
+			requireTimed(t, r.QueryDuration)
 
 			fqdn := strings.TrimSuffix(tc.query, ".") + "."
 			require.Equal(t, []string{"udp " + tc.recordType + " " + fqdn}, s.queries()[before:],

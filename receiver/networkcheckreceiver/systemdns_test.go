@@ -16,6 +16,7 @@ package networkcheckreceiver
 
 import (
 	"net"
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -25,7 +26,7 @@ import (
 // The detected value becomes the dns.server attribute, so whatever comes back
 // must be a bare IP. The concrete address is environment-specific, but a
 // malformed one (a port, a stray NUL from the Windows socket structures, an
-// unspecified or link-local address) is a defect anywhere.
+// unspecified address, or a link-local one with no zone) is a defect anywhere.
 func TestDetectSystemDNSReturnsBareIPOrEmpty(t *testing.T) {
 	got := detectSystemDNS()
 	if got == "" {
@@ -36,11 +37,14 @@ func TestDetectSystemDNSReturnsBareIPOrEmpty(t *testing.T) {
 	require.NotContains(t, got, "\x00", "must not carry a NUL from the platform structures")
 	require.NotContains(t, got, " ", "must be a single address")
 
-	ip := net.ParseIP(got)
-	require.NotNil(t, ip, "detectSystemDNS returned %q, which is not a valid IP", got)
+	// netip, unlike net.ParseIP, accepts the zone resolv.conf carries on a
+	// link-local nameserver (fe80::1%en0, common on IPv6 LANs); with it the
+	// address is dialable.
+	ip, err := netip.ParseAddr(got)
+	require.NoError(t, err, "detectSystemDNS returned %q, which is not a valid IP", got)
 	require.False(t, ip.IsUnspecified(), "0.0.0.0 / :: is not a usable resolver")
-	require.False(t, ip.IsLinkLocalUnicast(), "a link-local address is not a usable resolver")
+	require.False(t, ip.IsLinkLocalUnicast() && ip.Zone() == "", "a link-local address without a zone is not a usable resolver")
 
-	_, _, err := net.SplitHostPort(got)
+	_, _, err = net.SplitHostPort(got)
 	require.Error(t, err, "must be a bare IP with no port, got %q", got)
 }

@@ -219,7 +219,7 @@ func TestHTTPPinger_ResolverOverride(t *testing.T) {
 		dns := startDNSResponder(t, "127.0.0.1:0", false, false, "probe.test")
 		r := probeHTTP(t, httpTarget("http://probe.test:"+port+"/", func(tc *TargetConfig) { tc.DNSServer = dns.addr }))
 		require.Equal(t, http.StatusOK, r.StatusCode, r.ErrMessage)
-		require.Positive(t, r.DNSLookup)
+		requireTimed(t, r.DNSLookup)
 		require.Equal(t, "127.0.0.1", r.ResolvedIP)
 		require.Contains(t, dns.queries(), "udp TypeA probe.test.")
 	})

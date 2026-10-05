@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -53,6 +54,17 @@ func probeHTTP(t *testing.T, tc TargetConfig) PingResult {
 	r, err := newTestHTTPPinger(t, tc).ping(context.Background())
 	require.NoError(t, err)
 	return r
+}
+
+// requireTimed asserts that a phase which ran measured as non-zero. Windows
+// reads time.Now from the interrupt clock, which advances in timer ticks (up to
+// 15.6ms), so a loopback phase can measure exactly 0 there; the check runs on
+// every other platform.
+func requireTimed(t *testing.T, d time.Duration, msgAndArgs ...any) {
+	t.Helper()
+	if runtime.GOOS != "windows" {
+		require.Positive(t, d, msgAndArgs...)
+	}
 }
 
 // closedPort returns a loopback address with nothing listening on it.
@@ -295,8 +307,8 @@ func TestHTTPPinger_IPLiteralMeasuresConnect(t *testing.T) {
 	r := probeHTTP(t, httpTarget(srv.URL, nil))
 	require.Equal(t, http.StatusOK, r.StatusCode, r.ErrMessage)
 	require.Zero(t, r.DNSLookup, "an IP literal needs no lookup")
-	require.Positive(t, r.TCPConnect, "connect used to be measured from DNS done, which never fires here")
-	require.Positive(t, r.ResponseRead)
+	requireTimed(t, r.TCPConnect, "connect used to be measured from DNS done, which never fires here")
+	requireTimed(t, r.ResponseRead)
 	require.Equal(t, "127.0.0.1", r.ResolvedIP)
 	require.GreaterOrEqual(t, r.TotalDuration, r.TCPConnect+r.RequestWrite+r.ResponseRead)
 }
@@ -305,8 +317,8 @@ func TestHTTPPinger_HostnameHasDNSPhase(t *testing.T) {
 	clearProxyEnv(t)
 	r := probeHTTP(t, httpTarget("http://localhost:"+okServer(t)+"/", nil))
 	require.Equal(t, http.StatusOK, r.StatusCode, r.ErrMessage)
-	require.Positive(t, r.DNSLookup)
-	require.Positive(t, r.TCPConnect)
+	requireTimed(t, r.DNSLookup)
+	requireTimed(t, r.TCPConnect)
 	require.NotNil(t, net.ParseIP(r.ResolvedIP), r.ResolvedIP)
 }
 
@@ -339,14 +351,21 @@ func TestHTTPPinger_TimeoutKeepsCompletedPhases(t *testing.T) {
 	defer srv.Close()
 	_, port, err := net.SplitHostPort(srv.Listener.Addr().String())
 	require.NoError(t, err)
+	// A name with only an A record: "localhost" resolves ::1 first on Windows,
+	// where a refused loopback dial takes about a second, so the 300ms budget
+	// ran out before the IPv4 fallback connected.
+	dns := startDNSResponder(t, "127.0.0.1:0", false, false, "probe.test")
 
 	const timeout = 300 * time.Millisecond
-	r := probeHTTP(t, httpTarget("http://localhost:"+port+"/", func(tc *TargetConfig) { tc.Timeout = timeout }))
+	r := probeHTTP(t, httpTarget("http://probe.test:"+port+"/", func(tc *TargetConfig) {
+		tc.Timeout = timeout
+		tc.DNSServer = dns.addr
+	}))
 	require.Equal(t, 0, r.StatusCode)
 	require.Equal(t, "response", r.ErrPhase)
 	require.Contains(t, r.ErrMessage, "Client.Timeout exceeded")
-	require.Positive(t, r.DNSLookup, "phases before the timeout completed and are kept")
-	require.Positive(t, r.TCPConnect)
+	requireTimed(t, r.DNSLookup, "phases before the timeout completed and are kept")
+	requireTimed(t, r.TCPConnect)
 	require.Zero(t, r.ResponseRead, "no first byte arrived")
 	require.GreaterOrEqual(t, r.TotalDuration, timeout)
 	require.Less(t, r.TotalDuration, timeout+300*time.Millisecond)
@@ -369,7 +388,7 @@ func TestHTTPPinger_FailurePhases(t *testing.T) {
 	t.Run("connection refused, hostname", func(t *testing.T) {
 		r := probeHTTP(t, httpTarget("http://localhost:"+closedPortNum+"/", nil))
 		require.Equal(t, "connect", r.ErrPhase)
-		require.Positive(t, r.DNSLookup)
+		requireTimed(t, r.DNSLookup)
 		require.Zero(t, r.TCPConnect)
 	})
 
@@ -377,7 +396,7 @@ func TestHTTPPinger_FailurePhases(t *testing.T) {
 		r := probeHTTP(t, httpTarget(untrusted.URL, nil))
 		require.Equal(t, 0, r.StatusCode)
 		require.Equal(t, "tls", r.ErrPhase)
-		require.Positive(t, r.TCPConnect)
+		requireTimed(t, r.TCPConnect)
 		require.Zero(t, r.TLSHandshake)
 		require.Nil(t, r.TLS)
 	})

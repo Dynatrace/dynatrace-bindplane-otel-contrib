@@ -401,7 +401,9 @@ func TestMetadataTestConfigIsValid(t *testing.T) {
 func TestReadmeConfigurationBlockIsValid(t *testing.T) {
 	readme, err := os.ReadFile("README.md")
 	require.NoError(t, err)
-	m := regexp.MustCompile("(?s)\n## Configuration\n.*?```yaml\n(.*?)```").FindSubmatch(readme)
+	// \r?: Windows CI checks the README out with CRLF line endings
+	// (core.autocrlf=true).
+	m := regexp.MustCompile("(?s)\r?\n## Configuration\r?\n.*?```yaml\r?\n(.*?)```").FindSubmatch(readme)
 	require.NotNil(t, m, "README.md must have a yaml block under ## Configuration")
 
 	path := filepath.Join(t.TempDir(), "readme.yaml")
