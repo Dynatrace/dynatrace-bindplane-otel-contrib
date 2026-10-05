@@ -230,11 +230,12 @@ func TestOnDemandBacklogThenTrickle(t *testing.T) {
 	}
 	buf := NewLogBuffer(100)
 
-	// Backlog: 100-record batches at 50 batches/s, 5,000 records/s, for just
-	// over three windows.
+	// Backlog: 100-record batches at 50 batches/s, 5,000 records/s, for four
+	// windows; three fast ones switch the mode, the fourth is margin for a
+	// slow machine.
 	stop := make(chan struct{})
 	done := benchProducer(buf, 100, 5_000, stop)
-	time.Sleep(3600 * time.Millisecond)
+	time.Sleep(4 * time.Second)
 	close(stop)
 	<-done
 	require.False(t, buf.admit.collecting.Load(), "backlog should switch the buffer to on-demand mode")
@@ -248,6 +249,11 @@ func TestOnDemandBacklogThenTrickle(t *testing.T) {
 	}()
 	require.Eventually(t, func() bool { return buf.admit.collecting.Load() },
 		8*time.Second, 50*time.Millisecond, "trickle should return the buffer to continuous mode")
+	// The mode flips inside the Add of the payload that closed the slow
+	// window, before that Add has appended its records; a request in that
+	// gap gets the last known snapshot, which is correct but not what this
+	// test is about. Let a couple of trickle batches land first.
+	time.Sleep(500 * time.Millisecond)
 
 	start := time.Now()
 	payload, err := buf.ConstructPayload(&plog.ProtoMarshaler{}, nil, nil, 10<<20)
