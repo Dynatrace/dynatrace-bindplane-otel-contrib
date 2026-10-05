@@ -79,9 +79,11 @@ rate from what was offered during the window. After three
 consecutive windows above `highThroughputMultiple` (10) buffers' worth of
 records per second with at least `minBatchesPerSecond` (10) batches, the
 buffer switches to on-demand mode: it stops collecting and keeps its store as
-the last known snapshot. `Add` then costs one atomic load plus one atomic add,
-and once every `heartbeatInterval` (10 s) it admits a single payload so the
-store stays a recent picture of the stream. A snapshot request arms the
+the last known snapshot. `Add` then costs two atomic adds, two atomic loads
+and a clock read, and it admits the first payload after each
+`heartbeatInterval` (10 s) so the store stays a recent picture of the stream
+however slowly the pipeline batches: down to one batch per 10 s the store is
+refreshed every 10 s, below that on every batch. A snapshot request arms the
 buffer, waits until a full store's worth of fresh records has arrived or
 `fillWait` (1 s) has passed, answers, and disarms. If the pipeline is
 flowing, the fresh records have displaced the old ones and the snapshot is
@@ -90,6 +92,17 @@ last known snapshot (at most a heartbeat old relative to when traffic
 stopped) and the buffer returns to continuous mode. Requests that arrive
 while another is in flight share the same fill. All window arithmetic uses
 the monotonic clock, so a wall-clock step cannot freeze a window.
+
+On-demand mode is not sticky. Every payload counts towards the window rate
+in both modes, and after `slowWindowsToContinuous` (3) consecutive windows
+below the high-throughput rate the buffer returns to continuous mode on its
+own. A file receiver draining its start-up backlog at thousands of records
+per second for a few seconds and then trickling flips the buffer to
+on-demand and back within about three seconds of settling, and the first
+request after that answers at once with the trickle's records; only a
+request that lands inside those three seconds waits `fillWait` and returns
+the last known snapshot plus whatever trickled in. `TestOnDemandBacklogThenTrickle`
+runs exactly that shape in real time.
 
 Why count offered records instead of timing the fill: a single 1,000-record
 batch every 10 s "fills" the budget instantly but is 100 records/s (the first
@@ -113,7 +126,12 @@ volume per poll is the same.
 ### 3.4 Behaviour changes
 
 - A batch larger than `idealSize` retains its newest `idealSize` records, not
-  the whole batch.
+  the whole batch. This is user-visible: the shipped buffer replaced its store
+  with an oversized batch, so a pipeline batching 1,000 records showed up to
+  1,000 records per snapshot (Bindplane truncates each relayed snapshot to
+  500 per signal, `otlp.MaxTelemetryResults`), and now shows `idealSize`
+  (100) like every other pipeline. Raising `idealSize` where the buffers are
+  built raises the admission budget with it, 100 records/s per 100 of size.
 - In continuous mode a full buffer refreshes ~100 records/s instead of on every
   batch, so a snapshot can be up to 1 s old.
 - In on-demand mode the request returns records from the moment of the request
@@ -122,10 +140,19 @@ volume per poll is the same.
   last known snapshot, as the shipped buffer does; the buffer is then
   continuous again.
 - A request no longer sees records admitted while it was marshaling.
+- An on-demand buffer's store is refreshed by the first payload after each
+  10 s heartbeat, whatever the batch rate, and the buffer returns to
+  continuous mode after three slow windows, not only on a request timeout.
 - `ConstructPayload` may block for up to `fillWait`. The collector's OpAMP
-  custom-message handler runs in its own goroutine; the legacy report-manager
-  path (`report.yaml`, used by older servers) already blocked on an HTTP POST
-  inside the OpAMP reload callback and now also waits for the fill there.
+  custom-message handler runs in its own goroutine per processor and handles
+  that processor's messages serially, so a logs fill can delay a metrics
+  request on the same processor by up to `fillWait`; the extension queues
+  ten messages per handler (`opampcustommessages` default) and drops beyond
+  that without blocking, so OpAMP itself cannot stall. At Bindplane's
+  one-request-per-second polling this is not visible. The legacy
+  report-manager path (`report.yaml`, used by older servers) already blocked
+  on an HTTP POST inside the OpAMP reload callback and now also waits for
+  the fill there.
 
 ## 4. Go benchmarks (unit level)
 
@@ -147,7 +174,7 @@ Hot path per batch, processor level (`BenchmarkProcessLogs`, 1,000 records):
 |-----------|---------|-----------|--------------------------------------------|
 | stock     | 226,983 | 13,012    | full deep copy                             |
 | budget    | 78      | 0         | steady state; one ≤100-record copy per second |
-| on-demand | ~2–7    | 0         | idle between requests (one heartbeat copy per 10 s) |
+| on-demand | ~17     | 0         | idle between requests: count, clock read, heartbeat check (one bounded copy per 10 s) |
 
 Buffer level (`BenchmarkLogBufferAdd`, 1,000 records):
 
@@ -234,10 +261,10 @@ heap-in-use gauge swings with GC phase; both fixed builds retain the same
 bounded store (a few hundred KB across three buffers), below this rig's
 resolution.
 
-## 6. GCP VM (Linux x86-64)
+## 6. Linux x86-64 VM
 
-Same rig (`testdata/perfrig`, `RUNBOOK.md` there has every command) on a GCP
-`n2-standard-8` VM: Intel Xeon 2.80 GHz, 8 vCPU on 4 physical cores, 31 GB,
+Same rig (`testdata/perfrig`, set up with `remote-setup.sh`) on a cloud VM:
+Intel Xeon 2.80 GHz, 8 vCPU on 4 physical cores, 31 GB,
 Ubuntu 22.04, Docker 29.8; collectors still capped at 2 CPUs each. The box,
 not the collector quota, limited throughput to ~8–9.7k records/s (peak
 collector CPU 167 % of 200 %); a probe with 50 % more offered load moved the

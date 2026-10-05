@@ -1,4 +1,4 @@
-// Copyright  observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -154,21 +154,108 @@ func TestOnDemandHeartbeatKeepsStoreCurrent(t *testing.T) {
 	forceOnDemand(t, buf)
 	before := buf.Len()
 
-	// A heartbeat is due: exactly one of the next 64 payloads is admitted.
-	buf.admit.heartbeatInterval = 0
-	for i := 0; i < 64; i++ {
-		buf.Add(logsN(1, fmt.Sprintf("hb-%d", i)))
+	// Not due: nothing is admitted, however many payloads pass.
+	for i := 0; i < 100; i++ {
+		buf.Add(logsN(1, "early"))
 	}
-	require.Equal(t, before+1, buf.Len())
-	require.Contains(t, logBodiesNoRequest(buf), "hb-63-0")
+	require.Equal(t, before, buf.Len())
 
-	// Not due: nothing is admitted.
-	buf.admit.heartbeatInterval = time.Hour
-	for i := 0; i < 64; i++ {
-		buf.Add(logsN(1, "late"))
-	}
+	// Due: the very next payload is admitted, so a pipeline that offers one
+	// batch per second refreshes the store on its first batch after the
+	// interval, not after some number of batches. The payload after it is
+	// not admitted.
+	buf.admit.lastHeartbeatNs.Store(monoNow() - int64(buf.admit.heartbeatInterval))
+	buf.Add(logsN(1, "hb"))
+	require.Equal(t, before+1, buf.Len())
+	require.Contains(t, logBodiesNoRequest(buf), "hb-0")
+	buf.Add(logsN(1, "late"))
 	require.Equal(t, before+1, buf.Len())
 	require.False(t, buf.admit.collecting.Load())
+}
+
+func TestOnDemandReturnsToContinuousAfterSlowWindows(t *testing.T) {
+	t.Run("consecutive slow windows switch back and keep the store", func(t *testing.T) {
+		buf := NewLogBuffer(10)
+		forceOnDemand(t, buf)
+		kept := buf.Len()
+
+		// The pipeline settles to one 10-record batch per second: a tenth of
+		// the high-throughput record rate and of the batch rate.
+		for i := 1; i < buf.admit.slowWindowsToContinuous; i++ {
+			simulateWindow(buf, 1, 10)
+			require.False(t, buf.admit.collecting.Load(), "still on-demand after %d slow windows", i)
+		}
+		simulateWindow(buf, 1, 10)
+		require.True(t, buf.admit.collecting.Load(), "continuous again after %d slow windows", buf.admit.slowWindowsToContinuous)
+		buf.admit.mu.Lock()
+		onDemand := buf.admit.onDemand
+		buf.admit.mu.Unlock()
+		require.False(t, onDemand)
+
+		// The payload that closed the last window was admitted on top of the
+		// kept store, and a request answers at once: no arming, no wait.
+		require.Equal(t, kept+1, buf.Len())
+		buf.admit.fillWait = 500 * time.Millisecond
+		start := time.Now()
+		bodies := logBodies(t, buf)
+		require.Less(t, time.Since(start), 250*time.Millisecond, "request must not wait for a fill in continuous mode")
+		require.Contains(t, bodies, "tick-0")
+	})
+
+	t.Run("a fast window restarts the slow streak", func(t *testing.T) {
+		buf := NewLogBuffer(10)
+		forceOnDemand(t, buf)
+		simulateWindow(buf, 1, 10)
+		simulateWindow(buf, 1, 10)
+		simulateFastWindow(buf)
+		require.False(t, buf.admit.collecting.Load())
+		for i := 1; i < buf.admit.slowWindowsToContinuous; i++ {
+			simulateWindow(buf, 1, 10)
+			require.False(t, buf.admit.collecting.Load(), "streak restarted by the fast window")
+		}
+		simulateWindow(buf, 1, 10)
+		require.True(t, buf.admit.collecting.Load())
+	})
+}
+
+// TestOnDemandBacklogThenTrickle is the shape of a file receiver at start-up:
+// a backlog drained at thousands of records per second for a few seconds,
+// then a trickle. The backlog switches the buffer to on-demand mode; the
+// trickle must switch it back on its own, so the first request after the
+// pipeline settled answers at once with the trickle's records instead of
+// waiting a whole fillWait for a fill that cannot complete.
+func TestOnDemandBacklogThenTrickle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs several seconds of real time")
+	}
+	buf := NewLogBuffer(100)
+
+	// Backlog: 100-record batches at 50 batches/s, 5,000 records/s, for just
+	// over three windows.
+	stop := make(chan struct{})
+	done := benchProducer(buf, 100, 5_000, stop)
+	time.Sleep(3600 * time.Millisecond)
+	close(stop)
+	<-done
+	require.False(t, buf.admit.collecting.Load(), "backlog should switch the buffer to on-demand mode")
+
+	// Trickle: 2-record batches at 5 batches/s, 10 records/s.
+	stop = make(chan struct{})
+	done = benchProducer(buf, 2, 10, stop)
+	defer func() {
+		close(stop)
+		<-done
+	}()
+	require.Eventually(t, func() bool { return buf.admit.collecting.Load() },
+		8*time.Second, 50*time.Millisecond, "trickle should return the buffer to continuous mode")
+
+	start := time.Now()
+	payload, err := buf.ConstructPayload(&plog.ProtoMarshaler{}, nil, nil, 10<<20)
+	require.NoError(t, err)
+	require.Less(t, time.Since(start), 250*time.Millisecond, "request must not wait for a fill")
+	newest, n := newestObserved(t, payload)
+	require.Positive(t, n)
+	require.Less(t, time.Since(newest), time.Second, "payload should carry the trickle's latest records")
 }
 
 // logBodiesNoRequest reads the store directly, without going through a

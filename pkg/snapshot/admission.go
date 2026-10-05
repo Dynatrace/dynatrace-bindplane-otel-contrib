@@ -1,4 +1,4 @@
-// Copyright  observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,8 @@ const DefaultRefreshInterval = time.Second
 // On-demand mode. A pipeline that can fill a whole buffer in a fraction of a
 // second does not need one kept warm: a snapshot request can collect its own
 // records just in time. Such buffers stop collecting between requests, so the
-// steady-state cost is one atomic load per batch and no retained telemetry.
+// steady-state cost is a few atomic operations and a clock read per batch and
+// no copying.
 const (
 	// highThroughputMultiple is how many buffers' worth of records per
 	// second a pipeline must deliver to count as high-throughput. Ten means
@@ -43,6 +44,13 @@ const (
 	// switch a buffer to on-demand mode. Three means a burst does not flip
 	// the mode.
 	fastWindowsToOnDemand = 3
+	// slowWindowsToContinuous is how many consecutive windows below the
+	// high-throughput rate switch an on-demand buffer back to continuous
+	// mode. A pipeline that settles after a burst (a file receiver draining
+	// its backlog at start-up) is collected continuously again a few seconds
+	// later, before anyone has to ask for a snapshot and wait for a fill that
+	// cannot complete.
+	slowWindowsToContinuous = 3
 	// fillWait bounds how long a request in on-demand mode waits for the
 	// store to fill before answering with whatever has arrived. It matches
 	// the interval at which Bindplane polls for snapshots, so a slow pipeline
@@ -53,9 +61,6 @@ const (
 	// request after the pipeline goes quiet still shows the last records that
 	// flowed. One bounded copy every ten seconds is below any measurable cost.
 	heartbeatInterval = 10 * time.Second
-	// heartbeatSampleMask makes the idle hot path read the clock only once
-	// every 64 payloads; the other 63 cost one atomic add.
-	heartbeatSampleMask = 63
 )
 
 // epoch anchors the monotonic clock all window arithmetic uses. time.Since
@@ -76,21 +81,24 @@ func monoNow() int64 {
 // per interval.
 //
 // On-demand mode: the buffer stops collecting and keeps its store as the last
-// known snapshot, refreshed by one payload per heartbeatInterval. A request
-// arms the buffer, waits until a full store's worth of fresh records has
-// arrived or fillWait has passed, answers with the store (fresh records if the
-// pipeline is flowing, the last known ones if it went quiet), and disarms.
-// Each time a window rolls over, the records and batches offered give the
-// pipeline's rate; after fastWindowsToOnDemand consecutive windows above
-// highThroughputMultiple buffers per second (and minBatchesPerSecond batches)
-// the buffer switches to on-demand mode. It leaves the first time a request's
-// wait times out.
+// known snapshot, refreshed by the first payload after each heartbeatInterval.
+// A request arms the buffer, waits until a full store's worth of fresh records
+// has arrived or fillWait has passed, answers with the store (fresh records if
+// the pipeline is flowing, the last known ones if it went quiet), and disarms.
+//
+// Every payload counts towards the current window's record and batch rate,
+// whichever the mode. When a window rolls over the rate decides the mode:
+// after fastWindowsToOnDemand consecutive windows above highThroughputMultiple
+// buffers per second (and minBatchesPerSecond batches) the buffer switches to
+// on-demand mode; after slowWindowsToContinuous consecutive windows below
+// that rate, or the first time a request's wait times out, it switches back.
 //
 // The rejected path reads only the payload's record count (a walk of its
-// resource and scope groups, no allocation) and is lock-free: one atomic
-// load (collecting), two atomic adds, one atomic load, one clock read and one
-// more load. An interval of zero admits everything and disables on-demand
-// detection.
+// resource and scope groups, no allocation) and is lock-free: two atomic
+// adds and two atomic loads in continuous mode, plus one clock read and one
+// or two more loads once the budget is spent or the buffer is idle in
+// on-demand mode. An interval of zero admits everything and disables
+// on-demand detection.
 type admission struct {
 	interval time.Duration
 	budget   int64
@@ -106,12 +114,15 @@ type admission struct {
 	offered atomic.Int64
 	// collecting is the hot-path gate. It is false only in on-demand mode
 	// between requests. armed is true while a request is in flight on an
-	// on-demand buffer, so Add knows to report a full store.
+	// on-demand buffer, so Add knows to count fresh records and report a
+	// full store. fresh counts the records admitted since the buffer was
+	// armed; it is zeroed before armed is set so no earlier payload can be
+	// counted.
 	collecting atomic.Bool
 	armed      atomic.Bool
-	// idleBatches counts payloads offered while idle in on-demand mode and
-	// lastHeartbeatNs is when one was last admitted as a heartbeat.
-	idleBatches     atomic.Int64
+	fresh      atomic.Int64
+	// lastHeartbeatNs is when an idle on-demand buffer last admitted a
+	// payload as a heartbeat.
 	lastHeartbeatNs atomic.Int64
 
 	// Slow-path state, touched only when a window rolls over or a request
@@ -119,6 +130,7 @@ type admission struct {
 	mu          sync.Mutex
 	onDemand    bool
 	fastWindows int
+	slowWindows int
 	// waiters is the number of in-flight requests keeping an on-demand
 	// buffer armed. filled is closed once the store reaches the ideal size
 	// while armed.
@@ -127,11 +139,12 @@ type admission struct {
 	filledClosed bool
 	// Detection and wait parameters; package constants unless a test
 	// overrides them.
-	highThroughputMultiple int
-	minBatchesPerSecond    int
-	fastWindowsToOnDemand  int
-	fillWait               time.Duration
-	heartbeatInterval      time.Duration
+	highThroughputMultiple  int
+	minBatchesPerSecond     int
+	fastWindowsToOnDemand   int
+	slowWindowsToContinuous int
+	fillWait                time.Duration
+	heartbeatInterval       time.Duration
 }
 
 // decision is what Add should do with a payload.
@@ -158,57 +171,61 @@ func (a *admission) init(interval time.Duration, budget int) {
 	a.highThroughputMultiple = highThroughputMultiple
 	a.minBatchesPerSecond = minBatchesPerSecond
 	a.fastWindowsToOnDemand = fastWindowsToOnDemand
+	a.slowWindowsToContinuous = slowWindowsToContinuous
 	a.fillWait = fillWait
 	a.heartbeatInterval = heartbeatInterval
 }
 
-// heartbeat is the hot path of an idle on-demand buffer. It admits one payload
-// per heartbeatInterval so the store never falls far behind the stream while
-// nobody is asking. The clock is read once every heartbeatSampleMask+1
-// payloads; the rest cost one atomic add.
-func (a *admission) heartbeat() bool {
-	if a.idleBatches.Add(1)&heartbeatSampleMask != 0 {
-		return false
-	}
-	now := monoNow()
-	last := a.lastHeartbeatNs.Load()
-	if now-last < int64(a.heartbeatInterval) {
-		return false
-	}
-	return a.lastHeartbeatNs.CompareAndSwap(last, now)
-}
-
-// decide reports whether Add should copy a payload of records items. Rejected
-// payloads cost O(1) beyond the count. When the interval has elapsed it opens a
-// new window, resets the budget and samples the closed window's throughput.
+// decide reports what Add should do with a payload of records items. Rejected
+// payloads cost O(1) beyond the count. Every payload is counted towards the
+// current window; when the interval has elapsed, the caller that notices opens
+// a new window, resets the budget and samples the closed window's throughput,
+// which may switch the mode.
 func (a *admission) decide(records int) decision {
 	if a.interval <= 0 {
 		return admit
 	}
 	a.batches.Add(1)
 	a.offered.Add(int64(records))
-	if a.used.Load() < a.budget {
+	collecting := a.collecting.Load()
+	if collecting && a.used.Load() < a.budget {
 		return admit
 	}
-	// The clock read costs ~30ns per rejected batch; a ticker-armed atomic
-	// flag would make it ~1ns if a profile ever shows it.
+	// Reached once the budget is spent in continuous mode, and on every
+	// payload of an idle on-demand buffer. The clock read costs ~30ns.
 	now := monoNow()
 	start := a.windowNs.Load()
-	if now-start < int64(a.interval) {
+	if now-start >= int64(a.interval) {
+		// Exactly one caller rolls the window over; the rest are rejected
+		// this once and treated normally on their next payload.
+		if !a.windowNs.CompareAndSwap(start, now) {
+			return reject
+		}
+		batches := a.batches.Swap(0)
+		offered := a.offered.Swap(0)
+		a.used.Store(0)
+		switched := a.sampleWindow(batches, offered, now-start)
+		collecting = a.collecting.Load()
+		if collecting {
+			return admit
+		}
+		if switched {
+			return enterOnDemand
+		}
+	} else if collecting {
 		return reject
 	}
-	// Exactly one caller rolls the window over; the rest are rejected this
-	// once and admitted on their next payload.
-	if !a.windowNs.CompareAndSwap(start, now) {
+	// Idle on-demand buffer: admit the first payload after each
+	// heartbeatInterval so the store stays a recent picture of the stream
+	// while nobody is asking, however slowly the pipeline batches.
+	last := a.lastHeartbeatNs.Load()
+	if now-last < int64(a.heartbeatInterval) {
 		return reject
 	}
-	batches := a.batches.Swap(0)
-	offered := a.offered.Swap(0)
-	a.used.Store(0)
-	if a.sampleWindow(batches, offered, now-start) {
-		return enterOnDemand
+	if a.lastHeartbeatNs.CompareAndSwap(last, now) {
+		return admit
 	}
-	return admit
+	return reject
 }
 
 // charge records kept items admitted in the current window.
@@ -217,23 +234,32 @@ func (a *admission) charge(kept int) {
 }
 
 // sampleWindow takes the record and batch rate of a window that just closed
-// and tracks consecutive high-throughput windows. It reports true when the
-// buffer should switch to on-demand mode.
+// and tracks consecutive windows above or below the high-throughput rate. It
+// switches the mode after fastWindowsToOnDemand fast windows (to on-demand)
+// or slowWindowsToContinuous slow windows (back to continuous) and reports
+// whether it did.
 func (a *admission) sampleWindow(batches, offered, durationNs int64) bool {
 	if a.budget <= 0 || durationNs <= 0 {
 		return false
 	}
 	seconds := float64(durationNs) / float64(time.Second)
-	recordsPerSecond := float64(offered) / seconds
-	batchesPerSecond := float64(batches) / seconds
+	fast := float64(offered)/seconds >= float64(a.highThroughputMultiple)*float64(a.budget) &&
+		float64(batches)/seconds >= float64(a.minBatchesPerSecond)
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.onDemand {
-		return false
+		if fast {
+			a.slowWindows = 0
+			return false
+		}
+		a.slowWindows++
+		if a.slowWindows < a.slowWindowsToContinuous {
+			return false
+		}
+		a.leaveOnDemandLocked()
+		return true
 	}
-	fast := recordsPerSecond >= float64(a.highThroughputMultiple)*float64(a.budget) &&
-		batchesPerSecond >= float64(a.minBatchesPerSecond)
 	if !fast {
 		a.fastWindows = 0
 		return false
@@ -244,9 +270,19 @@ func (a *admission) sampleWindow(batches, offered, durationNs int64) bool {
 	}
 	a.onDemand = true
 	a.fastWindows = 0
+	a.slowWindows = 0
 	a.lastHeartbeatNs.Store(monoNow())
 	a.collecting.Store(false)
 	return true
+}
+
+// leaveOnDemandLocked returns the buffer to continuous mode. The store is
+// kept; collection resumes with the next payload. The caller holds mu.
+func (a *admission) leaveOnDemandLocked() {
+	a.onDemand = false
+	a.fastWindows = 0
+	a.slowWindows = 0
+	a.collecting.Store(true)
 }
 
 // full tells an armed on-demand buffer that a full store's worth of fresh
@@ -262,32 +298,33 @@ func (a *admission) full() {
 
 // beginRequest prepares the buffer for a snapshot request. In continuous mode
 // it returns nil and the request proceeds at once. In on-demand mode it arms
-// the buffer with a fresh budget and returns a channel that is closed once a
-// full store's worth of fresh records has arrived; the request should wait on
-// it for up to fillWait. armed is true for the request that armed the buffer,
-// which must reset the buffer's fresh-record count.
-func (a *admission) beginRequest() (filled <-chan struct{}, armed bool) {
+// the buffer with a fresh budget and a zeroed fresh-record count and returns a
+// channel that is closed once a full store's worth of fresh records has
+// arrived; the request should wait on it for up to fillWait.
+func (a *admission) beginRequest() <-chan struct{} {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !a.onDemand {
-		return nil, false
+		return nil
 	}
 	a.waiters++
 	if a.waiters == 1 {
 		// First request of this cycle: a fresh channel and a fresh window so
 		// the whole budget is available to fill the store. Later concurrent
-		// requests share the channel, which may already be closed.
+		// requests share the channel, which may already be closed. fresh is
+		// zeroed before armed is set, so a payload that sees armed counts
+		// from zero.
 		a.filled = make(chan struct{})
 		a.filledClosed = false
 		a.windowNs.Store(monoNow())
 		a.used.Store(0)
 		a.batches.Store(0)
 		a.offered.Store(0)
+		a.fresh.Store(0)
 		a.armed.Store(true)
 		a.collecting.Store(true)
-		return a.filled, true
 	}
-	return a.filled, false
+	return a.filled
 }
 
 // endRequest disarms an on-demand buffer once its last in-flight request has
@@ -300,9 +337,7 @@ func (a *admission) endRequest(filledInTime bool) {
 	defer a.mu.Unlock()
 	a.waiters--
 	if !filledInTime {
-		a.onDemand = false
-		a.fastWindows = 0
-		a.collecting.Store(true)
+		a.leaveOnDemandLocked()
 	}
 	if a.waiters > 0 {
 		return

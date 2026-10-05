@@ -1,4 +1,4 @@
-// Copyright  observIQ, Inc.
+// Copyright Dynatrace LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,11 +69,11 @@ func benchProducer(buf *LogBuffer, batch int, recordsPerSecond int, stop <-chan 
 
 // newestObserved returns the latest ObservedTimestamp in a marshaled payload
 // and the number of records it holds.
-func newestObserved(b *testing.B, payload []byte) (time.Time, int) {
-	b.Helper()
+func newestObserved(tb testing.TB, payload []byte) (time.Time, int) {
+	tb.Helper()
 	ld, err := (&plog.ProtoUnmarshaler{}).UnmarshalLogs(payload)
 	if err != nil {
-		b.Fatal(err)
+		tb.Fatal(err)
 	}
 	var newest pcommon.Timestamp
 	count := 0
