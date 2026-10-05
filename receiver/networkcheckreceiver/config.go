@@ -37,7 +37,7 @@ const (
 	MethodDNS  = "dns"
 )
 
-// Config is the top-level configuration for the networkstat receiver.
+// Config is the top-level configuration for the networkcheck receiver.
 type Config struct {
 	scraperhelper.ControllerConfig `mapstructure:",squash"`
 	metadata.MetricsBuilderConfig  `mapstructure:",squash"`

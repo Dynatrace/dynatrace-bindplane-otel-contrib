@@ -201,10 +201,14 @@ type TraceResult struct {
 type tracerouter struct {
 	cfg  TracerouteConfig
 	host string
+
+	// dnsServer is the resolver the target is configured with ("" = system),
+	// so the trace resolves the destination the same way the probe does.
+	dnsServer string
 }
 
-func newTracerouter(cfg TracerouteConfig, endpoint string) *tracerouter {
-	return &tracerouter{cfg: cfg, host: hostFromEndpoint(endpoint)}
+func newTracerouter(cfg TracerouteConfig, endpoint string, dnsServer string) *tracerouter {
+	return &tracerouter{cfg: cfg, host: hostFromEndpoint(endpoint), dnsServer: dnsServer}
 }
 
 // hostFromEndpoint extracts the bare hostname from an endpoint that may be a
@@ -499,7 +503,7 @@ func (t *tracerouter) traceICMP(ctx context.Context, dest string) (TraceResult, 
 			msg := icmp.Message{
 				Type: ipv4.ICMPTypeEcho,
 				Code: 0,
-				Body: &icmp.Echo{ID: ttl, Seq: seq, Data: []byte("netstat")},
+				Body: &icmp.Echo{ID: ttl, Seq: seq, Data: []byte("networkcheck")},
 			}
 			wb, marshalErr := msg.Marshal(nil)
 			if marshalErr != nil {

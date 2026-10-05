@@ -107,7 +107,7 @@ func TestLoadConfig(t *testing.T) {
 	f := NewFactory()
 	cfg := f.CreateDefaultConfig()
 
-	sub, err := cm.Sub("receivers::networkstat")
+	sub, err := cm.Sub("receivers::networkcheck")
 	require.NoError(t, err)
 	require.NoError(t, sub.Unmarshal(cfg))
 

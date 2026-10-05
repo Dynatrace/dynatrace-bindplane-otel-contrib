@@ -51,7 +51,7 @@ func newTestProber(t *testing.T, interval time.Duration) (*sharedProber, *counti
 	p.targets = []*targetState{{
 		cfg: TargetConfig{Method: MethodHTTP},
 		p:   cp,
-		tr:  newTracerouter(TracerouteConfig{}, "example.com"),
+		tr:  newTracerouter(TracerouteConfig{}, "example.com", ""),
 	}}
 	return p, cp
 }

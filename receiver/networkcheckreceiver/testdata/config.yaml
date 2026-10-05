@@ -1,5 +1,5 @@
 receivers:
-  networkstat:
+  networkcheck:
     collection_interval: 1m
     targets:
       - endpoint: "8.8.8.8"
@@ -17,7 +17,7 @@ receivers:
       interval: 10
       timeout: 3s
 
-  networkstat/batch:
+  networkcheck/batch:
     collection_interval: 1m
     batch_size: 1
     targets:

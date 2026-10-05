@@ -28,7 +28,7 @@ import (
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/networkcheckreceiver/internal/metadata"
 )
 
-// NewFactory creates a factory for the networkstat receiver.
+// NewFactory creates a factory for the networkcheck receiver.
 func NewFactory() receiver.Factory {
 	return receiver.NewFactory(
 		metadata.Type,
@@ -60,7 +60,7 @@ func createDefaultConfig() component.Config {
 	}
 }
 
-var errInvalidConfig = errors.New("config is not a networkstat receiver config")
+var errInvalidConfig = errors.New("config is not a networkcheck receiver config")
 
 func createMetricsReceiver(
 	_ context.Context,
@@ -73,7 +73,7 @@ func createMetricsReceiver(
 		return nil, errInvalidConfig
 	}
 
-	ns := newNetworkStatScraper(params, cfg)
+	ns := newNetworkCheckScraper(params, cfg)
 	s, err := scraper.NewMetrics(
 		ns.scrape,
 		scraper.WithStart(ns.start),
@@ -105,7 +105,7 @@ func createLogsReceiver(
 		return nil, errInvalidConfig
 	}
 
-	ls := newNetworkStatLogsScraper(params, cfg)
+	ls := newNetworkCheckLogsScraper(params, cfg)
 	s, err := scraper.NewLogs(
 		ls.scrape,
 		scraper.WithStart(ls.start),

@@ -38,7 +38,7 @@ type targetState struct {
 	dnsServer  string
 }
 
-type networkStatScraper struct {
+type networkCheckScraper struct {
 	cfg      *Config
 	settings receiver.Settings
 	logger   *zap.Logger
@@ -51,8 +51,8 @@ type networkStatScraper struct {
 	id     component.ID
 }
 
-func newNetworkStatScraper(settings receiver.Settings, cfg *Config) *networkStatScraper {
-	return &networkStatScraper{
+func newNetworkCheckScraper(settings receiver.Settings, cfg *Config) *networkCheckScraper {
+	return &networkCheckScraper{
 		cfg:      cfg,
 		settings: settings,
 		logger:   settings.Logger,
@@ -61,18 +61,18 @@ func newNetworkStatScraper(settings receiver.Settings, cfg *Config) *networkStat
 	}
 }
 
-func (s *networkStatScraper) start(ctx context.Context, host component.Host) error {
+func (s *networkCheckScraper) start(ctx context.Context, host component.Host) error {
 	s.mb = metadata.NewMetricsBuilder(s.cfg.MetricsBuilderConfig, s.settings)
 	s.rb = metadata.NewResourceBuilder(s.cfg.MetricsBuilderConfig.ResourceAttributes)
 	return s.prober.start(ctx, host)
 }
 
-func (s *networkStatScraper) shutdown(_ context.Context) error {
+func (s *networkCheckScraper) shutdown(_ context.Context) error {
 	releaseProber(s.id)
 	return nil
 }
 
-func (s *networkStatScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
+func (s *networkCheckScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
 	errs := &scrapererror.ScrapeErrors{}
 	cycle := s.prober.latestCycle(ctx, s.prober.cycleMaxAge())
 	now := pcommon.NewTimestampFromTime(cycle.at)
@@ -137,7 +137,7 @@ func (s *networkStatScraper) scrape(ctx context.Context) (pmetric.Metrics, error
 }
 
 // recordMetrics writes data points for one completed probe cycle.
-func (s *networkStatScraper) recordMetrics(now pcommon.Timestamp, ts *targetState, r PingResult) {
+func (s *networkCheckScraper) recordMetrics(now pcommon.Timestamp, ts *targetState, r PingResult) {
 	// A probe that failed has no timings to report: the only duration available
 	// is how long we waited before giving up, and the per-phase timers never
 	// fired at all. Publishing those would put the configured timeout into the

@@ -27,10 +27,10 @@ import (
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/networkcheckreceiver/internal/metadata"
 )
 
-// networkStatLogsScraper renders probe cycles as log records. It shares the
+// networkCheckLogsScraper renders probe cycles as log records. It shares the
 // prober with the metrics scraper, so wiring the same receiver into both a
 // metrics and a logs pipeline probes each target once, not twice.
-type networkStatLogsScraper struct {
+type networkCheckLogsScraper struct {
 	cfg      *Config
 	settings receiver.Settings
 	id       component.ID
@@ -41,8 +41,8 @@ type networkStatLogsScraper struct {
 	prober *sharedProber
 }
 
-func newNetworkStatLogsScraper(settings receiver.Settings, cfg *Config) *networkStatLogsScraper {
-	return &networkStatLogsScraper{
+func newNetworkCheckLogsScraper(settings receiver.Settings, cfg *Config) *networkCheckLogsScraper {
+	return &networkCheckLogsScraper{
 		cfg:      cfg,
 		settings: settings,
 		id:       settings.ID,
@@ -50,13 +50,13 @@ func newNetworkStatLogsScraper(settings receiver.Settings, cfg *Config) *network
 	}
 }
 
-func (s *networkStatLogsScraper) start(ctx context.Context, host component.Host) error {
+func (s *networkCheckLogsScraper) start(ctx context.Context, host component.Host) error {
 	s.lb = metadata.NewLogsBuilder(s.settings)
 	s.rb = metadata.NewResourceBuilder(s.cfg.MetricsBuilderConfig.ResourceAttributes)
 	return s.prober.start(ctx, host)
 }
 
-func (s *networkStatLogsScraper) shutdown(_ context.Context) error {
+func (s *networkCheckLogsScraper) shutdown(_ context.Context) error {
 	releaseProber(s.id)
 	return nil
 }
@@ -64,7 +64,7 @@ func (s *networkStatLogsScraper) shutdown(_ context.Context) error {
 // scrape renders the latest probe cycle as logs. Only HTTP probes and
 // traceroutes produce records: a DNS or ICMP probe is a scalar sampled on an
 // interval, which is a metric, not an event.
-func (s *networkStatLogsScraper) scrape(ctx context.Context) (plog.Logs, error) {
+func (s *networkCheckLogsScraper) scrape(ctx context.Context) (plog.Logs, error) {
 	errs := &scrapererror.ScrapeErrors{}
 	cycle := s.prober.latestCycle(ctx, s.prober.cycleMaxAge())
 	observed := time.Now()

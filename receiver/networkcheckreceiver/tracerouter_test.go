@@ -95,7 +95,7 @@ func TestTraceUnansweredHopsAreMarkedAndBounded(t *testing.T) {
 		// which would leave the assertions below testing nothing.
 		MaxConsecutiveTimeouts: defaultMaxConsecutiveTimeouts,
 		ProbesPerHop:           1,
-	}, blackhole)
+	}, blackhole, "")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -153,7 +153,7 @@ func TestProbesPerHopDefaultsAndClamps(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			tr := newTracerouter(tc.cfg, "example.com")
+			tr := newTracerouter(tc.cfg, "example.com", "")
 			require.Equal(t, tc.want, tr.probesPerHop())
 		})
 	}
@@ -162,13 +162,13 @@ func TestProbesPerHopDefaultsAndClamps(t *testing.T) {
 func TestAbortAfterIsConfigurable(t *testing.T) {
 	// 0 disables the early abort, leaving max_hops as the only bound. That is
 	// distinct from "unset", which must keep the default.
-	tr := newTracerouter(TracerouteConfig{MaxConsecutiveTimeouts: 0}, "example.com")
+	tr := newTracerouter(TracerouteConfig{MaxConsecutiveTimeouts: 0}, "example.com", "")
 	require.Equal(t, 0, tr.abortAfter())
 
-	tr = newTracerouter(TracerouteConfig{MaxConsecutiveTimeouts: 8}, "example.com")
+	tr = newTracerouter(TracerouteConfig{MaxConsecutiveTimeouts: 8}, "example.com", "")
 	require.Equal(t, 8, tr.abortAfter())
 
-	tr = newTracerouter(TracerouteConfig{MaxConsecutiveTimeouts: -1}, "example.com")
+	tr = newTracerouter(TracerouteConfig{MaxConsecutiveTimeouts: -1}, "example.com", "")
 	require.Equal(t, defaultMaxConsecutiveTimeouts, tr.abortAfter())
 }
 

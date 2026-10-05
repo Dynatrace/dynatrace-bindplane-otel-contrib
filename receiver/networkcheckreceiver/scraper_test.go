@@ -33,7 +33,7 @@ func recordOne(t *testing.T, r PingResult) map[string]float64 {
 
 	cfg := createDefaultConfig().(*Config)
 	settings := receivertest.NewNopSettings(metadata.Type)
-	s := newNetworkStatScraper(settings, cfg)
+	s := newNetworkCheckScraper(settings, cfg)
 	s.mb = metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, settings)
 	s.rb = metadata.NewResourceBuilder(cfg.MetricsBuilderConfig.ResourceAttributes)
 

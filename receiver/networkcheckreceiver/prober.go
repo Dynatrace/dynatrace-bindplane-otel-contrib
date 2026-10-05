@@ -38,6 +38,12 @@ type targetResult struct {
 	ping    PingResult
 	pingErr error
 
+	// skipped is true when the probe never ran: the cycle hit its deadline or
+	// the prober was stopped before this target's turn. A skipped target emits
+	// nothing for the cycle, as opposed to a failed probe, which emits its
+	// status series.
+	skipped bool
+
 	// traced is true when traceroute ran for this target on this cycle;
 	// shouldRun only fires every Nth check.
 	traced   bool
@@ -129,7 +135,7 @@ func releaseProber(id component.ID) {
 
 // start builds probe state. Safe to call once per signal; only the first call
 // does work.
-func (p *sharedProber) start(_ context.Context, _ component.Host) error {
+func (p *sharedProber) start(ctx context.Context, host component.Host) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.started {
@@ -183,7 +189,7 @@ func (p *sharedProber) start(_ context.Context, _ component.Host) error {
 			if !strings.HasPrefix(fallbackTC.Endpoint, "http://") && !strings.HasPrefix(fallbackTC.Endpoint, "https://") {
 				fallbackTC.Endpoint = "http://" + fallbackTC.Endpoint
 			}
-			pg, err = newHTTPPinger(fallbackTC, dnsServer)
+			pg, err = newHTTPPinger(ctx, host, p.settings.TelemetrySettings, fallbackTC, dnsServer)
 			if err != nil {
 				return fmt.Errorf("target[%d] HTTP pinger: %w", i, err)
 			}
@@ -192,7 +198,7 @@ func (p *sharedProber) start(_ context.Context, _ component.Host) error {
 		targets = append(targets, &targetState{
 			cfg:       tc,
 			p:         pg,
-			tr:        newTracerouter(p.cfg.Traceroute, tc.Endpoint),
+			tr:        newTracerouter(p.cfg.Traceroute, tc.Endpoint, dnsServer),
 			dnsServer: dnsServer,
 		})
 	}

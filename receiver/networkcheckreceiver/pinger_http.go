@@ -1,0 +1,317 @@
+// Copyright Dynatrace LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package networkcheckreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/networkcheckreceiver"
+
+import (
+	"context"
+	"crypto/tls"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptrace"
+	"strings"
+	"time"
+
+	"go.opentelemetry.io/collector/component"
+)
+
+// httpPinger performs a single HTTP request and records per-phase timings using httptrace.
+type httpPinger struct {
+	client     *http.Client
+	url        string
+	httpMethod string
+	dnsServer  string
+}
+
+// newHTTPPinger builds the probe client for one HTTP target. ctx, host and set
+// are what confighttp needs to resolve auth and middleware extensions.
+func newHTTPPinger(_ context.Context, _ component.Host, _ component.TelemetrySettings, target TargetConfig, dnsServer string) (*httpPinger, error) {
+	httpMethod := target.HTTPMethod
+	if httpMethod == "" {
+		httpMethod = http.MethodHead
+	}
+
+	// Build a custom dialer that uses the specified DNS server if provided.
+	dialServer := dnsServer
+	if target.DNSServer != "" {
+		dialServer = target.DNSServer
+	}
+
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	if dialServer != "" {
+		resolver := &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				d := net.Dialer{}
+				addr := dialServer
+				if !strings.Contains(addr, ":") {
+					addr = addr + ":53"
+				}
+				return d.DialContext(ctx, "udp", addr)
+			},
+		}
+		dialer.Resolver = resolver
+	}
+
+	timeout := target.Timeout
+	if timeout == 0 {
+		timeout = 10 * time.Second
+	}
+
+	transport := &http.Transport{
+		DialContext:           dialer.DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: timeout,
+		DisableKeepAlives:     true, // fresh connection each probe for accurate timing
+	}
+
+	// Apply TLS config from ClientConfig if specified.
+	tlsCfg, err := target.TLS.LoadTLSConfig(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("loading TLS config for %s: %w", target.Endpoint, err)
+	}
+	if tlsCfg != nil {
+		transport.TLSClientConfig = tlsCfg
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   timeout,
+		// Do not follow redirects; we measure the first response.
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	return &httpPinger{
+		client:     client,
+		url:        target.Endpoint,
+		httpMethod: httpMethod,
+		dnsServer:  dialServer,
+	}, nil
+}
+
+func (p *httpPinger) ping(ctx context.Context) (PingResult, error) {
+	var (
+		dnsStart, dnsDone         time.Time
+		connectStart, connectDone time.Time
+		tlsStart, tlsDone         time.Time
+		wroteRequest              time.Time
+		gotFirstResponseByte      time.Time
+		requestStart              time.Time
+	)
+
+	var (
+		resolvedIP string
+		tlsState   tls.ConnectionState
+		haveTLS    bool
+
+		// Each of these hooks fires on failure as well as success, so the
+		// timestamps alone cannot say which phase broke. The errors can.
+		dnsErr, connectErr, tlsErr, writeErr error
+	)
+
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(_ httptrace.DNSStartInfo) { dnsStart = time.Now() },
+		DNSDone: func(info httptrace.DNSDoneInfo) {
+			dnsDone = time.Now()
+			dnsErr = info.Err
+			if len(info.Addrs) > 0 {
+				resolvedIP = info.Addrs[0].IP.String()
+			}
+		},
+		ConnectStart: func(_, _ string) { connectStart = time.Now() },
+		ConnectDone: func(_, addr string, err error) {
+			connectDone = time.Now()
+			connectErr = err
+			// ConnectDone receives the dial target, which is a hostname when the
+			// transport dials by name. Only take it when it is genuinely an
+			// address, otherwise server.resolved_ip would carry a hostname; the
+			// DNSDone value stands in that case.
+			if host, _, splitErr := net.SplitHostPort(addr); splitErr == nil && net.ParseIP(host) != nil {
+				resolvedIP = host
+			}
+		},
+		TLSHandshakeStart: func() { tlsStart = time.Now() },
+		TLSHandshakeDone: func(cs tls.ConnectionState, err error) {
+			tlsDone = time.Now()
+			tlsErr = err
+			if err == nil {
+				tlsState, haveTLS = cs, true
+			}
+		},
+		WroteRequest: func(info httptrace.WroteRequestInfo) {
+			wroteRequest = time.Now()
+			writeErr = info.Err
+		},
+		GotFirstResponseByte: func() { gotFirstResponseByte = time.Now() },
+	}
+
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), p.httpMethod, p.url, nil)
+	if err != nil {
+		// The endpoint may carry credentials, and this error propagates into
+		// scrape errors, so it must not embed the raw URL.
+		return PingResult{}, fmt.Errorf("building request for %s: %w", redactEndpoint(p.url), redactErr(err))
+	}
+
+	requestStart = time.Now()
+	resp, err := p.client.Do(req)
+	end := time.Now()
+
+	statusCode := 0
+	var responseSize int64
+	var protocol string
+	if resp != nil {
+		statusCode = resp.StatusCode
+		protocol = resp.Proto
+		// Drain and close body so the connection can be reused. The byte count
+		// is the response size; only the timing was kept before.
+		responseSize, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}
+
+	if err != nil {
+		// Record a failed probe but don't return an error — it's a valid measurement.
+		return PingResult{
+			TotalDuration: end.Sub(requestStart),
+			StatusCode:    0,
+			Method:        MethodHTTP,
+			ResolvedIP:    resolvedIP,
+			ErrMessage:    err.Error(),
+			ErrPhase: failurePhase(phaseTimings{
+				dnsStart: dnsStart, dnsDone: dnsDone,
+				connectStart: connectStart, connectDone: connectDone,
+				tlsStart: tlsStart, tlsDone: tlsDone,
+				wroteRequest: wroteRequest, gotFirstByte: gotFirstResponseByte,
+				dnsErr: dnsErr, connectErr: connectErr, tlsErr: tlsErr, writeErr: writeErr,
+			}),
+		}, nil
+	}
+
+	var (
+		dnsLookup    time.Duration
+		tcpConnect   time.Duration
+		tlsHandshake time.Duration
+		reqWrite     time.Duration
+		respRead     time.Duration
+	)
+	if !dnsStart.IsZero() && !dnsDone.IsZero() {
+		dnsLookup = dnsDone.Sub(dnsStart)
+	}
+	if !dnsDone.IsZero() && !connectDone.IsZero() {
+		tcpConnect = connectDone.Sub(dnsDone)
+	}
+	if !tlsStart.IsZero() && !tlsDone.IsZero() {
+		tlsHandshake = tlsDone.Sub(tlsStart)
+	}
+	if !connectDone.IsZero() && !wroteRequest.IsZero() {
+		reqWrite = wroteRequest.Sub(connectDone)
+	}
+	if !wroteRequest.IsZero() && !gotFirstResponseByte.IsZero() {
+		respRead = gotFirstResponseByte.Sub(wroteRequest)
+	}
+
+	res := PingResult{
+		DNSLookup:     dnsLookup,
+		TCPConnect:    tcpConnect,
+		TLSHandshake:  tlsHandshake,
+		RequestWrite:  reqWrite,
+		ResponseRead:  respRead,
+		TotalDuration: end.Sub(requestStart),
+		StatusCode:    statusCode,
+		Method:        MethodHTTP,
+		ResolvedIP:    resolvedIP,
+		ResponseSize:  responseSize,
+		Protocol:      protocol,
+	}
+	if haveTLS {
+		res.TLS = tlsDetailsFrom(tlsState, end)
+	}
+	return res, nil
+}
+
+// phaseTimings carries what the trace hooks observed about one request.
+type phaseTimings struct {
+	dnsStart, dnsDone                    time.Time
+	connectStart, connectDone            time.Time
+	tlsStart, tlsDone                    time.Time
+	wroteRequest, gotFirstByte           time.Time
+	dnsErr, connectErr, tlsErr, writeErr error
+}
+
+// failurePhase names the request phase that broke. A bare status code of 0 says
+// a check failed but not where, which is the difference between a DNS problem
+// and a slow origin.
+//
+// Reported errors are checked before timestamps because every hook fires on
+// failure as well as success: a refused connection still calls ConnectDone, so
+// timing alone would blame the phase after the one that actually failed.
+func failurePhase(t phaseTimings) string {
+	switch {
+	case t.dnsErr != nil:
+		return "dns"
+	case t.connectErr != nil:
+		return "connect"
+	case t.tlsErr != nil:
+		return "tls"
+	case t.writeErr != nil:
+		return "request"
+
+	// No hook reported an error, so fall back to the first phase that started
+	// and never finished.
+	case !t.dnsStart.IsZero() && t.dnsDone.IsZero():
+		return "dns"
+	case !t.connectStart.IsZero() && t.connectDone.IsZero():
+		// Covers an IP-literal endpoint, where no DNS lookup runs and the dial
+		// is the first thing to happen.
+		return "connect"
+	case !t.dnsDone.IsZero() && t.connectDone.IsZero():
+		return "connect"
+	case !t.tlsStart.IsZero() && t.tlsDone.IsZero():
+		return "tls"
+	case !t.connectDone.IsZero() && t.wroteRequest.IsZero():
+		return "request"
+	case !t.wroteRequest.IsZero() && t.gotFirstByte.IsZero():
+		return "response"
+	case t.dnsStart.IsZero() && t.connectDone.IsZero():
+		// Nothing started: usually an invalid URL or a proxy rejection.
+		return "setup"
+	default:
+		return "unknown"
+	}
+}
+
+// tlsDetailsFrom extracts certificate and handshake detail from a completed
+// handshake. DisableKeepAlives means every probe performs a real handshake, so
+// this is always current rather than cached from an earlier connection.
+func tlsDetailsFrom(cs tls.ConnectionState, now time.Time) *TLSDetails {
+	d := &TLSDetails{
+		Version:            tls.VersionName(cs.Version),
+		CipherSuite:        tls.CipherSuiteName(cs.CipherSuite),
+		NegotiatedProtocol: cs.NegotiatedProtocol,
+	}
+	if len(cs.PeerCertificates) > 0 {
+		leaf := cs.PeerCertificates[0]
+		d.CertIssuer = leaf.Issuer.String()
+		d.CertSubject = leaf.Subject.String()
+		d.CertNotAfter = leaf.NotAfter
+		d.CertDaysLeft = leaf.NotAfter.Sub(now).Hours() / 24
+	}
+	return d
+}
