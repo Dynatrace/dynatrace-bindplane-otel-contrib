@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	probing "github.com/prometheus-community/pro-bing"
@@ -75,34 +76,41 @@ func newICMPPinger(target TargetConfig, privileged bool) *icmpPinger {
 	}
 }
 
-// checkICMPMode returns whether ICMP probing is available and whether raw
-// (privileged) mode is needed. On macOS without root, datagram ICMP works
-// without special privileges.
-func checkICMPMode() (available bool, privileged bool) {
-	conn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
-	if err == nil {
+// icmpMode memoizes the capability check: the answer only changes when the
+// process's privileges do, and every receiver instance would otherwise pay for
+// a probe at start.
+var icmpMode = sync.OnceValues(detectICMPMode)
+
+// checkICMPMode reports whether ICMP echo can be sent at all and, if so,
+// whether it needs a raw (privileged) socket. Datagram ICMP works without
+// privileges on macOS and on Linux when net.ipv4.ping_group_range admits the
+// process. The first call takes at most about a second.
+func checkICMPMode() (available, privileged bool) {
+	return icmpMode()
+}
+
+func detectICMPMode() (available, privileged bool) {
+	if conn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0"); err == nil {
 		_ = conn.Close()
 		return true, true
 	}
-	// Raw ICMP unavailable — try datagram (unprivileged) mode via pro-bing.
-	p, err := probing.NewPinger("127.0.0.1")
-	if err != nil {
-		return false, false
-	}
+
+	// Running a real datagram ping, rather than only opening the socket,
+	// exercises the socket options pro-bing sets before sending, so anything
+	// the probe itself would trip over shows up here.
+	p := probing.New("")
+	p.SetIPAddr(&net.IPAddr{IP: net.IPv4(127, 0, 0, 1)})
 	p.SetPrivileged(false)
+	p.SetLogger(probing.NoopLogger{})
 	p.Count = 1
-	p.Timeout = 2 * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	p.Timeout = 500 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	done := make(chan error, 1)
-	go func() { done <- p.RunWithContext(ctx) }()
-	select {
-	case runErr := <-done:
-		return runErr == nil, false
-	case <-ctx.Done():
-		p.Stop()
-		return false, false
-	}
+	err := p.RunWithContext(ctx)
+	// A missing reply still means the socket works: some hosts filter
+	// loopback ICMP (macOS stealth mode does), and that says nothing about
+	// whether a real target would answer.
+	return err == nil || ctx.Err() != nil, false
 }
 
 // ping sends the configured number of echo requests and returns RTT and loss.
