@@ -36,7 +36,7 @@ func TestRedactEndpoint(t *testing.T) {
 		want string
 	}{
 		{"no userinfo", "https://example.com/path", "https://example.com/path"},
-		{"user and password", "https://user:secret@example.com", "https://user:xxxxx@example.com"},
+		{"user and password", "https://user:pw@example.com", "https://user:xxxxx@example.com"},
 		{"user only", "https://user@example.com", "https://user@example.com"},
 		{"bare host", "example.com", "example.com"},
 		{"unparseable with at", "http://us er:pw@example.com", "http://example.com"},
@@ -45,7 +45,7 @@ func TestRedactEndpoint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := redactEndpoint(tc.in)
 			require.Equal(t, tc.want, got)
-			require.NotContains(t, got, "secret", "password must never survive redaction")
+			require.NotContains(t, got, "pw", "password must never survive redaction")
 		})
 	}
 }
@@ -148,7 +148,7 @@ func TestBuildHTTPLogRecord_FailureIsError(t *testing.T) {
 
 func TestBuildHTTPLogRecord_RedactsCredentials(t *testing.T) {
 	ts := &targetState{cfg: TargetConfig{Method: MethodHTTP}}
-	ts.cfg.Endpoint = "https://admin:hunter2@example.com/health"
+	ts.cfg.Endpoint = "https://admin:pw7@example.com/health"
 
 	rec := plog.NewLogRecord()
 	buildHTTPLogRecord(rec, ts, PingResult{Method: MethodHTTP, StatusCode: 200},
@@ -156,7 +156,7 @@ func TestBuildHTTPLogRecord_RedactsCredentials(t *testing.T) {
 
 	v, ok := rec.Attributes().Get("server.address")
 	require.True(t, ok)
-	require.NotContains(t, v.Str(), "hunter2")
+	require.NotContains(t, v.Str(), "pw7")
 	require.Contains(t, v.Str(), "example.com")
 }
 
@@ -340,8 +340,8 @@ func TestFailurePhase(t *testing.T) {
 // attribute carried the raw one — which put the credential straight back into
 // every emitted record, one level up.
 func TestResourceEndpointIsRedacted(t *testing.T) {
-	raw := "https://admin:hunter2@example.com/health"
-	require.NotContains(t, redactEndpoint(raw), "hunter2")
+	raw := "https://admin:pw7@example.com/health"
+	require.NotContains(t, redactEndpoint(raw), "pw7")
 
 	// Guard the scraper call sites too, so the resource attribute cannot drift
 	// back to the raw value.
@@ -368,9 +368,9 @@ func TestRedactMessagePreservesText(t *testing.T) {
 	cases := []struct{ name, in, wantContains, wantAbsent string }{
 		{
 			name:         "credential in embedded url is stripped",
-			in:           `Head "https://admin:hunter2@example.com": dial tcp: connection refused`,
+			in:           `Head "https://admin:pw7@example.com": dial tcp: connection refused`,
 			wantContains: "connection refused",
-			wantAbsent:   "hunter2",
+			wantAbsent:   "pw7",
 		},
 		{
 			name:         "unrelated at-sign does not truncate the message",
@@ -400,9 +400,9 @@ func TestRedactMessagePreservesText(t *testing.T) {
 		},
 		{
 			name:         "credential still stripped when a query follows",
-			in:           `Get "https://admin:hunter2@example.com/health?verbose=1": timeout`,
+			in:           `Get "https://admin:pw7@example.com/health?verbose=1": timeout`,
 			wantContains: "verbose=1",
-			wantAbsent:   "hunter2",
+			wantAbsent:   "pw7",
 		},
 	}
 	for _, tc := range cases {
