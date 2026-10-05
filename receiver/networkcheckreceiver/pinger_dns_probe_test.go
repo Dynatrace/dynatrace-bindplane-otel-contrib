@@ -353,7 +353,7 @@ func TestDNSPingDropsEndpointUserinfo(t *testing.T) {
 	require.NotContains(t, r.ErrMessage, "secret")
 }
 
-func TestDNSServerAddr(t *testing.T) {
+func TestDNSServerAddrForDNSTarget(t *testing.T) {
 	for in, want := range map[string]string{
 		"8.8.8.8":       "8.8.8.8:53",
 		"8.8.8.8:5353":  "8.8.8.8:5353",

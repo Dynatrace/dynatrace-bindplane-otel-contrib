@@ -258,7 +258,9 @@ func (p *sharedProber) start(ctx context.Context, host component.Host) error {
 			method = MethodICMP
 		}
 
-		dnsServer := tc.DNSServer
+		// Redacted as a matter of course: the string becomes the dns.server
+		// attribute as written, and the prober resolves through it unchanged.
+		dnsServer := redactEndpoint(tc.DNSServer)
 		if dnsServer == "" {
 			dnsServer = p.systemDNS
 		}

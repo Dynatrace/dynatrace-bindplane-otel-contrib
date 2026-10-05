@@ -92,16 +92,6 @@ func newDNSPinger(target TargetConfig) *dnsPinger {
 	}
 }
 
-// dnsServerAddr turns a configured DNS server into a dialable host:port,
-// defaulting the port to 53. Testing for any colon to decide whether a port is
-// present breaks every IPv6 address; SplitHostPort does not.
-func dnsServerAddr(server string) string {
-	if host, port, err := net.SplitHostPort(server); err == nil {
-		return net.JoinHostPort(host, port)
-	}
-	return net.JoinHostPort(strings.TrimSuffix(strings.TrimPrefix(server, "["), "]"), "53")
-}
-
 // ping sends the query over UDP, retrying over TCP when the answer comes back
 // truncated. A failed or negative answer is a measurement, not an error: only
 // cancellation of ctx returns one.

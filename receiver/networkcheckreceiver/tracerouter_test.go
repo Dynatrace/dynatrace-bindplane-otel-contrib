@@ -304,10 +304,10 @@ func TestShouldRunRateLimitsOnFailure(t *testing.T) {
 	})
 }
 
-// fakeDNS serves A and AAAA answers from records over UDP on loopback and
+// fakeTraceDNS serves A and AAAA answers from records over UDP on loopback and
 // returns its address. A name with no record of the asked type gets an empty
 // NOERROR answer.
-func fakeDNS(t *testing.T, records map[string][]net.IP) string {
+func fakeTraceDNS(t *testing.T, records map[string][]net.IP) string {
 	t.Helper()
 	pc, err := net.ListenPacket("udp4", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -352,7 +352,7 @@ func fakeDNS(t *testing.T, records map[string][]net.IP) string {
 }
 
 func TestResolveIPv4(t *testing.T) {
-	server := fakeDNS(t, map[string][]net.IP{
+	server := fakeTraceDNS(t, map[string][]net.IP{
 		"dual.test.":   {net.ParseIP("2001:db8::1"), net.IPv4(192, 0, 2, 7)},
 		"v6only.test.": {net.ParseIP("2001:db8::2")},
 	})

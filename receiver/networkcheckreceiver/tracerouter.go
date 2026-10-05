@@ -362,6 +362,11 @@ func (t *tracerouter) shouldRun(checkCount int, result PingResult) bool {
 		t.failStreak = 0
 		return run
 	}
+	if result.ErrPhase == "dns" {
+		// The name did not resolve, so a trace would fail at the same lookup;
+		// the streak still counts so the first reachable failure traces.
+		return false
+	}
 	t.failStreak++
 	if t.failStreak == 1 {
 		return true
