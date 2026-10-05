@@ -48,9 +48,12 @@ type httpPinger struct {
 // defaultHTTPTimeout bounds a probe whose target sets no timeout.
 const defaultHTTPTimeout = 10 * time.Second
 
-// newHTTPPinger builds the probe client for one HTTP target. ctx, host and set
-// are what confighttp needs to resolve auth and middleware extensions.
-func newHTTPPinger(ctx context.Context, _ component.Host, _ component.TelemetrySettings, target TargetConfig, dnsServer string) (*httpPinger, error) {
+// newHTTPPinger builds the probe client for one HTTP target. ctx loads the TLS
+// config; host and set are unused until the client comes from
+// ClientConfig.ToClient, which needs them for auth and middleware extensions.
+// The last argument is the system nameserver the prober detected for the
+// dns.server label, and is deliberately not used for resolution.
+func newHTTPPinger(ctx context.Context, _ component.Host, _ component.TelemetrySettings, target TargetConfig, _ string) (*httpPinger, error) {
 	ep := target.Endpoint
 	u, err := url.Parse(ep)
 	if err != nil {
@@ -88,26 +91,14 @@ func newHTTPPinger(ctx context.Context, _ component.Host, _ component.TelemetryS
 		return nil, fmt.Errorf("target %s: invalid proxy in the HTTP_PROXY/HTTPS_PROXY environment", redactEndpoint(ep))
 	}
 
-	// Build a custom dialer that uses the specified DNS server if provided.
-	dialServer := dnsServer
-	if target.DNSServer != "" {
-		dialServer = target.DNSServer
-	}
-
 	dialer := &net.Dialer{Timeout: timeout}
-	if dialServer != "" {
-		resolver := &net.Resolver{
-			PreferGo: true,
-			Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				d := net.Dialer{}
-				addr := dialServer
-				if !strings.Contains(addr, ":") {
-					addr = addr + ":53"
-				}
-				return d.DialContext(ctx, "udp", addr)
-			},
-		}
-		dialer.Resolver = resolver
+	// Only an explicit dns_server replaces the resolver. Forcing lookups to
+	// the detected system nameserver bypassed the OS resolver's failover to
+	// further nameservers, its search domains and split DNS, and turned the
+	// probe into a test of one server rather than of what clients on the host
+	// see.
+	if target.DNSServer != "" {
+		dialer.Resolver = overrideResolver(target.DNSServer, timeout)
 	}
 
 	tlsCfg, err := target.TLS.LoadTLSConfig(ctx)
@@ -315,6 +306,30 @@ func (p *httpPinger) ping(ctx context.Context) (PingResult, error) {
 		res.TLS = tlsDetailsFrom(tlsState, end)
 	}
 	return res, nil
+}
+
+// overrideResolver sends every lookup to server instead of the configured
+// nameservers. Dial honours the network it is asked for: after a truncated UDP
+// answer the resolver retries over TCP, and dialling UDP again would hand it
+// the same truncated answer.
+func overrideResolver(server string, timeout time.Duration) *net.Resolver {
+	addr := dnsServerAddr(server)
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			d := net.Dialer{Timeout: timeout}
+			return d.DialContext(ctx, network, addr)
+		},
+	}
+}
+
+// dnsServerAddr adds the DNS port to a server given without one. Splitting
+// rather than looking for a colon keeps bare IPv6 addresses ("::1") working.
+func dnsServerAddr(server string) string {
+	if _, _, err := net.SplitHostPort(server); err == nil {
+		return server
+	}
+	return net.JoinHostPort(strings.Trim(server, "[]"), "53")
 }
 
 // urlErrReason returns err without the URL that *url.Error quotes. That URL is
