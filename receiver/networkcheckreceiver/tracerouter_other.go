@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !windows
+//go:build !windows && !linux
 
 package networkcheckreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/networkcheckreceiver"
 
@@ -27,7 +27,7 @@ import (
 )
 
 // tracePath maps the path with the portable raw-socket probes. Both methods
-// read the ICMP errors from a raw socket, so both need root or CAP_NET_RAW.
+// need root here: there is no unprivileged way to receive the ICMP errors.
 func (t *tracerouter) tracePath(ctx context.Context, method, dest string) (TraceResult, error) {
 	if method == "icmp" {
 		return t.traceICMP(ctx, dest)

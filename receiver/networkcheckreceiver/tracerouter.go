@@ -407,8 +407,8 @@ func (t *tracerouter) resolveIPv4(ctx context.Context) (string, error) {
 
 // trace maps the path to t.host. UDP probes are the default; method "icmp"
 // sends ICMP echo requests instead. The mechanism that carries them, and the
-// privilege it needs, is per platform: see tracePath in tracerouter_windows.go
-// and tracerouter_other.go.
+// privilege it needs, is per platform: see tracePath in tracerouter_linux.go,
+// tracerouter_windows.go and tracerouter_other.go.
 func (t *tracerouter) trace(ctx context.Context) (TraceResult, error) {
 	method := strings.ToLower(t.cfg.Method)
 	if method == "" {

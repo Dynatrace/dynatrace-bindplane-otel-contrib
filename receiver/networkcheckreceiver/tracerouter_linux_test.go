@@ -1,0 +1,162 @@
+// Copyright Dynatrace LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//go:build linux
+
+package networkcheckreceiver
+
+import (
+	"context"
+	"encoding/binary"
+	"net"
+	"os"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+	"golang.org/x/net/icmp"
+)
+
+// rawICMPAllowed reports whether this process may open a raw ICMP socket
+// (root or CAP_NET_RAW).
+func rawICMPAllowed() bool {
+	c, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
+}
+
+// TestLinuxUDPTraceNeedsNoPrivilege traces loopback, whose first hop is the
+// destination answering port unreachable. It runs as whatever user runs the
+// tests: the UDP path reads errors from the probe socket's own error queue, so
+// it must work without root or CAP_NET_RAW.
+func TestLinuxUDPTraceNeedsNoPrivilege(t *testing.T) {
+	t.Logf("euid=%d raw ICMP allowed=%v", os.Geteuid(), rawICMPAllowed())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tr := newTracerouter(TracerouteConfig{Enabled: true, Method: "udp", MaxHops: 3, Timeout: time.Second}, "127.0.0.1", "")
+	res, err := tr.trace(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "udp", res.Method)
+	require.True(t, res.Reached)
+	require.Len(t, res.Hops, 1)
+	require.Equal(t, "127.0.0.1", res.Hops[0].Address)
+	require.False(t, res.Hops[0].TimedOut)
+	require.Positive(t, res.Hops[0].RTT)
+}
+
+// TestLinuxICMPTraceNeedsRawSocket pins the privilege split: the ICMP method
+// works with a raw socket and fails with a permission error without one.
+func TestLinuxICMPTraceNeedsRawSocket(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tr := newTracerouter(TracerouteConfig{Enabled: true, Method: "icmp", MaxHops: 3, Timeout: time.Second}, "127.0.0.1", "")
+	res, err := tr.trace(ctx)
+	if !rawICMPAllowed() {
+		require.ErrorIs(t, err, os.ErrPermission)
+		t.Logf("unprivileged icmp trace: %v", err)
+		return
+	}
+	require.NoError(t, err)
+	require.True(t, res.Reached)
+	require.Equal(t, "127.0.0.1", res.Hops[0].Address)
+}
+
+// TestLinuxUDPTraceHonoursCancel holds the traceroute port on loopback so the
+// destination stays silent, then cancels mid-hop: the trace must return
+// promptly and must not report the interrupted hop as timed out.
+func TestLinuxUDPTraceHonoursCancel(t *testing.T) {
+	l, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: traceroutePort})
+	if err != nil {
+		t.Skipf("traceroute port busy: %v", err)
+	}
+	defer l.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(200*time.Millisecond, cancel)
+	tr := newTracerouter(TracerouteConfig{Enabled: true, Method: "udp", MaxHops: 3, Timeout: 10 * time.Second}, "127.0.0.1", "")
+
+	start := time.Now()
+	res, err := tr.trace(ctx)
+	require.NoError(t, err)
+	require.Less(t, time.Since(start), time.Second, "cancellation must cut the 10s hop wait short")
+	require.Empty(t, res.Hops, "a hop interrupted by cancellation was never observed as silent")
+}
+
+// The tests below need a real network path and are opted into with
+// NETWORKCHECK_TRACE_NET=1: CI runners commonly drop ICMP.
+func requireNetTests(t *testing.T) {
+	if os.Getenv("NETWORKCHECK_TRACE_NET") == "" {
+		t.Skip("set NETWORKCHECK_TRACE_NET=1 to run traceroute tests against the network")
+	}
+}
+
+// defaultGateway reads the IPv4 default route's gateway from /proc/net/route.
+func defaultGateway(t *testing.T) string {
+	b, err := os.ReadFile("/proc/net/route")
+	require.NoError(t, err)
+	for _, line := range strings.Split(string(b), "\n")[1:] {
+		f := strings.Fields(line)
+		if len(f) > 2 && f[1] == "00000000" {
+			v, err := strconv.ParseUint(f[2], 16, 32)
+			require.NoError(t, err)
+			ip := make(net.IP, 4)
+			binary.LittleEndian.PutUint32(ip, uint32(v))
+			return ip.String()
+		}
+	}
+	t.Skip("no IPv4 default route")
+	return ""
+}
+
+func TestLinuxUDPTraceGateway(t *testing.T) {
+	requireNetTests(t)
+	gw := defaultGateway(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	tr := newTracerouter(TracerouteConfig{Enabled: true, Method: "udp", MaxHops: 3, Timeout: 2 * time.Second, MaxConsecutiveTimeouts: 2}, gw, "")
+	res, err := tr.trace(ctx)
+	require.NoError(t, err)
+	t.Logf("gateway %s: reached=%v hops=%+v", gw, res.Reached, res.Hops)
+	require.NotEmpty(t, res.Hops)
+	require.False(t, res.Hops[0].TimedOut, "the gateway is one hop away and must answer")
+	require.Equal(t, gw, res.Hops[0].Address)
+}
+
+func TestLinuxUDPTraceInternet(t *testing.T) {
+	requireNetTests(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	tr := newTracerouter(TracerouteConfig{Enabled: true, Method: "udp", MaxHops: 30, Timeout: 2 * time.Second, MaxConsecutiveTimeouts: 3}, "1.1.1.1", "")
+	res, err := tr.trace(ctx)
+	require.NoError(t, err)
+	answered := 0
+	for _, h := range res.Hops {
+		if !h.TimedOut {
+			answered++
+		}
+	}
+	t.Logf("1.1.1.1: reached=%v aborted=%v hops=%+v", res.Reached, res.AbortedEarly, res.Hops)
+	// Docker Desktop's NAT collapses the real path, so only the shape is
+	// asserted, not a hop count.
+	require.Positive(t, answered)
+}
