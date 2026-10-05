@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/component"
+	"golang.org/x/net/http/httpproxy"
 )
 
 // httpPinger performs a single HTTP request and records per-phase timings using httptrace.
@@ -35,8 +36,17 @@ type httpPinger struct {
 	client     *http.Client
 	url        *url.URL
 	httpMethod string
-	dnsServer  string
+	header     http.Header
+	host       string // Host header override; empty sends the URL's host
+
+	// proxied is true when requests go through a proxy. The DNS and connect
+	// phases then describe the hop to the proxy, and the address connected to
+	// is the proxy's, not the target's.
+	proxied bool
 }
+
+// defaultHTTPTimeout bounds a probe whose target sets no timeout.
+const defaultHTTPTimeout = 10 * time.Second
 
 // newHTTPPinger builds the probe client for one HTTP target. ctx, host and set
 // are what confighttp needs to resolve auth and middleware extensions.
@@ -58,16 +68,33 @@ func newHTTPPinger(ctx context.Context, _ component.Host, _ component.TelemetryS
 		return nil, fmt.Errorf("target %s: invalid http_method %q", redactEndpoint(ep), httpMethod)
 	}
 
+	timeout := target.Timeout
+	if timeout <= 0 {
+		timeout = defaultHTTPTimeout
+	}
+
+	// The probe URL never changes (redirects are not followed), so the proxy
+	// decision is made once, here.
+	var proxy *url.URL
+	if target.ProxyURL != "" {
+		if proxy, err = url.ParseRequestURI(target.ProxyURL); err != nil {
+			return nil, fmt.Errorf("target %s: invalid proxy_url: %w", redactEndpoint(ep), urlErrReason(err))
+		}
+	} else if proxy, err = httpproxy.FromEnvironment().ProxyFunc()(u); err != nil {
+		// Same HTTP_PROXY / HTTPS_PROXY / NO_PROXY rules as
+		// http.ProxyFromEnvironment, which caches the environment for the life
+		// of the process. The error quotes the raw proxy value, credentials
+		// included, so it is not passed on.
+		return nil, fmt.Errorf("target %s: invalid proxy in the HTTP_PROXY/HTTPS_PROXY environment", redactEndpoint(ep))
+	}
+
 	// Build a custom dialer that uses the specified DNS server if provided.
 	dialServer := dnsServer
 	if target.DNSServer != "" {
 		dialServer = target.DNSServer
 	}
 
-	dialer := &net.Dialer{
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
-	}
+	dialer := &net.Dialer{Timeout: timeout}
 	if dialServer != "" {
 		resolver := &net.Resolver{
 			PreferGo: true,
@@ -83,25 +110,43 @@ func newHTTPPinger(ctx context.Context, _ component.Host, _ component.TelemetryS
 		dialer.Resolver = resolver
 	}
 
-	timeout := target.Timeout
-	if timeout == 0 {
-		timeout = 10 * time.Second
-	}
-
-	transport := &http.Transport{
-		DialContext:           dialer.DialContext,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: timeout,
-		DisableKeepAlives:     true, // fresh connection each probe for accurate timing
-	}
-
-	// Apply TLS config from ClientConfig if specified.
 	tlsCfg, err := target.TLS.LoadTLSConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("target %s: loading TLS config: %w", redactEndpoint(ep), redactErr(err))
 	}
-	if tlsCfg != nil {
-		transport.TLSClientConfig = tlsCfg
+
+	// Deliberate simplification: the transport is built here rather than by
+	// ClientConfig.ToClient because the probe needs its own dialer (the
+	// dns_server resolver override) and nothing between it and the wire, so the
+	// httptrace timings describe the network rather than auth, middleware or
+	// otelhttp round trippers. The cost is that only endpoint, timeout, tls,
+	// proxy_url and headers are honoured. ToClient exposes no dialer hook;
+	// switch to it when it does, and the remaining confighttp fields come for
+	// free.
+	transport := &http.Transport{
+		Proxy:               http.ProxyURL(proxy), // nil proxy: direct
+		DialContext:         dialer.DialContext,
+		TLSClientConfig:     tlsCfg,
+		TLSHandshakeTimeout: timeout,
+		// A fresh connection per probe, so every probe pays and measures DNS,
+		// connect and TLS instead of reusing a pooled connection.
+		DisableKeepAlives: true,
+		// A custom dialer or TLS config otherwise turns HTTP/2 off; servers
+		// that offer h2 are probed over h2, as a browser would.
+		ForceAttemptHTTP2: true,
+	}
+
+	header := http.Header{}
+	var host string
+	for name, v := range target.Headers.Iter {
+		// net/http writes req.Host, not a Host header, so the override has to
+		// go there. string(v), not v.String(): the opaque type prints as
+		// "[REDACTED]".
+		if strings.EqualFold(name, "Host") {
+			host = string(v)
+			continue
+		}
+		header.Set(name, string(v))
 	}
 
 	client := &http.Client{
@@ -117,7 +162,9 @@ func newHTTPPinger(ctx context.Context, _ component.Host, _ component.TelemetryS
 		client:     client,
 		url:        u,
 		httpMethod: httpMethod,
-		dnsServer:  dialServer,
+		header:     header,
+		host:       host,
+		proxied:    proxy != nil,
 	}, nil
 }
 
@@ -182,10 +229,21 @@ func (p *httpPinger) ping(ctx context.Context) (PingResult, error) {
 		// Unreachable: the URL and method were validated in newHTTPPinger.
 		return PingResult{}, fmt.Errorf("building request for %s: %w", redactEndpoint(p.url.String()), urlErrReason(err))
 	}
+	// Credentials in the endpoint's userinfo are sent as basic auth by
+	// net/http itself, unless a configured Authorization header is present.
+	req.Header = p.header.Clone()
+	if p.host != "" {
+		req.Host = p.host
+	}
 
 	requestStart = time.Now()
 	resp, err := p.client.Do(req)
 	end := time.Now()
+
+	if p.proxied {
+		// The address dialled was the proxy's; the target's is not observable.
+		resolvedIP = ""
+	}
 
 	statusCode := 0
 	var responseSize int64
