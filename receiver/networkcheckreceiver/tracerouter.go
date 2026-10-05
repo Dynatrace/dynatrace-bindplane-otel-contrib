@@ -19,6 +19,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net"
 	"net/url"
 	"strings"
@@ -84,6 +85,10 @@ var errProbeTimeout = errors.New("no matching ICMP reply before deadline")
 // back to the probe that provoked it rather than assumed to belong to whichever
 // TTL is currently in flight.
 type probeKey struct {
+	// dst is the trace destination. Every probe of every trace in the process
+	// is seen by every raw socket, so the destination is part of the identity.
+	dst net.IP
+
 	// udp is true when the probe was a UDP datagram, false for an ICMP echo.
 	udp bool
 
@@ -97,10 +102,10 @@ type probeKey struct {
 // matchesProbe reports whether the original datagram quoted inside an ICMP
 // error refers to the probe described by k. ICMP errors echo back the offending
 // IP header plus at least its first 8 payload bytes, which is enough to recover
-// the UDP port pair or the ICMP echo identifier.
+// the destination and the UDP port pair or the ICMP echo identifier.
 func matchesProbe(inner []byte, k probeKey) bool {
 	hdr, err := ipv4.ParseHeader(inner)
-	if err != nil || hdr.Len <= 0 || len(inner) < hdr.Len+8 {
+	if err != nil || hdr.Len <= 0 || len(inner) < hdr.Len+8 || !hdr.Dst.Equal(k.dst) {
 		return false
 	}
 	payload := inner[hdr.Len:]
@@ -153,8 +158,8 @@ func awaitProbeReply(conn *icmp.PacketConn, deadline time.Time, k probeKey) (fro
 				return peer, true, nil
 			}
 		case *icmp.Echo:
-			if !k.udp && msg.Type == ipv4.ICMPTypeEchoReply &&
-				body.ID == k.echoID && body.Seq == k.echoSeq {
+			if ipa, ok := peer.(*net.IPAddr); ok && !k.udp && msg.Type == ipv4.ICMPTypeEchoReply &&
+				body.ID == k.echoID && body.Seq == k.echoSeq && ipa.IP.Equal(k.dst) {
 				return peer, true, nil
 			}
 		}
@@ -215,6 +220,11 @@ type tracerouter struct {
 	// target's DNS server when one is set, the system resolver otherwise.
 	resolver *net.Resolver
 
+	// echoID identifies this tracerouter's ICMP echo probes. Each tracerouter
+	// picks its own, so concurrent traces in one process do not claim each
+	// other's replies.
+	echoID uint16
+
 	// failStreak counts consecutive checks that met the on_failure condition.
 	// A tracerouter belongs to one target, which is probed by one goroutine at
 	// a time, so it needs no locking.
@@ -222,7 +232,13 @@ type tracerouter struct {
 }
 
 func newTracerouter(cfg TracerouteConfig, endpoint string, dnsServer string) *tracerouter {
-	return &tracerouter{cfg: cfg, host: hostFromEndpoint(endpoint), resolver: newResolver(dnsServer)}
+	return &tracerouter{
+		cfg:      cfg,
+		host:     hostFromEndpoint(endpoint),
+		resolver: newResolver(dnsServer),
+		// #nosec G404 G115 -- correlates probes with their replies, not a secret; the value is in [0, 65535].
+		echoID: uint16(rand.IntN(1 << 16)),
+	}
 }
 
 // newResolver returns a resolver that queries dnsServer, or the system
@@ -473,6 +489,7 @@ func (t *tracerouter) traceUDP(ctx context.Context, dest string) (TraceResult, e
 
 			var awaitErr error
 			from, reachedDest, awaitErr = awaitProbeReply(icmpConn, time.Now().Add(hopTimeout), probeKey{
+				dst:     destAddr.IP,
 				udp:     true,
 				srcPort: localPort,
 				dstPort: destAddr.Port,
@@ -574,7 +591,7 @@ func (t *tracerouter) traceICMP(ctx context.Context, dest string) (TraceResult, 
 			msg := icmp.Message{
 				Type: ipv4.ICMPTypeEcho,
 				Code: 0,
-				Body: &icmp.Echo{ID: ttl, Seq: seq, Data: []byte("networkcheck")},
+				Body: &icmp.Echo{ID: int(t.echoID), Seq: seq, Data: []byte("networkcheck")},
 			}
 			wb, marshalErr := msg.Marshal(nil)
 			if marshalErr != nil {
@@ -600,7 +617,8 @@ func (t *tracerouter) traceICMP(ctx context.Context, dest string) (TraceResult, 
 
 			var awaitErr error
 			from, reachedDest, awaitErr = awaitProbeReply(conn, time.Now().Add(hopTimeout), probeKey{
-				echoID:  ttl,
+				dst:     destAddr.IP,
+				echoID:  int(t.echoID),
 				echoSeq: seq,
 			})
 			rtt = time.Since(sent)

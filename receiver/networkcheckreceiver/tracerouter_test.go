@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/dns/dnsmessage"
 	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv4"
 )
 
 func TestHostFromEndpoint(t *testing.T) {
@@ -264,6 +265,48 @@ func TestShouldRunRateLimitsOnFailure(t *testing.T) {
 		cfg.Interval = 1
 		require.Empty(t, run(cfg, repeat(fail, 5)))
 	})
+}
+
+// quotedProbe builds what an ICMP error quotes back: the probe's IPv4 header
+// and the first 8 bytes of its payload.
+func quotedProbe(t *testing.T, dst net.IP, proto int, first8 []byte) []byte {
+	t.Helper()
+	h := ipv4.Header{Version: 4, Len: ipv4.HeaderLen, TotalLen: ipv4.HeaderLen + 8, TTL: 1, Protocol: proto, Src: net.IPv4(10, 0, 0, 1), Dst: dst}
+	b, err := h.Marshal()
+	require.NoError(t, err)
+	return append(b, first8...)
+}
+
+func TestMatchesProbeRequiresDestination(t *testing.T) {
+	dest, other := net.IPv4(192, 0, 2, 10), net.IPv4(192, 0, 2, 20)
+
+	// UDP: source port 40000 -> 33434.
+	udpQuote := []byte{0x9c, 0x40, 0x82, 0x9a, 0, 0, 0, 0}
+	udpKey := probeKey{dst: dest, udp: true, srcPort: 40000, dstPort: 33434}
+	require.True(t, matchesProbe(quotedProbe(t, dest, 17, udpQuote), udpKey))
+	require.False(t, matchesProbe(quotedProbe(t, other, 17, udpQuote), udpKey),
+		"same ports toward another destination belong to another trace")
+	require.False(t, matchesProbe(quotedProbe(t, dest, 17, udpQuote), probeKey{dst: dest, udp: true, srcPort: 40001, dstPort: 33434}))
+
+	// ICMP echo: type 8, code 0, checksum, id 0x1234, seq 7.
+	echoQuote := []byte{8, 0, 0, 0, 0x12, 0x34, 0, 7}
+	echoKey := probeKey{dst: dest, echoID: 0x1234, echoSeq: 7}
+	require.True(t, matchesProbe(quotedProbe(t, dest, 1, echoQuote), echoKey))
+	require.False(t, matchesProbe(quotedProbe(t, other, 1, echoQuote), echoKey),
+		"same echo id and seq toward another destination belong to another trace")
+	require.False(t, matchesProbe(quotedProbe(t, dest, 1, echoQuote), probeKey{dst: dest, echoID: 0x1234, echoSeq: 8}))
+
+	require.False(t, matchesProbe(nil, echoKey))
+	require.False(t, matchesProbe(quotedProbe(t, dest, 1, echoQuote)[:ipv4.HeaderLen+4], echoKey), "short quote")
+}
+
+func TestEchoIDIsRandomPerTracerouter(t *testing.T) {
+	// Four draws from 65536 values all colliding has odds of 1 in 2^48.
+	seen := map[uint16]bool{}
+	for range 4 {
+		seen[newTracerouter(TracerouteConfig{}, "example.com", "").echoID] = true
+	}
+	require.Greater(t, len(seen), 1, "tracerouters must not share an echo ID")
 }
 
 // fakeDNS serves A and AAAA answers from records over UDP on loopback and
