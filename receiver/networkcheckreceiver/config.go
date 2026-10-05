@@ -130,9 +130,10 @@ type TracerouteConfig struct {
 	// Enabled enables traceroute. Default false.
 	Enabled bool `mapstructure:"enabled"`
 
-	// Method is "udp" (default) or "icmp". The privileges each needs differ
-	// by platform; see the README. Windows ignores it and uses the IP Helper
-	// API.
+	// Method is "udp" (default) or "icmp". On Linux "udp" needs no privilege
+	// (the probe socket's error queue is read via IP_RECVERR) and "icmp" needs
+	// root or CAP_NET_RAW; on macOS both need root; on Windows both use the
+	// native IcmpSendEcho API and need no privilege.
 	Method string `mapstructure:"method"`
 
 	// MaxHops is the maximum TTL to probe, 1-255. 0 means the default (30).
@@ -142,7 +143,10 @@ type TracerouteConfig struct {
 	// interval-based runs.
 	Interval int `mapstructure:"interval"`
 
-	// OnFailure triggers a traceroute when ICMP packet loss >= FailureThreshold.
+	// OnFailure traces an ICMP target on the first check whose packet loss is
+	// >= FailureThreshold, then every 10th consecutive failing check while
+	// Interval is 0 (the Interval schedule re-traces otherwise). A passing
+	// check resets the count.
 	OnFailure bool `mapstructure:"on_failure"`
 
 	// FailureThreshold is the packet-loss ratio (0.0–1.0) that triggers on-failure traceroute. Default 0.5.

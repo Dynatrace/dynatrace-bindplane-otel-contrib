@@ -21,7 +21,7 @@ target, when an ICMP target's packet loss reaches a threshold, or both.
 |---------|-------|-------|---------|
 | ICMP ping | `CAP_NET_RAW`, or none when the collector's group ID is inside `net.ipv4.ping_group_range` | None | Administrator |
 | UDP traceroute (default) | None | root | None (native API, see below) |
-| ICMP traceroute | root or `CAP_NET_RAW` | root | None (native API, see below) |
+| ICMP traceroute | root or `CAP_NET_RAW`; without it every traced cycle fails with `operation not permitted` | root | None (native API, see below) |
 | HTTP probe | None | None | None |
 | DNS probe | None | None | None |
 
@@ -287,8 +287,17 @@ Phase timings:
 | Response (time to first byte) | Request written | First response byte |
 
 With a proxy configured, through `proxy_url` or the `HTTPS_PROXY`, `HTTP_PROXY`
-and `NO_PROXY` environment variables, the DNS and connect phases describe the
-connection to the proxy.
+and `NO_PROXY` environment variables (read once when the receiver starts), the
+DNS and connect phases describe the connection to the proxy, `server.resolved_ip`
+is omitted from log records, and for HTTPS the TLS phase is still the handshake
+with the origin. A proxy that refuses the `CONNECT` reports `error.type` =
+`request`. Loopback targets are never proxied.
+
+Credentials in the endpoint's userinfo are sent as HTTP basic authentication
+unless a configured `Authorization` header is present. A configured `Host`
+header replaces the request's Host. HTTP/2 is always attempted, so
+`force_attempt_http2` has no effect and is rejected like the other unsupported
+keys when set.
 
 ### DNS probes
 
@@ -317,8 +326,9 @@ with address `*`, `network.traceroute.hop.status` = 0, and no latency. After
 than probing up to `max_hops`.
 
 With `on_failure`, a target that stays down is not traced on every cycle: it
-is traced on its first failing probe, then every `interval` probes (every 10
-when `interval` is 0) while it stays down.
+is traced on its first failing probe and then, while it stays down, by the
+`interval` schedule when `interval` is set, or every 10 failing probes when it
+is 0. A passing probe resets the count.
 
 Traceroutes run inside the probe cycle and are stopped when its budget runs
 out.
