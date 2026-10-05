@@ -210,7 +210,7 @@ func (p *httpPinger) ping(ctx context.Context) (PingResult, error) {
 	if err != nil {
 		// A failed request is a measurement, not an error. It keeps the
 		// phases that completed before the one that broke.
-		res.ErrMessage = urlErrReason(err).Error()
+		res.ErrMessage = redactErr(err).Error()
 		res.ErrPhase = failurePhase(t)
 		return res, nil
 	}
@@ -337,11 +337,11 @@ func dnsServerAddr(server string) string {
 	return net.JoinHostPort(strings.Trim(server, "[]"), "53")
 }
 
-// urlErrReason returns err without the URL that *url.Error quotes. That URL is
-// the configured endpoint: the record already carries it redacted as
-// server.address, net/http keeps the username when it masks the password, and a
+// urlErrReason returns err without the URL that *url.Error quotes. It is for
+// errors about raw configuration, where that URL is the unparsed setting: a
 // password with characters the URL grammar rejects is quoted in a form the
-// free-text redaction cannot recognise.
+// free-text redaction cannot recognise, and the message names the target
+// already.
 func urlErrReason(err error) error {
 	var ue *url.Error
 	if errors.As(err, &ue) {
