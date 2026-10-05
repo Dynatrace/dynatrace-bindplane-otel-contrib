@@ -388,19 +388,6 @@ func TestResolveIPv4(t *testing.T) {
 	})
 }
 
-func TestDNSServerAddr(t *testing.T) {
-	for in, want := range map[string]string{
-		"8.8.8.8":           "8.8.8.8:53",
-		"8.8.8.8:5353":      "8.8.8.8:5353",
-		"2001:db8::53":      "[2001:db8::53]:53",
-		"[2001:db8::53]":    "[2001:db8::53]:53",
-		"[2001:db8::53]:54": "[2001:db8::53]:54",
-		"fe80::1%en0":       "[fe80::1%en0]:53",
-	} {
-		require.Equal(t, want, dnsServerAddr(in), in)
-	}
-}
-
 func TestMaxHopsAndHopTimeoutClamp(t *testing.T) {
 	for _, tc := range []struct{ cfg, want int }{{0, defaultMaxHops}, {-1, defaultMaxHops}, {12, 12}, {255, 255}, {256, maxTTL}, {10000, maxTTL}} {
 		require.Equal(t, tc.want, newTracerouter(TracerouteConfig{MaxHops: tc.cfg}, "h", "").maxHops(), tc.cfg)

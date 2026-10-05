@@ -16,6 +16,8 @@ package networkcheckreceiver // import "github.com/dynatrace/dynatrace-bindplane
 
 import (
 	"context"
+	"net"
+	"strings"
 	"time"
 )
 
@@ -85,4 +87,14 @@ type TLSDetails struct {
 // pinger is the interface implemented by icmpPinger and httpPinger.
 type pinger interface {
 	ping(ctx context.Context) (PingResult, error)
+}
+
+// dnsServerAddr turns a configured DNS server into a dialable host:port. The
+// port defaults to 53, and an IPv6 address may come with or without brackets;
+// splitting rather than looking for a colon keeps bare IPv6 addresses working.
+func dnsServerAddr(server string) string {
+	if _, _, err := net.SplitHostPort(server); err == nil {
+		return server
+	}
+	return net.JoinHostPort(strings.Trim(server, "[]"), "53")
 }

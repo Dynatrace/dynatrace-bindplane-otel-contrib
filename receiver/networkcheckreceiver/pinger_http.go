@@ -328,15 +328,6 @@ func overrideResolver(server string, timeout time.Duration) *net.Resolver {
 	}
 }
 
-// dnsServerAddr adds the DNS port to a server given without one. Splitting
-// rather than looking for a colon keeps bare IPv6 addresses ("::1") working.
-func dnsServerAddr(server string) string {
-	if _, _, err := net.SplitHostPort(server); err == nil {
-		return server
-	}
-	return net.JoinHostPort(strings.Trim(server, "[]"), "53")
-}
-
 // urlErrReason returns err without the URL that *url.Error quotes. It is for
 // errors about raw configuration, where that URL is the unparsed setting: a
 // password with characters the URL grammar rejects is quoted in a form the

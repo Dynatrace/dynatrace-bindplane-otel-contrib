@@ -325,15 +325,6 @@ func newResolver(dnsServer string) *net.Resolver {
 	}
 }
 
-// dnsServerAddr turns a configured DNS server into a dialable host:port. The
-// port defaults to 53, and an IPv6 address may come with or without brackets.
-func dnsServerAddr(server string) string {
-	if _, _, err := net.SplitHostPort(server); err == nil {
-		return server
-	}
-	return net.JoinHostPort(strings.Trim(server, "[]"), "53")
-}
-
 // hostFromEndpoint extracts the bare host from an endpoint that may be a full
 // URL (e.g. "https://example.com/path") or a plain host/IP with or without a
 // port. IPv6 literals come back without brackets, ready for a lookup, and
