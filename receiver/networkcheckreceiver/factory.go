@@ -82,10 +82,30 @@ func createMetricsReceiver(
 		return nil, err
 	}
 
-	return scraperhelper.NewMetricsController(
+	ctrl, err := scraperhelper.NewMetricsController(
 		&cfg.ControllerConfig, params, consumer,
 		scraperhelper.AddMetricsScraper(metadata.Type, s),
 	)
+	if err != nil {
+		return nil, err
+	}
+	return &proberStopper{Component: ctrl, prober: ns.prober}, nil
+}
+
+// proberStopper cancels the shared prober's in-flight cycle before the scraper
+// controller shuts down. scraperhelper stops its tick loop with close(done)
+// followed by wg.Wait() and only then calls the scraper's shutdown hook, so by
+// the time the hook runs the controller has already waited for the slowest
+// probe. Cancelling first bounds Shutdown to the time one probe takes to notice
+// its context.
+type proberStopper struct {
+	component.Component
+	prober *sharedProber
+}
+
+func (r *proberStopper) Shutdown(ctx context.Context) error {
+	r.prober.stop()
+	return r.Component.Shutdown(ctx)
 }
 
 // createLogsReceiver builds the logs signal. scraperhelper has a logs
@@ -120,8 +140,12 @@ func createLogsReceiver(
 		}, metadata.LogsStability),
 	)
 
-	return scraperhelper.NewLogsController(
+	ctrl, err := scraperhelper.NewLogsController(
 		&cfg.ControllerConfig, params, consumer,
 		scraperhelper.AddFactoryWithConfig(f, nil),
 	)
+	if err != nil {
+		return nil, err
+	}
+	return &proberStopper{Component: ctrl, prober: ls.prober}, nil
 }

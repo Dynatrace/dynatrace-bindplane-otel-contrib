@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/receiver/receivertest"
-	"go.uber.org/zap"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/networkcheckreceiver/internal/metadata"
 )
@@ -46,7 +45,7 @@ func newTestProber(t *testing.T, interval time.Duration) (*sharedProber, *counti
 	cfg := createDefaultConfig().(*Config)
 	cfg.CollectionInterval = interval
 
-	p := &sharedProber{cfg: cfg, logger: zap.NewNop()}
+	p := newSharedProber(cfg, receivertest.NewNopSettings(metadata.Type))
 	p.started = true
 	p.targets = []*targetState{{
 		cfg: TargetConfig{Method: MethodHTTP},
@@ -144,7 +143,7 @@ func TestSharedProber_FailedStartLeavesNoPartialTargets(t *testing.T) {
 	cfg.Targets[1].Endpoint = "https://example.org"
 	cfg.Targets[1].TLS.CAFile = filepath.Join(t.TempDir(), "missing-ca.pem")
 
-	p := &sharedProber{cfg: cfg, logger: zap.NewNop()}
+	p := newSharedProber(cfg, receivertest.NewNopSettings(metadata.Type))
 	err := p.start(context.Background(), nil)
 	require.Error(t, err, "a target with an unreadable CA file must fail start")
 	require.Empty(t, p.targets, "a failed start must publish no targets")
