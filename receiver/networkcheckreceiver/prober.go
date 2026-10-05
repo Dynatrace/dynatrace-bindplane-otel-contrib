@@ -34,7 +34,7 @@ const defaultMaxConcurrentProbes = 16
 // maxConcurrentTraces bounds traceroutes in flight within a cycle. Each trace
 // holds a raw ICMP socket that receives every ICMP packet on the host, so many
 // at once multiply that parsing work.
-// ponytail: fixed at 4; make it a setting if anyone measures a need.
+// Deliberate simplification: fixed at 4; make it a setting if anyone measures a need.
 const maxConcurrentTraces = 4
 
 // probeICMPMode is checkICMPMode behind a variable so tests can simulate a host
@@ -273,7 +273,7 @@ func (p *sharedProber) start(ctx context.Context, host component.Host) error {
 			pg = newDNSPinger(tc)
 		default:
 			httpTC := tc
-			if !strings.HasPrefix(httpTC.Endpoint, "http://") && !strings.HasPrefix(httpTC.Endpoint, "https://") {
+			if !strings.Contains(httpTC.Endpoint, "://") {
 				httpTC.Endpoint = "http://" + httpTC.Endpoint
 			}
 			pg, err = newHTTPPinger(ctx, host, p.settings.TelemetrySettings, httpTC, dnsServer)

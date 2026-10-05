@@ -167,10 +167,11 @@ func buildHTTPLogRecord(lr plog.LogRecord, ts *targetState, r PingResult, starte
 
 	body := lr.Body().SetEmptyMap()
 
-	// Phase semantics follow the existing metric definitions exactly:
-	// connect_ms is measured from DNS-done rather than from ConnectStart,
-	// write_ms spans the TLS handshake, and ttfb_ms is time to first byte
-	// rather than a full body read.
+	// Phase semantics follow the metric definitions: connect_ms runs from the
+	// first dial start, write_ms from the end of the TLS handshake (or of the
+	// connect for plain HTTP), and ttfb_ms is time to first byte rather than a
+	// full body read. On failure, phases that completed are non-zero and the
+	// one that broke is zero.
 	phases := body.PutEmptyMap("phases")
 	phases.EnsureCapacity(6)
 	putPhase := func(k string, d time.Duration) {

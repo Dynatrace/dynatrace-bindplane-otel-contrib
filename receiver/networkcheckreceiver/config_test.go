@@ -419,3 +419,31 @@ func TestReadmeConfigurationBlockIsValid(t *testing.T) {
 	cfg.Traceroute.Enabled = true
 	require.NoError(t, confmap.Validate(cfg))
 }
+
+func TestValidateDNSServer(t *testing.T) {
+	cases := map[string]bool{
+		"":                     true,
+		"8.8.8.8":              true,
+		"8.8.8.8:53":           true,
+		"2001:db8::1":          true,
+		"[2001:db8::1]:53":     true,
+		"resolver.example":     true,
+		"https://8.8.8.8":      false,
+		"8.8.8.8:99999":        false,
+		"user:pass@8.8.8.8:53": false,
+		"8.8.8.8/x":            false,
+	}
+	for server, ok := range cases {
+		t.Run(server, func(t *testing.T) {
+			cfg := createDefaultConfig().(*Config)
+			cfg.Targets = []TargetConfig{{Method: MethodICMP, DNSServer: server}}
+			cfg.Targets[0].Endpoint = "example.com"
+			err := cfg.Validate()
+			if ok {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, "dns_server")
+			}
+		})
+	}
+}

@@ -238,6 +238,14 @@ func (t *TargetConfig) validate(i int, interval time.Duration) error {
 		errs = multierr.Append(errs, fmt.Errorf("target[%d]: ping_count must be between 0 and 100", i))
 	}
 
+	// dns_server has the same shape as a DNS probe endpoint and the same IPv6
+	// ambiguity, so it gets the same check.
+	if t.DNSServer != "" {
+		if err := validateEndpoint(MethodDNS, t.DNSServer); err != nil {
+			errs = multierr.Append(errs, fmt.Errorf("target[%d]: dns_server: %w", i, err))
+		}
+	}
+
 	if t.Timeout < 0 {
 		errs = multierr.Append(errs, fmt.Errorf("target[%d]: timeout must be >= 0", i))
 	} else if interval > 0 && t.Timeout > interval {
