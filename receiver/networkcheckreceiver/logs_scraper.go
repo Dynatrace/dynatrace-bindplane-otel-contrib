@@ -22,7 +22,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/receiver"
-	"go.opentelemetry.io/collector/scraper/scrapererror"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/networkcheckreceiver/internal/metadata"
 )
@@ -61,24 +60,36 @@ func (s *networkCheckLogsScraper) shutdown(_ context.Context) error {
 	return nil
 }
 
-// scrape renders the latest probe cycle as logs. Only HTTP probes and
+// scrape renders the latest probe cycle as logs.
+func (s *networkCheckLogsScraper) scrape(ctx context.Context) (plog.Logs, error) {
+	return s.render(s.prober.latestCycle(ctx, s.prober.cycleMaxAge()))
+}
+
+// render turns one probe cycle into log records. Only HTTP probes and
 // traceroutes produce records: a DNS or ICMP probe is a scalar sampled on an
 // interval, which is a metric, not an event.
-func (s *networkCheckLogsScraper) scrape(ctx context.Context) (plog.Logs, error) {
-	errs := &scrapererror.ScrapeErrors{}
-	cycle := s.prober.latestCycle(ctx, s.prober.cycleMaxAge())
+func (s *networkCheckLogsScraper) render(cycle *probeCycle) (plog.Logs, error) {
+	var failures []string
+	probed := 0
 	observed := time.Now()
 
 	for _, res := range cycle.results {
+		// A skipped probe never ran; see the metrics scraper.
+		if res.skipped {
+			continue
+		}
+		probed++
+
 		ts := res.target
+		// The record builders redact the endpoint they embed; the resource
+		// attribute has to match, or the credential simply moves one level up.
+		endpoint := redactEndpoint(ts.cfg.Endpoint)
 		if res.pingErr != nil {
-			errs.AddPartial(1, fmt.Errorf("ping %s: %w", redactEndpoint(ts.cfg.Endpoint), redactErr(res.pingErr)))
+			failures = append(failures, fmt.Sprintf("ping %s: %v", endpoint, redactErr(res.pingErr)))
 			continue
 		}
 
-		// The record builders redact the endpoint they embed; the resource
-		// attribute has to match, or the credential simply moves one level up.
-		s.rb.SetTargetEndpoint(redactEndpoint(ts.cfg.Endpoint))
+		s.rb.SetTargetEndpoint(endpoint)
 
 		if res.ping.Method == MethodHTTP {
 			rec := plog.NewLogRecord()
@@ -87,7 +98,7 @@ func (s *networkCheckLogsScraper) scrape(ctx context.Context) (plog.Logs, error)
 		}
 
 		if res.traceErr != nil {
-			errs.AddPartial(1, fmt.Errorf("traceroute %s: %w", redactEndpoint(ts.cfg.Endpoint), redactErr(res.traceErr)))
+			failures = append(failures, fmt.Sprintf("traceroute %s: %v", endpoint, redactErr(res.traceErr)))
 		}
 		if res.traced && len(res.trace.Hops) > 0 {
 			rec := plog.NewLogRecord()
@@ -100,5 +111,5 @@ func (s *networkCheckLogsScraper) scrape(ctx context.Context) (plog.Logs, error)
 		s.lb.EmitForResource(metadata.WithLogsResource(s.rb.Emit()))
 	}
 
-	return s.lb.Emit(), errs.Combine()
+	return s.lb.Emit(), summarizeFailures(failures, probed)
 }

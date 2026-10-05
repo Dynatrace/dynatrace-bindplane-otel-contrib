@@ -16,7 +16,9 @@ package networkcheckreceiver // import "github.com/dynatrace/dynatrace-bindplane
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -73,25 +75,43 @@ func (s *networkCheckScraper) shutdown(_ context.Context) error {
 }
 
 func (s *networkCheckScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
-	errs := &scrapererror.ScrapeErrors{}
-	cycle := s.prober.latestCycle(ctx, s.prober.cycleMaxAge())
-	now := pcommon.NewTimestampFromTime(cycle.at)
+	return s.render(s.prober.latestCycle(ctx, s.prober.cycleMaxAge()))
+}
+
+// render turns one probe cycle into metrics.
+func (s *networkCheckScraper) render(cycle *probeCycle) (pmetric.Metrics, error) {
+	var failures []string
+	probed := 0
 
 	for _, res := range cycle.results {
+		// A skipped probe never ran, so there is nothing to report: emitting a
+		// status here would turn a busy cycle into a false outage.
+		if res.skipped {
+			continue
+		}
+		probed++
+
 		ts := res.target
+		// Redacted unconditionally: the resource attribute is attached to every
+		// data point, and a target may be configured as https://user:pass@host.
+		// The failure text below redacts for the same reason.
+		endpoint := redactEndpoint(ts.cfg.Endpoint)
 		if res.pingErr != nil {
-			errs.AddPartial(1, fmt.Errorf("ping %s: %w", redactEndpoint(ts.cfg.Endpoint), redactErr(res.pingErr)))
+			failures = append(failures, fmt.Sprintf("ping %s: %v", endpoint, redactErr(res.pingErr)))
 			continue
 		}
 
-		// Redacted unconditionally: the resource attribute is attached to every
-		// data point, and a target may be configured as https://user:pass@host.
-		// The error strings above redact for the same reason.
-		s.rb.SetTargetEndpoint(redactEndpoint(ts.cfg.Endpoint))
+		// Each target is stamped with when its own probe began. Probes run
+		// sequentially or in parallel across a cycle that can last tens of
+		// seconds, so one cycle-wide timestamp misplaces every target but the
+		// first.
+		now := pcommon.NewTimestampFromTime(res.startedAt)
+
+		s.rb.SetTargetEndpoint(endpoint)
 		s.recordMetrics(now, ts, res.ping)
 
 		if res.traceErr != nil {
-			errs.AddPartial(1, fmt.Errorf("traceroute %s: %w", redactEndpoint(ts.cfg.Endpoint), redactErr(res.traceErr)))
+			failures = append(failures, fmt.Sprintf("traceroute %s: %v", endpoint, redactErr(res.traceErr)))
 		}
 		if res.traced {
 			for _, hop := range res.trace.Hops {
@@ -133,7 +153,31 @@ func (s *networkCheckScraper) scrape(ctx context.Context) (pmetric.Metrics, erro
 		s.mb.EmitForResource(metadata.WithResource(s.rb.Emit()))
 	}
 
-	return s.mb.Emit(), errs.Combine()
+	return s.mb.Emit(), summarizeFailures(failures, probed)
+}
+
+// maxNamedFailures is how many failures a scrape error spells out.
+const maxNamedFailures = 3
+
+// summarizeFailures folds a cycle's per-target failures into a single partial
+// scrape error. The scraper controller logs every scrape error at ERROR on
+// every interval, for each signal; one error per failing target turned a few
+// hundred unreachable targets into a log flood that buried everything else.
+//
+// Deliberate simplification: only the first few failures are named. Per-target
+// outcomes are already in the telemetry (status series, log records), so the
+// error points at the problem rather than enumerating it. Raise
+// maxNamedFailures if operators need more without opening the data.
+func summarizeFailures(failures []string, total int) error {
+	n := len(failures)
+	if n == 0 {
+		return nil
+	}
+	msg := fmt.Sprintf("%d of %d targets failed: %s", n, total, strings.Join(failures[:min(n, maxNamedFailures)], "; "))
+	if n > maxNamedFailures {
+		msg += fmt.Sprintf(" (+%d more)", n-maxNamedFailures)
+	}
+	return scrapererror.NewPartialScrapeError(errors.New(msg), n)
 }
 
 // recordMetrics writes data points for one completed probe cycle.

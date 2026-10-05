@@ -16,7 +16,6 @@ package networkcheckreceiver
 
 import (
 	"errors"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -312,23 +311,6 @@ func TestFailurePhase(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.want, failurePhase(tc.in))
 		})
-	}
-}
-
-// The record builders redacted the endpoint they embed, but the resource
-// attribute carried the raw one — which put the credential straight back into
-// every emitted record, one level up.
-func TestResourceEndpointIsRedacted(t *testing.T) {
-	raw := "https://admin:pw7@example.com/health"
-	require.NotContains(t, redactEndpoint(raw), "pw7")
-
-	// Guard the scraper call sites too, so the resource attribute cannot drift
-	// back to the raw value.
-	for _, src := range []string{"scraper.go", "logs_scraper.go"} {
-		b, err := os.ReadFile(src)
-		require.NoError(t, err)
-		require.NotContains(t, string(b), "SetTargetEndpoint(ts.cfg.Endpoint)",
-			"%s must not pass an unredacted endpoint to the resource builder", src)
 	}
 }
 

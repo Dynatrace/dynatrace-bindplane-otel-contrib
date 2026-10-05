@@ -33,9 +33,14 @@ func recordOne(t *testing.T, r PingResult) map[string]float64 {
 
 	cfg := createDefaultConfig().(*Config)
 	settings := receivertest.NewNopSettings(metadata.Type)
-	s := newNetworkCheckScraper(settings, cfg)
-	s.mb = metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, settings)
-	s.rb = metadata.NewResourceBuilder(cfg.MetricsBuilderConfig.ResourceAttributes)
+	// Built directly: newNetworkCheckScraper acquires a shared prober that this
+	// helper never released, leaving a registry entry behind for later tests.
+	s := &networkCheckScraper{
+		cfg:      cfg,
+		settings: settings,
+		mb:       metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, settings),
+		rb:       metadata.NewResourceBuilder(cfg.MetricsBuilderConfig.ResourceAttributes),
+	}
 
 	ts := &targetState{cfg: TargetConfig{}, dnsServer: "8.8.8.8"}
 	s.recordMetrics(pcommon.NewTimestampFromTime(time.Now()), ts, r)
