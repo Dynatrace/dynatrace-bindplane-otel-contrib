@@ -26,7 +26,7 @@ import (
 )
 
 func defaultLogsConfig() LogsConfig {
-	return LogsConfig{IncludeTLSDetails: true, RedactURLUserinfo: true}
+	return LogsConfig{IncludeTLSDetails: true}
 }
 
 func TestRedactEndpoint(t *testing.T) {

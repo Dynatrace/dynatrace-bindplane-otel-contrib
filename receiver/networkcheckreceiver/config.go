@@ -50,6 +50,12 @@ type Config struct {
 	// each target is checked once every N * collection_interval.
 	BatchSize int `mapstructure:"batch_size"`
 
+	// MaxConcurrentProbes bounds how many targets are probed at the same time
+	// within one cycle. 0 means the default (16). Traceroutes are additionally
+	// limited to a small fixed number in flight because each one holds a raw
+	// socket that receives every ICMP packet on the host.
+	MaxConcurrentProbes int `mapstructure:"max_concurrent_probes"`
+
 	// Jitter is the maximum random delay added at the start of each scrape cycle.
 	// A random duration in [0, jitter) is chosen independently per cycle, which
 	// spreads probes across the interval when many agents share the same config.
@@ -68,17 +74,12 @@ type Config struct {
 // LogsConfig configures the content of emitted log records.
 //
 // Note there is deliberately no toggle for request or response headers and
-// bodies. Auth headers, cookies, and payloads are exactly what HTTP checks
-// carry, so they are never recorded.
+// bodies, and none for URL credentials: auth headers, cookies, payloads and
+// userinfo are exactly what HTTP checks carry, so they are never recorded.
 type LogsConfig struct {
 	// IncludeTLSDetails includes certificate and handshake detail in HTTPS
 	// records. Default true.
 	IncludeTLSDetails bool `mapstructure:"include_tls_details"`
-
-	// RedactURLUserinfo strips credentials from endpoints before they reach a
-	// record. Default true; turn it off only if endpoints are known to be free
-	// of userinfo and the raw URL matters.
-	RedactURLUserinfo bool `mapstructure:"redact_url_userinfo"`
 }
 
 // TargetConfig configures a single probe target.

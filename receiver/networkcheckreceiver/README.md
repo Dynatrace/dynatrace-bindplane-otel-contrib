@@ -233,9 +233,8 @@ Request and response **headers and bodies are never recorded**, and there is no 
 to enable it. Auth headers, cookies, and payloads are exactly what HTTP checks carry.
 Only the response size is captured.
 
-Endpoint credentials are stripped by default. A target configured as
-`https://user:pass@host` reaches records as `https://user:xxxxx@host`. Disable with
-`logs.redact_url_userinfo: false` only if endpoints are known to carry no credentials.
+Endpoint credentials are always stripped. A target configured as
+`https://user:pass@host` reaches records and resource attributes without its userinfo.
 
 ### Volume
 
@@ -251,8 +250,6 @@ receivers:
     logs:
       # Include certificate and handshake detail in HTTPS records. Default true.
       include_tls_details: true
-      # Strip credentials from endpoints before they reach a record. Default true.
-      redact_url_userinfo: true
 ```
 
 ### Example

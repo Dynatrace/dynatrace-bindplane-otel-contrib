@@ -47,7 +47,6 @@ func createDefaultConfig() component.Config {
 		MetricsBuilderConfig: metadata.NewDefaultMetricsBuilderConfig(),
 		Logs: LogsConfig{
 			IncludeTLSDetails: true,
-			RedactURLUserinfo: true,
 		},
 		Traceroute: TracerouteConfig{
 			Method:                 "udp",

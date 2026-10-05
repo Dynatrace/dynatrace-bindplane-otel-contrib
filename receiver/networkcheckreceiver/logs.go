@@ -78,10 +78,7 @@ func buildHTTPLogRecord(lr plog.LogRecord, ts *targetState, r PingResult, starte
 	lr.SetTimestamp(pcommon.NewTimestampFromTime(startedAt))
 	lr.SetObservedTimestamp(pcommon.NewTimestampFromTime(observed))
 
-	endpoint := ts.cfg.Endpoint
-	if cfg.RedactURLUserinfo {
-		endpoint = redactEndpoint(endpoint)
-	}
+	endpoint := redactEndpoint(ts.cfg.Endpoint)
 
 	failed := r.StatusCode == 0 || r.ErrMessage != ""
 	if failed {
@@ -162,14 +159,11 @@ func buildHTTPLogRecord(lr plog.LogRecord, ts *targetState, r PingResult, starte
 // is the unit of meaning, so hops stay together and ordered — including hops
 // that never answered, which as metrics can only be represented by a separate
 // status series.
-func buildTracerouteLogRecord(lr plog.LogRecord, ts *targetState, tr TraceResult, startedAt time.Time, observed time.Time, cfg LogsConfig) {
+func buildTracerouteLogRecord(lr plog.LogRecord, ts *targetState, tr TraceResult, startedAt time.Time, observed time.Time, _ LogsConfig) {
 	lr.SetTimestamp(pcommon.NewTimestampFromTime(startedAt))
 	lr.SetObservedTimestamp(pcommon.NewTimestampFromTime(observed))
 
-	endpoint := ts.cfg.Endpoint
-	if cfg.RedactURLUserinfo {
-		endpoint = redactEndpoint(endpoint)
-	}
+	endpoint := redactEndpoint(ts.cfg.Endpoint)
 
 	answered, retried := 0, 0
 	for _, h := range tr.Hops {
