@@ -31,9 +31,11 @@ permitted, an unprivileged datagram ICMP socket. Raw sockets need root or
 ICMP sockets work without privilege on macOS, and on Linux when the collector's
 group ID is inside `net.ipv4.ping_group_range`; Windows has none.
 
-If neither socket can be opened, the receiver logs a warning and every ICMP
-target reports `network.ping.packet_loss` = 1 on every cycle. ICMP targets are
-never probed over HTTP instead.
+If neither socket can be opened, the receiver logs one warning, `ICMP sockets
+unavailable; ICMP targets will report packet_loss 1 until the collector can
+open one`, followed by what to grant on Linux and Windows, and every ICMP
+target reports `network.ping.packet_loss` = 1. ICMP targets are never probed
+over HTTP instead.
 
 ### Linux and containers
 
@@ -187,16 +189,24 @@ keys it replaces, so the error names that key, for example `max_idle_conns`.
 
 Each collection interval runs one probe cycle over the active targets (all
 targets, or the current batch when `batch_size` is set). Up to
-`max_concurrent_probes` targets are probed at the same time, and at most 4
-traceroutes are in flight at once.
+`max_concurrent_probes` targets (default 16) are probed at the same time, and
+at most 4 traceroutes are in flight at once.
 
-A cycle has a deadline of 90% of `collection_interval`. A target whose probe
-has not completed by the deadline is skipped for that cycle: it emits nothing,
-which leaves a gap in its series rather than reporting it down. The receiver
-logs a rate-limited warning with the number of skipped targets. The `jitter`
-delay is part of the cycle and reduces the time left before the deadline.
+A cycle has a budget of `collection_interval` minus 10%, measured from when
+the cycle was requested, so the `jitter` delay counts against it. A target
+that has not been probed when the budget runs out, or whose probe returns
+after it, is skipped for that cycle: it emits no metrics, no log record and no
+error, which leaves a gap in its series rather than reporting it down, and the
+skipped probe does not count toward `traceroute.interval`. The probe order
+rotates, so targets skipped at the end of one cycle are probed first in the
+next.
 
-Shutting the collector down does not wait for a cycle in progress.
+When targets are skipped, the receiver logs `probe cycle hit its deadline;
+some targets were skipped this cycle` with the number skipped, at most once
+per minute.
+
+Shutdown cancels the cycle in progress. It waits only as long as a running
+probe takes to notice the cancellation.
 
 ### Sizing
 
@@ -210,8 +220,8 @@ A probe's worst case is the time it takes when nothing answers:
 | Traceroute | Sum of the hops' RTTs | Each silent hop costs `probes_per_hop` × `traceroute.timeout` |
 
 When N targets each take time T, a cycle takes about
-ceil(N / `max_concurrent_probes`) × T. Compare that with the deadline: 54 s
-for a 60 s interval. Examples with the default `max_concurrent_probes` of 16:
+ceil(N / `max_concurrent_probes`) × T. Compare that with the budget: 54 s for
+a 60 s interval. Examples with the default `max_concurrent_probes` of 16:
 
 | Targets | T | Rounds | Cycle |
 |---------|---|--------|-------|
@@ -226,10 +236,19 @@ The last row fits with `max_concurrent_probes: 32` (4 rounds, 40 s) or a 5 s
 A traceroute to a path that stops answering runs until
 `max_consecutive_timeouts` silent hops in a row: 5 × 3 × 3 s = 45 s with the
 defaults. With `max_consecutive_timeouts: 0` it walks to `max_hops` and is
-stopped by the cycle deadline.
+stopped when the cycle budget runs out.
 
-At startup the receiver estimates the worst-case cycle for its configuration
-and logs a warning when the estimate exceeds 90% of `collection_interval`.
+At startup the receiver estimates the worst-case cycle as
+ceil(targets per cycle / `max_concurrent_probes`) × the slowest target's worst
+case from the table above, plus, when traceroute is enabled,
+ceil(targets per cycle / 4) × `probes_per_hop` × `traceroute.timeout` ×
+`max_consecutive_timeouts` (`max_hops` when that is 0). When the estimate
+exceeds the budget it logs `worst-case probe cycle exceeds the collection
+interval; targets will be skipped on cycles where probes run to their
+timeouts`, with the hint `raise max_concurrent_probes or collection_interval,
+or lower per-target timeouts`. The estimate charges every round at the slowest
+target's cost, so a configuration that mixes fast and slow targets can trigger
+it without ever skipping a target.
 
 ### ICMP probes
 
@@ -301,7 +320,8 @@ With `on_failure`, a target that stays down is not traced on every cycle: it
 is traced on its first failing probe, then every `interval` probes (every 10
 when `interval` is 0) while it stays down.
 
-Traceroutes run inside the probe cycle and are stopped at its deadline.
+Traceroutes run inside the probe cycle and are stopped when its budget runs
+out.
 
 ## Probes per hop
 
@@ -344,9 +364,9 @@ DNS and ICMP probes emit no records; their results are metrics.
 ### Sharing one probe cycle
 
 A receiver referenced from both pipelines is instantiated twice by the
-collector. The two instances share probe execution, so each target is probed
-once per cycle and both signals describe the same observation. Both use the
-same `collection_interval`.
+collector. The two instances always share probe execution, even when a cycle
+runs long, so each target is probed once per cycle and both signals describe
+the same observation. Both use the same `collection_interval`.
 
 ### HTTP record
 
@@ -382,7 +402,7 @@ same `collection_interval`.
 A failed request is `SeverityText: ERROR`, carries `error.type` with the phase
 that failed (for example `dns`, `connect`, `tls` or `response`), and adds an
 `error` block with that phase and the error message. Its `phases` contain only
-the phases that completed. A failed HTTP probe reports status code 0 whatever
+the phases that completed, plus `total_ms`. A failed HTTP probe reports status code 0 whatever
 the cause, so the record is what separates a DNS failure from a refused
 connection or a timeout.
 
@@ -426,10 +446,12 @@ separates a path cut short by `max_consecutive_timeouts` from a short one.
 Request and response headers and bodies are never recorded, and there is no
 option to record them. Only the response size is captured.
 
-All userinfo is removed from endpoints, username included, wherever an
-endpoint appears: `https://user:pass@host/` and `https://token@host/` are both
+All userinfo is removed from endpoints, username included, in the
+`target.endpoint` resource attribute, the `server.address` log attribute and
+error text: `https://user:pass@host/` and `https://token@host/` are both
 reported as `https://host/`. Only HTTP endpoints can carry userinfo; ICMP and
-DNS endpoints containing `@` are rejected. The path and query string are
+DNS endpoints containing `@` are rejected. An `@` in the path, query or
+fragment is not userinfo and is left as is. The path and query string are
 reported as configured, so do not put secrets in them; send them in `headers`.
 
 ### Volume
@@ -479,7 +501,7 @@ A probe that fails emits its outcome metric and no timings:
 | ICMP: hostname did not resolve, socket or send failed, or ICMP unavailable | `network.ping.packet_loss` = 1 | `network.ping.latency_min`/`avg`/`max` |
 | Traceroute hop did not answer | `network.traceroute.hop.status` = 0, `traceroute.hop.address` = `*` | `network.traceroute.hop.latency` for that hop |
 | Traceroute could not run | Nothing; the reason is in the scrape error | All traceroute metrics for that trace |
-| Target skipped at the cycle deadline | Nothing | Everything for that target in that cycle |
+| Target skipped when the cycle budget ran out | Nothing, not even an error | Everything for that target in that cycle |
 
 A failed probe has no duration to report. The only figure available is how
 long the receiver waited, so publishing it would write the configured timeout
@@ -490,9 +512,12 @@ leaves a gap in the timing series rather than a fabricated value, so averages
 and percentiles over them stay meaningful. A skipped target leaves a gap in
 every series, including status.
 
-When targets fail in a way that is an error rather than a measurement (a
-traceroute that cannot run, for example), the scrape error is one summary
-line, `N of M targets failed: ...`, instead of one line per target.
+A down HTTP target or total ICMP packet loss is data, not an error. Failures
+that are errors, such as a traceroute that cannot run, are reported as one
+scrape error per scrape and signal, in the form
+`N of M targets failed: ping <endpoint>: <error>; ... (+K more)`. It names at
+most three targets, and M counts only the targets probed in that cycle, not
+skipped ones.
 
 ### DNS targets
 

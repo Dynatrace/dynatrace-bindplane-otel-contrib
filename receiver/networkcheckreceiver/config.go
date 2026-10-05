@@ -56,15 +56,15 @@ type Config struct {
 	BatchSize int `mapstructure:"batch_size"`
 
 	// MaxConcurrentProbes bounds how many targets are probed at the same time
-	// within one cycle. 0 means the default (16). Traceroutes are additionally
-	// limited to a small fixed number in flight because each one holds a raw
-	// socket that receives every ICMP packet on the host.
+	// within one cycle, 0-256. 0 means the default (16). Traceroutes are
+	// additionally limited to 4 in flight.
 	MaxConcurrentProbes int `mapstructure:"max_concurrent_probes"`
 
 	// Jitter is the maximum random delay added at the start of each scrape cycle.
 	// A random duration in [0, jitter) is chosen independently per cycle, which
 	// spreads probes across the interval when many agents share the same config.
-	// Default 0 disables jitter.
+	// The delay counts against the cycle budget. Must be less than
+	// collection_interval. Default 0 disables jitter.
 	Jitter time.Duration `mapstructure:"jitter"`
 
 	// Traceroute configures optional traceroute probes.
