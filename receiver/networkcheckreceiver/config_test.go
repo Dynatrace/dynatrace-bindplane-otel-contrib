@@ -16,10 +16,13 @@ package networkcheckreceiver
 
 import (
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 )
@@ -250,6 +253,83 @@ func TestValidateEndpointErrorOmitsCredentials(t *testing.T) {
 	err := c.Validate()
 	require.ErrorContains(t, err, "target[0]: http endpoint is not a valid URL")
 	require.NotContains(t, err.Error(), "hunter")
+}
+
+// rejectedClientKeys holds, for every confighttp.ClientConfig key the probe
+// does not honour, a value that sets it.
+var rejectedClientKeys = map[string]any{
+	"read_buffer_size":        1024,
+	"write_buffer_size":       1024,
+	"auth":                    map[string]any{"authenticator": "basicauth"},
+	"compression":             "gzip",
+	"compression_params":      map[string]any{"level": 1},
+	"max_conns_per_host":      1,
+	"http2_read_idle_timeout": "1s",
+	"http2_ping_timeout":      "1s",
+	"cookies":                 map[string]any{},
+	"force_attempt_http2":     true,
+	"middlewares":             []any{map[string]any{"id": "mw"}},
+	"keepalive":               map[string]any{"max_idle_conns": 1},
+	"idle_conn_timeout":       "1s",
+	"max_idle_conns":          1,
+	"max_idle_conns_per_host": 1,
+	"disable_keep_alives":     true,
+}
+
+func loadTarget(t *testing.T, target map[string]any) *Config {
+	t.Helper()
+	cfg := createDefaultConfig().(*Config)
+	conf := confmap.NewFromStringMap(map[string]any{"targets": []any{target}})
+	require.NoError(t, conf.Unmarshal(cfg))
+	return cfg
+}
+
+func TestValidateRejectsUnsupportedClientKeys(t *testing.T) {
+	for key, value := range rejectedClientKeys {
+		t.Run(key, func(t *testing.T) {
+			cfg := loadTarget(t, map[string]any{
+				"method":   "http",
+				"endpoint": "http://example.com/",
+				key:        value,
+			})
+			// confighttp folds the keepalive section into its deprecated flat
+			// fields while unmarshaling, so that is the key Validate sees.
+			reported := key
+			if key == "keepalive" {
+				reported = "max_idle_conns"
+			}
+			require.ErrorContains(t, cfg.Validate(), "target[0]: "+reported+" is not supported by networkcheck targets")
+		})
+	}
+}
+
+func TestValidateAcceptsSupportedClientKeys(t *testing.T) {
+	cfg := loadTarget(t, map[string]any{
+		"method":    "http",
+		"endpoint":  "https://example.com/",
+		"timeout":   "5s",
+		"proxy_url": "http://proxy.example:3128",
+		"headers":   map[string]any{"X-Probe": "networkcheck"},
+		"tls":       map[string]any{"insecure_skip_verify": true},
+	})
+	require.NoError(t, cfg.Validate())
+	require.Equal(t, "http://proxy.example:3128", cfg.Targets[0].ProxyURL)
+	require.Len(t, cfg.Targets[0].Headers, 1)
+}
+
+// A confighttp upgrade that adds a field is rejected by Validate
+// automatically; this keeps the table above, and the README list, complete.
+func TestRejectedClientKeysCoverClientConfig(t *testing.T) {
+	typ := reflect.TypeFor[confighttp.ClientConfig]()
+	for i := range typ.NumField() {
+		f := typ.Field(i)
+		key, _, _ := strings.Cut(f.Tag.Get("mapstructure"), ",")
+		if !f.IsExported() || key == "" || supportedClientKeys[key] {
+			continue
+		}
+		_, ok := rejectedClientKeys[key]
+		require.True(t, ok, "confighttp.ClientConfig key %q is neither supported nor covered by rejectedClientKeys", key)
+	}
 }
 
 func TestLoadConfig(t *testing.T) {

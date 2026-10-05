@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -91,7 +92,9 @@ type TargetConfig struct {
 	confighttp.ClientConfig `mapstructure:",squash"`
 
 	// Method is "icmp" (default), "http", or "dns". The endpoint shape each
-	// method accepts is enforced by Validate.
+	// method accepts is enforced by Validate. Of the embedded
+	// confighttp.ClientConfig only endpoint, timeout, tls, proxy_url and
+	// headers are honoured; Validate rejects the rest.
 	Method string `mapstructure:"method"`
 
 	// PingCount is the number of ICMP packets to send per scrape, 1-100.
@@ -241,6 +244,10 @@ func (t *TargetConfig) validate(i int, interval time.Duration) error {
 		errs = multierr.Append(errs, fmt.Errorf("target[%d]: timeout must not exceed collection_interval", i))
 	}
 
+	for _, key := range unsupportedClientKeys(t.ClientConfig) {
+		errs = multierr.Append(errs, fmt.Errorf("target[%d]: %s is not supported by networkcheck targets", i, key))
+	}
+
 	return errs
 }
 
@@ -335,4 +342,35 @@ func validateEndpoint(method, endpoint string) error {
 		}
 	}
 	return nil
+}
+
+// supportedClientKeys are the confighttp.ClientConfig keys the HTTP probe
+// honours. The probe builds its own transport, so the rest would be accepted
+// and silently ignored; they are rejected instead.
+var supportedClientKeys = map[string]bool{
+	"endpoint":  true,
+	"timeout":   true,
+	"tls":       true,
+	"proxy_url": true,
+	"headers":   true,
+}
+
+// unsupportedClientKeys returns the mapstructure keys of every set
+// ClientConfig field outside supportedClientKeys. It walks the struct rather
+// than listing fields so a field added by a confighttp upgrade is rejected
+// until the probe learns to honour it.
+func unsupportedClientKeys(cc confighttp.ClientConfig) []string {
+	v := reflect.ValueOf(cc)
+	var keys []string
+	for i := range v.NumField() {
+		f := v.Type().Field(i)
+		key, _, _ := strings.Cut(f.Tag.Get("mapstructure"), ",")
+		if !f.IsExported() || key == "" || supportedClientKeys[key] {
+			continue
+		}
+		if !v.Field(i).IsZero() {
+			keys = append(keys, key)
+		}
+	}
+	return keys
 }
