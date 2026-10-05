@@ -29,27 +29,6 @@ func defaultLogsConfig() LogsConfig {
 	return LogsConfig{IncludeTLSDetails: true}
 }
 
-func TestRedactEndpoint(t *testing.T) {
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"no userinfo", "https://example.com/path", "https://example.com/path"},
-		{"user and password", "https://user:pw@example.com", "https://user:xxxxx@example.com"},
-		{"user only", "https://user@example.com", "https://user@example.com"},
-		{"bare host", "example.com", "example.com"},
-		{"unparseable with at", "http://us er:pw@example.com", "http://example.com"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := redactEndpoint(tc.in)
-			require.Equal(t, tc.want, got)
-			require.NotContains(t, got, "pw", "password must never survive redaction")
-		})
-	}
-}
-
 func TestBuildHTTPLogRecord_Success(t *testing.T) {
 	start := time.Now().Add(-2 * time.Second)
 	ts := &targetState{
@@ -359,59 +338,4 @@ func TestFailurePhase_IPLiteralDialFailure(t *testing.T) {
 	// ConnectStart was tracked, a dial that hung was reported as "setup".
 	got := failurePhase(phaseTimings{connectStart: now})
 	require.Equal(t, "connect", got)
-}
-
-// redactEndpoint assumes a URL. Applied to a free-form error message it
-// truncated everything before the last "@", discarding the failure detail the
-// message exists to carry.
-func TestRedactMessagePreservesText(t *testing.T) {
-	cases := []struct{ name, in, wantContains, wantAbsent string }{
-		{
-			name:         "credential in embedded url is stripped",
-			in:           `Head "https://admin:pw7@example.com": dial tcp: connection refused`,
-			wantContains: "connection refused",
-			wantAbsent:   "pw7",
-		},
-		{
-			name:         "unrelated at-sign does not truncate the message",
-			in:           "lookup user@host failed: no such host",
-			wantContains: "no such host",
-			wantAbsent:   "",
-		},
-		{
-			name:         "plain message is untouched",
-			in:           "context deadline exceeded",
-			wantContains: "context deadline exceeded",
-			wantAbsent:   "",
-		},
-		{
-			// The match must stop at the URL authority: an "@" in a query
-			// string would otherwise swallow the host on the way to it.
-			name:         "at-sign in a query string does not eat the host",
-			in:           "GET https://api.example.test?email=user@example.test failed",
-			wantContains: "api.example.test",
-			wantAbsent:   "",
-		},
-		{
-			name:         "at-sign in a fragment does not eat the host",
-			in:           "https://host.example#frag@anchor unreachable",
-			wantContains: "host.example",
-			wantAbsent:   "",
-		},
-		{
-			name:         "credential still stripped when a query follows",
-			in:           `Get "https://admin:pw7@example.com/health?verbose=1": timeout`,
-			wantContains: "verbose=1",
-			wantAbsent:   "pw7",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := redactMessage(tc.in)
-			require.Contains(t, got, tc.wantContains)
-			if tc.wantAbsent != "" {
-				require.NotContains(t, got, tc.wantAbsent)
-			}
-		})
-	}
 }

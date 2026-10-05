@@ -16,6 +16,7 @@ package networkcheckreceiver // import "github.com/dynatrace/dynatrace-bindplane
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
@@ -28,31 +29,52 @@ import (
 // redactEndpoint strips any userinfo from a target endpoint. A target may be
 // configured as https://user:pass@host, and the endpoint reaches log records,
 // resource attributes, and error messages. Credentials must not follow it there.
+//
+// The username goes too, not just the password: a token passed as the username
+// alone (https://TOKEN@host) is common, and nothing downstream needs either.
 func redactEndpoint(endpoint string) string {
 	if !strings.Contains(endpoint, "@") {
 		return endpoint
 	}
-	u, err := url.Parse(endpoint)
-	if err != nil || u.User == nil {
-		// Unparseable but contains "@": drop everything up to the last one
-		// rather than risk emitting a credential.
-		if i := strings.LastIndex(endpoint, "@"); i >= 0 {
-			if scheme := strings.Index(endpoint, "://"); scheme >= 0 && scheme < i {
-				return endpoint[:scheme+3] + endpoint[i+1:]
-			}
-			return endpoint[i+1:]
+	if u, err := url.Parse(endpoint); err == nil && u.Host != "" {
+		if u.User == nil {
+			// The "@" sits in the path, query or fragment, not in userinfo.
+			// Truncating at it would rewrite the endpoint to a different host.
+			return endpoint
 		}
-		return endpoint
+		u.User = nil
+		return u.String()
 	}
-	return u.Redacted()
+	// Unparseable, or no authority to take userinfo from (a bare
+	// "user:pass@host" parses as scheme "user" with an opaque rest): drop
+	// everything up to the last "@" rather than risk emitting a credential.
+	i := strings.LastIndex(endpoint, "@")
+	if scheme := strings.Index(endpoint, "://"); scheme >= 0 && scheme < i {
+		return endpoint[:scheme+3] + endpoint[i+1:]
+	}
+	return endpoint[i+1:]
 }
 
 // userinfoInURL matches the userinfo segment of a URL embedded in free text.
 //
 // "?" and "#" are excluded along with "/" so the match cannot run past the URL
 // authority: an "@" inside a query or fragment (an email address in a
-// parameter, say) would otherwise swallow the host on the way to it.
-var userinfoInURL = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.\-]*://)[^/@\s"?#]+@`)
+// parameter, say) would otherwise swallow the host on the way to it. "@" itself
+// is allowed so that an unencoded "@" in a password is consumed up to the last
+// one in the authority, rather than leaving the password's tail behind.
+var userinfoInURL = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.\-]*://)[^/\s"?#]+@`)
+
+// userinfoBare matches a schemeless "user:pass@" or "token@" at the start of a
+// word, which is how an ICMP or DNS endpoint shows up in resolver errors
+// ("lookup user:pass@host: no such host").
+//
+// Deliberate over-match: an email address in a message loses its local part
+// too. A false positive only removes text from an error message, while a false
+// negative leaks a credential, so the trade goes this way.
+var userinfoBare = regexp.MustCompile(`(^|[\s"'(])[^/\s"'?#]+@`)
+
+// quotedText matches a double-quoted fragment of an error message.
+var quotedText = regexp.MustCompile(`"[^"]*"`)
 
 // redactMessage strips credentials from any URL embedded in free-form text.
 //
@@ -60,15 +82,43 @@ var userinfoInURL = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.\-]*://)[^/@\s"?#]+
 // message containing an unrelated "@" would be truncated to whatever followed
 // it, discarding the failure detail the message exists to carry.
 func redactMessage(msg string) string {
-	return userinfoInURL.ReplaceAllString(msg, "$1")
+	msg = userinfoInURL.ReplaceAllString(msg, "$1")
+	return userinfoBare.ReplaceAllString(msg, "$1")
 }
 
 // redactErr strips credentials from an error's text.
+//
+// A *url.Error is rebuilt from its parts rather than pattern-matched: net/url
+// embeds the raw URL in it, and a password containing a quote, space, "/", "?"
+// or "#" is exactly what makes the URL unparseable and also what stops the
+// free-text patterns short of the "@".
 func redactErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	return errors.New(redactMessage(err.Error()))
+	var ue *url.Error
+	if !errors.As(err, &ue) {
+		return errors.New(redactMessage(err.Error()))
+	}
+
+	var clean error
+	if ue.Op == "parse" {
+		// A URL that failed to parse cannot be redacted reliably: url.Parse
+		// cuts at "#" before it looks for userinfo, so "https://u:pa#ss@h"
+		// arrives here as "https://u:pa" with no "@" left to anchor on, and the
+		// reason quotes the piece it choked on (`invalid port ":pa" after
+		// host`). Every caller already names the redacted endpoint, so the URL
+		// is dropped and quoted fragments are masked.
+		clean = fmt.Errorf("parse url: %s", quotedText.ReplaceAllString(redactMessage(ue.Err.Error()), `"***"`))
+	} else {
+		clean = fmt.Errorf("%s %s: %w", ue.Op, redactEndpoint(ue.URL), redactErr(ue.Err))
+	}
+
+	if _, direct := err.(*url.Error); direct {
+		return clean
+	}
+	// Wrapped: the outer text repeats the url.Error's text verbatim.
+	return errors.New(redactMessage(strings.Replace(err.Error(), ue.Error(), clean.Error(), 1)))
 }
 
 // buildHTTPLogRecord renders one HTTP probe as a log record. The record is the
