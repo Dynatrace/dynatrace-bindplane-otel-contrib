@@ -13,12 +13,16 @@
 // limitations under the License.
 
 // Package networkcheckreceiver actively probes network targets and emits
-// ICMP ping, HTTP timing, and traceroute metrics.
+// ICMP ping, HTTP timing, DNS query, and traceroute telemetry.
 package networkcheckreceiver // import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/networkcheckreceiver"
 
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/netip"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -86,22 +90,24 @@ type LogsConfig struct {
 type TargetConfig struct {
 	confighttp.ClientConfig `mapstructure:",squash"`
 
-	// Method is "icmp" or "http". Defaults to "icmp".
-	// For ICMP targets, only ClientConfig.Endpoint (host/IP) is used.
-	// For HTTP targets, ClientConfig.Endpoint must be a full URL.
+	// Method is "icmp" (default), "http", or "dns". The endpoint shape each
+	// method accepts is enforced by Validate.
 	Method string `mapstructure:"method"`
 
-	// PingCount is the number of ICMP packets to send per scrape. Default 3.
+	// PingCount is the number of ICMP packets to send per scrape, 1-100.
+	// 0 means the default (3).
 	PingCount int `mapstructure:"ping_count"`
 
 	// HTTPMethod is the HTTP verb to use in HTTP mode. Default "HEAD".
 	HTTPMethod string `mapstructure:"http_method"`
 
 	// DNSServer overrides the DNS resolver for this target (e.g. "8.8.8.8:53").
-	// If empty the system resolver is used and its address is detected from /etc/resolv.conf.
+	// If empty the system resolver is used and its address is detected from
+	// /etc/resolv.conf (GetAdaptersAddresses on Windows).
 	DNSServer string `mapstructure:"dns_server"`
 
-	// DNSQuery is the hostname to resolve when method is "dns". Required for dns targets.
+	// DNSQuery is the name to query when method is "dns". Required for dns
+	// targets. For dns targets the endpoint is the server being probed.
 	DNSQuery string `mapstructure:"dns_query"`
 
 	// DNSRecordType is the record type to query in dns mode: "A" (default), "AAAA", "CNAME", "MX", "TXT".
@@ -121,13 +127,16 @@ type TracerouteConfig struct {
 	// Enabled enables traceroute. Default false.
 	Enabled bool `mapstructure:"enabled"`
 
-	// Method is "udp" (default, no root required) or "icmp" (requires root/CAP_NET_RAW).
+	// Method is "udp" (default) or "icmp". The privileges each needs differ
+	// by platform; see the README. Windows ignores it and uses the IP Helper
+	// API.
 	Method string `mapstructure:"method"`
 
-	// MaxHops is the maximum TTL to probe. Default 30.
+	// MaxHops is the maximum TTL to probe, 1-255. 0 means the default (30).
 	MaxHops int `mapstructure:"max_hops"`
 
-	// Interval runs a traceroute every N times a target is checked. 0 disables interval-based runs.
+	// Interval runs a traceroute every N times a target is checked. 0 disables
+	// interval-based runs.
 	Interval int `mapstructure:"interval"`
 
 	// OnFailure triggers a traceroute when ICMP packet loss >= FailureThreshold.
@@ -136,12 +145,13 @@ type TracerouteConfig struct {
 	// FailureThreshold is the packet-loss ratio (0.0–1.0) that triggers on-failure traceroute. Default 0.5.
 	FailureThreshold float64 `mapstructure:"failure_threshold"`
 
-	// Timeout is the per-hop probe timeout. Default 3s.
+	// Timeout is the per-hop probe timeout. Default 3s. Must not exceed
+	// collection_interval.
 	Timeout time.Duration `mapstructure:"timeout"`
 
 	// ProbesPerHop is the maximum number of probes sent for a single hop.
 	// Probing stops at the first reply, so a hop that answers costs one probe
-	// and only a silent hop costs more. Default 3.
+	// and only a silent hop costs more. 1-10; 0 means the default (3).
 	//
 	// Routers rate-limit ICMP time-exceeded generation, so a single probe
 	// regularly goes unanswered on a path that is otherwise healthy — which
@@ -158,59 +168,171 @@ type TracerouteConfig struct {
 }
 
 // Validate checks the configuration for required fields and valid values.
+// Every problem found is reported, not just the first.
 func (c *Config) Validate() error {
 	var errs error
+	interval := c.CollectionInterval
 
 	if len(c.Targets) == 0 {
 		errs = multierr.Append(errs, errors.New("at least one target is required"))
 	}
 
 	for i, t := range c.Targets {
-		if t.Endpoint == "" {
-			errs = multierr.Append(errs, fmt.Errorf("target[%d]: endpoint is required", i))
-		}
-		switch t.Method {
-		case "", MethodICMP, MethodHTTP, MethodDNS:
-		default:
-			errs = multierr.Append(errs, fmt.Errorf("target[%d]: method %q is invalid; must be %q, %q, or %q", i, t.Method, MethodICMP, MethodHTTP, MethodDNS))
-		}
-		if t.Method == MethodDNS && t.DNSQuery == "" {
-			errs = multierr.Append(errs, fmt.Errorf("target[%d]: dns_query is required when method is %q", i, MethodDNS))
-		}
-		switch strings.ToUpper(t.DNSRecordType) {
-		case "", "A", "AAAA", "CNAME", "MX", "TXT":
-		default:
-			errs = multierr.Append(errs, fmt.Errorf("target[%d]: dns_record_type %q is invalid; must be A, AAAA, CNAME, MX, or TXT", i, t.DNSRecordType))
-		}
-		if t.PingCount < 0 {
-			errs = multierr.Append(errs, fmt.Errorf("target[%d]: ping_count must be >= 0", i))
-		}
+		errs = multierr.Append(errs, t.validate(i, interval))
 	}
 
 	if c.BatchSize < 0 {
 		errs = multierr.Append(errs, errors.New("batch_size must be >= 0"))
 	}
 
+	if c.MaxConcurrentProbes < 0 || c.MaxConcurrentProbes > 256 {
+		errs = multierr.Append(errs, errors.New("max_concurrent_probes must be between 0 and 256"))
+	}
+
+	// A jitter at or above the interval would push the start of one cycle into
+	// the next.
 	if c.Jitter < 0 {
 		errs = multierr.Append(errs, errors.New("jitter must be >= 0"))
+	} else if interval > 0 && c.Jitter >= interval {
+		errs = multierr.Append(errs, errors.New("jitter must be less than collection_interval"))
 	}
 
 	if c.Traceroute.Enabled {
-		switch strings.ToLower(c.Traceroute.Method) {
-		case "", "udp", "icmp":
-		default:
-			errs = multierr.Append(errs, fmt.Errorf("traceroute.method %q is invalid; must be \"udp\" or \"icmp\"", c.Traceroute.Method))
-		}
-		if c.Traceroute.FailureThreshold < 0 || c.Traceroute.FailureThreshold > 1 {
-			errs = multierr.Append(errs, errors.New("traceroute.failure_threshold must be between 0.0 and 1.0"))
-		}
-		if c.Traceroute.ProbesPerHop < 0 {
-			errs = multierr.Append(errs, errors.New("traceroute.probes_per_hop must be >= 0"))
-		}
-		if c.Traceroute.MaxConsecutiveTimeouts < 0 {
-			errs = multierr.Append(errs, errors.New("traceroute.max_consecutive_timeouts must be >= 0"))
-		}
+		errs = multierr.Append(errs, c.Traceroute.validate(interval))
 	}
 
 	return errs
+}
+
+func (t *TargetConfig) validate(i int, interval time.Duration) error {
+	var errs error
+
+	method := t.Method
+	if method == "" {
+		method = MethodICMP
+	}
+	switch method {
+	case MethodICMP, MethodHTTP, MethodDNS:
+		if t.Endpoint == "" {
+			errs = multierr.Append(errs, fmt.Errorf("target[%d]: endpoint is required", i))
+		} else if err := validateEndpoint(method, t.Endpoint); err != nil {
+			errs = multierr.Append(errs, fmt.Errorf("target[%d]: %w", i, err))
+		}
+	default:
+		errs = multierr.Append(errs, fmt.Errorf("target[%d]: method %q is invalid; must be %q, %q, or %q", i, t.Method, MethodICMP, MethodHTTP, MethodDNS))
+	}
+
+	if method == MethodDNS && t.DNSQuery == "" {
+		errs = multierr.Append(errs, fmt.Errorf("target[%d]: dns_query is required when method is %q", i, MethodDNS))
+	}
+	switch strings.ToUpper(t.DNSRecordType) {
+	case "", "A", "AAAA", "CNAME", "MX", "TXT":
+	default:
+		errs = multierr.Append(errs, fmt.Errorf("target[%d]: dns_record_type %q is invalid; must be A, AAAA, CNAME, MX, or TXT", i, t.DNSRecordType))
+	}
+
+	if t.PingCount < 0 || t.PingCount > 100 {
+		errs = multierr.Append(errs, fmt.Errorf("target[%d]: ping_count must be between 0 and 100", i))
+	}
+
+	if t.Timeout < 0 {
+		errs = multierr.Append(errs, fmt.Errorf("target[%d]: timeout must be >= 0", i))
+	} else if interval > 0 && t.Timeout > interval {
+		errs = multierr.Append(errs, fmt.Errorf("target[%d]: timeout must not exceed collection_interval", i))
+	}
+
+	return errs
+}
+
+func (tc *TracerouteConfig) validate(interval time.Duration) error {
+	var errs error
+
+	switch strings.ToLower(tc.Method) {
+	case "", "udp", "icmp":
+	default:
+		errs = multierr.Append(errs, fmt.Errorf("traceroute.method %q is invalid; must be \"udp\" or \"icmp\"", tc.Method))
+	}
+	// TTL is a single byte on the wire.
+	if tc.MaxHops < 0 || tc.MaxHops > 255 {
+		errs = multierr.Append(errs, errors.New("traceroute.max_hops must be between 0 and 255"))
+	}
+	if tc.ProbesPerHop < 0 || tc.ProbesPerHop > 10 {
+		errs = multierr.Append(errs, errors.New("traceroute.probes_per_hop must be between 0 and 10"))
+	}
+	if tc.Timeout < 0 {
+		errs = multierr.Append(errs, errors.New("traceroute.timeout must be >= 0"))
+	} else if interval > 0 && tc.Timeout > interval {
+		errs = multierr.Append(errs, errors.New("traceroute.timeout must not exceed collection_interval"))
+	}
+	if tc.Interval < 0 {
+		errs = multierr.Append(errs, errors.New("traceroute.interval must be >= 0"))
+	}
+	if tc.FailureThreshold < 0 || tc.FailureThreshold > 1 {
+		errs = multierr.Append(errs, errors.New("traceroute.failure_threshold must be between 0.0 and 1.0"))
+	}
+	if tc.MaxConsecutiveTimeouts < 0 {
+		errs = multierr.Append(errs, errors.New("traceroute.max_consecutive_timeouts must be >= 0"))
+	}
+
+	return errs
+}
+
+// validateEndpoint checks that an endpoint has the shape its probe method
+// consumes. Errors never quote the endpoint, which may carry credentials.
+func validateEndpoint(method, endpoint string) error {
+	switch method {
+	case MethodICMP:
+		if _, err := netip.ParseAddr(endpoint); err == nil {
+			return nil
+		}
+		if strings.ContainsAny(endpoint, ":/@[]?# ") {
+			return errors.New("icmp endpoint must be a bare hostname or IP address, without scheme, port, path, or userinfo")
+		}
+	case MethodDNS:
+		const msg = "dns endpoint must be host or host:port, without scheme, path, or userinfo; an IPv6 address with a port must be bracketed, as in [2001:db8::1]:53"
+		if strings.ContainsAny(endpoint, "/@?# ") {
+			return errors.New(msg)
+		}
+		if _, err := netip.ParseAddr(endpoint); err == nil {
+			return nil
+		}
+		host, port, err := net.SplitHostPort(endpoint)
+		if err != nil {
+			// No port: acceptable only as a plain hostname.
+			if strings.ContainsAny(endpoint, ":[]") {
+				return errors.New(msg)
+			}
+			return nil
+		}
+		if p, err := strconv.Atoi(port); host == "" || err != nil || p < 1 || p > 65535 {
+			return errors.New(msg)
+		}
+		if strings.Contains(host, ":") {
+			if _, err := netip.ParseAddr(host); err != nil {
+				return errors.New(msg)
+			}
+		}
+	case MethodHTTP:
+		// The prober adds http:// to an endpoint given without a scheme.
+		raw := endpoint
+		if !strings.Contains(raw, "://") {
+			raw = "http://" + raw
+		}
+		u, err := url.Parse(raw)
+		if err != nil {
+			// url.Error quotes the whole URL; keep only the reason.
+			var uerr *url.Error
+			if errors.As(err, &uerr) {
+				err = uerr.Err
+			}
+			return fmt.Errorf("http endpoint is not a valid URL: %w", err)
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return errors.New("http endpoint scheme must be http or https")
+		}
+		if u.Host == "" {
+			return errors.New("http endpoint has no host")
+		}
+	}
+	return nil
 }

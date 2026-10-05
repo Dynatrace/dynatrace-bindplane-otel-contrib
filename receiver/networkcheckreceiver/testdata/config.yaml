@@ -1,33 +1,42 @@
 receivers:
   networkcheck:
     collection_interval: 1m
+    max_concurrent_probes: 8
     targets:
-      - endpoint: "8.8.8.8"
+      - endpoint: "192.0.2.1"
         method: icmp
         ping_count: 3
-      - endpoint: "https://www.google.com"
+      - endpoint: "https://example.com/health"
         method: http
         http_method: HEAD
+        timeout: 10s
+      - endpoint: "192.0.2.53"
+        method: dns
+        dns_query: example.com
+        dns_record_type: AAAA
+        timeout: 5s
     traceroute:
       enabled: true
       method: udp
-      max_hops: 30
+      max_hops: 20
       on_failure: true
       failure_threshold: 0.5
       interval: 10
-      timeout: 3s
+      timeout: 2s
+      probes_per_hop: 2
+      max_consecutive_timeouts: 4
 
   networkcheck/batch:
     collection_interval: 1m
     batch_size: 1
     targets:
-      - endpoint: "8.8.8.8"
+      - endpoint: "192.0.2.1"
         method: icmp
         ping_count: 5
-      - endpoint: "1.1.1.1"
+      - endpoint: "192.0.2.2"
         method: icmp
         ping_count: 5
-        dns_server: "8.8.8.8:53"
+        dns_server: "192.0.2.53:53"
       - endpoint: "https://example.com/health"
         method: http
         http_method: GET
