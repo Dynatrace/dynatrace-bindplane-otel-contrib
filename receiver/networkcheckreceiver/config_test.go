@@ -15,8 +15,10 @@
 package networkcheckreceiver
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -390,5 +392,30 @@ func TestMetadataTestConfigIsValid(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, sub.Unmarshal(cfg))
 	require.Len(t, cfg.Targets, 3)
+	require.NoError(t, confmap.Validate(cfg))
+}
+
+// The README's main configuration block is loaded verbatim, so an example
+// that drifts from what Validate accepts fails here rather than for a user.
+func TestReadmeConfigurationBlockIsValid(t *testing.T) {
+	readme, err := os.ReadFile("README.md")
+	require.NoError(t, err)
+	m := regexp.MustCompile("(?s)\n## Configuration\n.*?```yaml\n(.*?)```").FindSubmatch(readme)
+	require.NotNil(t, m, "README.md must have a yaml block under ## Configuration")
+
+	path := filepath.Join(t.TempDir(), "readme.yaml")
+	require.NoError(t, os.WriteFile(path, m[1], 0o600))
+	cm, err := confmaptest.LoadConf(path)
+	require.NoError(t, err)
+	sub, err := cm.Sub("receivers::networkcheck")
+	require.NoError(t, err)
+
+	cfg := createDefaultConfig().(*Config)
+	require.NoError(t, sub.Unmarshal(cfg))
+	require.NotEmpty(t, cfg.Targets)
+	require.NoError(t, confmap.Validate(cfg))
+
+	// The example leaves traceroute disabled, which skips its rules.
+	cfg.Traceroute.Enabled = true
 	require.NoError(t, confmap.Validate(cfg))
 }

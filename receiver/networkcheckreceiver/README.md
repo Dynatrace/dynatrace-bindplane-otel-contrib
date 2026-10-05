@@ -1,246 +1,444 @@
 # Network Check Receiver
 
-Probes a configurable list of network targets and emits latency, packet loss, and traceroute metrics. Supports three probe modes per target:
+Probes a list of network targets on every collection interval and emits
+metrics, and log records for HTTP checks and traceroutes. Each target uses one
+probe method:
 
-- **ICMP** — ICMP ping (RTT min/avg/max, packet loss). On macOS, datagram ICMP works without root; on Linux, raw ICMP requires `CAP_NET_RAW` or root; on Windows, raw ICMP requires administrator. Falls back to HTTP if no ICMP mode is available.
-- **HTTP** — full HTTP round-trip timing (DNS lookup, TCP connect, TLS handshake, request write, response read). Uses `confighttp.ClientConfig` so TLS and proxy settings work out of the box.
-- **DNS** — sends a DNS query to a specific server and measures response time. Use this to actively test a DNS server rather than rely on the system resolver.
+- **ICMP** sends `ping_count` echo requests and reports round-trip time
+  (min/avg/max) and packet loss.
+- **HTTP** sends one request and reports whether a response arrived, its
+  status code, and the time spent in each phase (DNS lookup, TCP connect, TLS
+  handshake, request write, time to first byte, total).
+- **DNS** sends one query to a specific DNS server and reports whether it
+  answered with a record of the requested type, and how long it took.
 
-Optional traceroute probes can run on a fixed cycle interval, when packet loss exceeds a threshold, or both.
+Traceroute can be enabled for all targets. It runs every Nth probe of a
+target, when an ICMP target's packet loss reaches a threshold, or both.
 
 ## Privileges
 
 | Feature | Linux | macOS | Windows |
 |---------|-------|-------|---------|
-| ICMP ping | Root or `CAP_NET_RAW` | None (datagram mode) or root | Administrator (raw socket) |
-| UDP traceroute (default) | None (most kernels) | Root or `CAP_NET_RAW` | None (see Windows notes) |
-| ICMP traceroute | Root or `CAP_NET_RAW` | Root or `CAP_NET_RAW` | None (see Windows notes) |
-| HTTP ping | None | None | None |
+| ICMP ping | `CAP_NET_RAW`, or none when the collector's group ID is inside `net.ipv4.ping_group_range` | None | Administrator |
+| UDP traceroute (default) | None | root | None (native API, see below) |
+| ICMP traceroute | root or `CAP_NET_RAW` | root | None (native API, see below) |
+| HTTP probe | None | None | None |
 | DNS probe | None | None | None |
 
+At startup the receiver tries a raw ICMP socket first and, if that is not
+permitted, an unprivileged datagram ICMP socket. Raw sockets need root or
+`CAP_NET_RAW` on Linux, root on macOS, and Administrator on Windows. Datagram
+ICMP sockets work without privilege on macOS, and on Linux when the collector's
+group ID is inside `net.ipv4.ping_group_range`; Windows has none.
+
+If neither socket can be opened, the receiver logs a warning and every ICMP
+target reports `network.ping.packet_loss` = 1 on every cycle. ICMP targets are
+never probed over HTTP instead.
+
+### Linux and containers
+
+`net.ipv4.ping_group_range` is a range of group IDs allowed to open datagram
+ICMP sockets. The kernel default (`1 0`) allows no group. Many distributions
+widen it through systemd; check with `sysctl net.ipv4.ping_group_range`.
+
+Docker sets it to `0 2147483647` inside containers by default, so ICMP ping
+works in a Docker container without extra capabilities. Whether a Kubernetes
+pod allows it depends on the container runtime and its version, so set it on
+the pod. `net.ipv4.ping_group_range` is a safe sysctl and is allowed without
+kubelet configuration:
+
+```yaml
+spec:
+  securityContext:
+    sysctls:
+      - name: net.ipv4.ping_group_range
+        value: "0 2147483647"
+```
+
+That covers ICMP ping. The default UDP traceroute needs no privilege on
+Linux. ICMP traceroute
+(`traceroute.method: icmp`) needs a raw socket, which on Kubernetes means
+running the collector as root with `NET_RAW`:
+
+```yaml
+containers:
+  - name: collector
+    securityContext:
+      runAsUser: 0
+      capabilities:
+        add: ["NET_RAW"]
+```
+
+Kubernetes does not pass added capabilities to a process running as a non-root
+user, so `capabilities.add` alone has no effect for a non-root collector.
+
+### Windows
+
 When the collector runs as a Windows service it runs as `LocalSystem`, which
-already holds the privilege ICMP ping needs. Running the collector by hand from
-an unelevated shell does not: ICMP probes fail with a `setsockopt` access error
-and those targets fall back to HTTP.
+has the privilege ICMP ping needs. Run from an unelevated shell, it does not,
+and ICMP targets report packet loss 1.
 
-At startup the receiver automatically detects which ICMP mode is available:
+Traceroute on Windows ignores `traceroute.method` and uses the IP Helper API
+(`IcmpSendEcho`), the mechanism the built-in `tracert.exe` uses. Windows does
+not deliver inbound ICMP time-exceeded messages to a raw socket, so the UDP
+and ICMP methods cannot work there even with Administrator rights. The native
+path needs no elevation.
 
-1. **Raw ICMP** (Linux root / macOS root / Windows admin): highest fidelity; used when the process has the required privilege.
-2. **Datagram ICMP** (macOS only, no root required): uses macOS's unprivileged ICMP socket support via pro-bing. RTT statistics are equivalent to raw mode.
-3. **HTTP fallback**: if neither ICMP mode succeeds, the receiver logs a warning and probes that target via HTTP instead.
-
-### Windows notes
-
-Traceroute on Windows ignores the `method` setting and always uses the IP Helper
-API (`IcmpSendEcho`), the same mechanism as the built-in `tracert.exe`. Neither
-portable method works there: Windows does not deliver unsolicited inbound ICMP
-time-exceeded messages to a raw socket, so both the UDP and ICMP methods time out
-on every hop even with Administrator rights. The native path needs no elevation,
-so `traceroute.enabled: true` works out of the box and `method` can be left at
-its default.
-
-The system resolver is detected via `GetAdaptersAddresses`, the same source
-`ipconfig` and `Get-DnsClientServerAddress` read, so the `dns.server` attribute
-is populated on Windows without configuring `dns_server`.
-
-### Unanswered hops
-
-A hop that does not reply within `traceroute.timeout` is recorded as unanswered
-and emits **no** `network.traceroute.hop.latency` data point, since the only
-duration available for it is the timeout itself. A path that stops answering is
-abandoned after five consecutive unanswered hops rather than probing all the way
-to `max_hops`, which bounds how long a single traceroute can occupy a scrape.
+The system resolver is read with `GetAdaptersAddresses`, the source `ipconfig`
+and `Get-DnsClientServerAddress` read, so the `dns.server` attribute is
+populated on Windows without configuring `dns_server`.
 
 ## Configuration
 
 ```yaml
 receivers:
   networkcheck:
-    # How often to run a scrape cycle. Default 60s.
+    # How often a probe cycle runs. Default 60s.
     collection_interval: 60s
 
-    # How many targets to probe per scrape cycle.
-    # 0 (default) = all targets every cycle.
-    # 1 with 10 targets + 1m interval = each target probed once per 10 minutes.
+    # How many targets are probed at the same time. 0 = default (16).
+    # Maximum 256.
+    max_concurrent_probes: 16
+
+    # How many targets to probe per cycle, rotating through the list.
+    # 0 (default) = every target every cycle. With 10 targets, batch_size 1
+    # and a 1m interval, each target is probed once every 10 minutes.
     batch_size: 0
 
-    targets:
-      - endpoint: "8.8.8.8"        # ICMP target: IP or hostname
-        method: icmp               # "icmp" (default) or "http"
-        ping_count: 3              # ICMP packets per probe. Default 3.
-        dns_server: ""             # Override DNS resolver, e.g. "8.8.8.8:53".
-                                   # Blank = system resolver, auto-detected and
-                                   # reported in the dns.server attribute.
+    # Delay each cycle by a random duration in [0, jitter). Spreads probes
+    # when many collectors share one configuration. Must be less than
+    # collection_interval. Default 0.
+    jitter: 0s
 
-      - endpoint: "https://example.com/health"  # HTTP target: full URL
+    targets:
+      - endpoint: "192.0.2.1"      # Bare hostname or IP address.
+        method: icmp               # "icmp" (default), "http", or "dns".
+        ping_count: 3              # Echo requests per probe, 1-100. Default 3.
+        timeout: 5s                # Wait for replies after the last request. Default 5s.
+        dns_server: ""             # Resolver for a hostname endpoint, e.g. "192.0.2.53:53".
+                                   # Blank = system resolver.
+
+      - endpoint: "https://example.com/health"  # URL. http:// is assumed without a scheme.
         method: http
-        http_method: HEAD          # HTTP verb. Default HEAD.
-        timeout: 10s               # Request timeout.
+        http_method: HEAD          # Default HEAD.
+        timeout: 10s               # Limit for the whole request. Default 10s.
+        # proxy_url: "http://proxy.example:3128"  # Default: HTTPS_PROXY, HTTP_PROXY, NO_PROXY.
+        headers:
+          X-Probe: networkcheck
         tls:
           insecure_skip_verify: false
 
-      - endpoint: "8.8.8.8"        # DNS server to probe (IP or hostname; port 53 assumed if omitted)
+      - endpoint: "192.0.2.53"     # DNS server to probe: host or host:port, port 53 if omitted.
         method: dns
-        dns_query: "example.com"   # Hostname to resolve. Required.
-        dns_record_type: A         # Record type: A (default), AAAA, CNAME, MX, TXT.
-        timeout: 5s
+        dns_query: "example.com"   # Name to query. Required.
+        dns_record_type: A         # A (default), AAAA, CNAME, MX, or TXT.
+        timeout: 5s                # Default 5s.
 
     traceroute:
-      enabled: false               # Disabled by default.
-      method: udp                  # "udp" (default, no root on Linux) or "icmp" (requires root/admin).
-      max_hops: 30
-      timeout: 3s                  # Per-hop timeout.
+      enabled: false               # Default false.
+      method: udp                  # "udp" (default) or "icmp". Ignored on Windows.
+      max_hops: 30                 # 1-255. Default 30.
+      timeout: 3s                  # Wait for each probe's reply. Default 3s.
+      probes_per_hop: 3            # 1-10. Default 3. Stops at the first reply.
+      max_consecutive_timeouts: 5  # Give up after this many silent hops in a row.
+                                   # 0 = never give up early. Default 5.
 
-      # Interval-based: run a traceroute every N times this target is probed.
-      # 0 = disabled. Example: interval 10 + collection_interval 1m = traceroute every 10 minutes.
+      # Run a traceroute every N probes of a target. 0 (default) = never.
+      # Without batch_size, interval 10 with a 1m collection_interval traces
+      # each target every 10 minutes.
       interval: 0
 
-      # Failure-based: run a traceroute when ICMP packet loss >= failure_threshold.
+      # Run a traceroute when an ICMP target's packet loss is at or above
+      # failure_threshold (0.0-1.0, default 0.5).
       on_failure: false
-      failure_threshold: 0.5       # 0.0–1.0. Default 0.5 (50% packet loss).
+      failure_threshold: 0.5
 
-      # Maximum probes for a single hop. Probing stops at the first reply, so a
-      # hop that answers costs one probe and only a silent hop is retried.
-      probes_per_hop: 3
-
-      # Abandon the trace after this many unanswered hops in a row.
-      # 0 disables the early abort, leaving max_hops as the only bound.
-      max_consecutive_timeouts: 5
+    logs:
+      include_tls_details: true    # Certificate and handshake detail in HTTPS records. Default true.
 ```
 
-### Probes per hop
+Every `timeout` and `traceroute.timeout` must be at most `collection_interval`.
+Configuration errors name the target by its index, for example `target[2]`.
 
-Routers rate-limit ICMP time-exceeded generation, so a single probe regularly goes
-unanswered on a hop that is answering perfectly well. With one probe per hop, that
-reads as a missing hop — and a run of them can trip `max_consecutive_timeouts` and
+### Targets
+
+The endpoint must have the shape its method uses:
+
+| Method | Endpoint | Rejected |
+|--------|----------|----------|
+| `icmp` | Hostname or IP address | Scheme, port, path, userinfo |
+| `dns` | `host` or `host:port`; an IPv6 address with a port is bracketed: `[2001:db8::53]:53` | Scheme, path, userinfo |
+| `http` | `http` or `https` URL; without a scheme `http://` is added | Other schemes, a URL without a host |
+
+Targets embed the collector's standard HTTP client settings, but the probe
+honours only `endpoint`, `timeout`, `tls`, `proxy_url` and `headers`. The
+remaining keys are rejected with
+`target[i]: <key> is not supported by networkcheck targets`:
+`auth`, `compression`, `compression_params`, `cookies`, `middlewares`,
+`force_attempt_http2`, `http2_read_idle_timeout`, `http2_ping_timeout`,
+`keepalive`, `idle_conn_timeout`, `max_idle_conns`, `max_idle_conns_per_host`,
+`disable_keep_alives`, `max_conns_per_host`, `read_buffer_size` and
+`write_buffer_size`. The collector folds a `keepalive` section into the flat
+keys it replaces, so the error names that key, for example `max_idle_conns`.
+
+`tls`, `proxy_url`, `headers` and `http_method` apply to HTTP targets only.
+
+### Probe cycle and deadline
+
+Each collection interval runs one probe cycle over the active targets (all
+targets, or the current batch when `batch_size` is set). Up to
+`max_concurrent_probes` targets are probed at the same time, and at most 4
+traceroutes are in flight at once.
+
+A cycle has a deadline of 90% of `collection_interval`. A target whose probe
+has not completed by the deadline is skipped for that cycle: it emits nothing,
+which leaves a gap in its series rather than reporting it down. The receiver
+logs a rate-limited warning with the number of skipped targets. The `jitter`
+delay is part of the cycle and reduces the time left before the deadline.
+
+Shutting the collector down does not wait for a cycle in progress.
+
+### Sizing
+
+A probe's worst case is the time it takes when nothing answers:
+
+| Probe | Healthy | Worst case |
+|-------|---------|------------|
+| ICMP | (`ping_count` − 1) × 200 ms + RTT | (`ping_count` − 1) × 200 ms + `timeout` |
+| HTTP | Request time | `timeout` |
+| DNS | Query time | `timeout` |
+| Traceroute | Sum of the hops' RTTs | Each silent hop costs `probes_per_hop` × `traceroute.timeout` |
+
+When N targets each take time T, a cycle takes about
+ceil(N / `max_concurrent_probes`) × T. Compare that with the deadline: 54 s
+for a 60 s interval. Examples with the default `max_concurrent_probes` of 16:
+
+| Targets | T | Rounds | Cycle |
+|---------|---|--------|-------|
+| 100 ICMP, `ping_count` 3, all answering, 20 ms RTT | 0.42 s | 7 | about 3 s |
+| 100 ICMP, `ping_count` 3, none answering, `timeout` 5s | 5.4 s | 7 | about 38 s |
+| 30 HTTP, `timeout` 10s, all down | 10 s | 2 | about 20 s |
+| 100 HTTP, `timeout` 10s, all down | 10 s | 7 | about 70 s: 80 targets probed, 20 skipped |
+
+The last row fits with `max_concurrent_probes: 32` (4 rounds, 40 s) or a 5 s
+`timeout` (7 rounds, 35 s).
+
+A traceroute to a path that stops answering runs until
+`max_consecutive_timeouts` silent hops in a row: 5 × 3 × 3 s = 45 s with the
+defaults. With `max_consecutive_timeouts: 0` it walks to `max_hops` and is
+stopped by the cycle deadline.
+
+At startup the receiver estimates the worst-case cycle for its configuration
+and logs a warning when the estimate exceeds 90% of `collection_interval`.
+
+### ICMP probes
+
+The probe sends `ping_count` echo requests 200 ms apart and waits up to
+`timeout` after the last one. When every reply arrives, it finishes as soon as
+the last reply does; when any reply is missing, it waits the full `timeout`.
+
+A hostname endpoint is resolved with `dns_server` when set, otherwise with the
+system resolver. When the probe cannot run at all (the hostname does not
+resolve, the socket cannot be opened, or the request cannot be sent), the
+target reports `network.ping.packet_loss` = 1 and no latency, the same as a
+target that does not answer.
+
+### HTTP probes
+
+Each probe sends one request on a new connection, so the DNS, connect and TLS
+phases are measured every time. Redirects are not followed: the first
+response is the one measured. HTTP/2 is used when an HTTPS server offers it
+during the TLS handshake; otherwise HTTP/1.1.
+
+Any response, including 4xx and 5xx, counts as up: `network.http.status` is 1
+and the code is in the `http.response.status_code` attribute. Alert on the
+status code attribute for application errors. Status 0 means no response:
+DNS failure, refused connection, TLS failure, or timeout.
+
+The response body is read and discarded, up to 1 MiB.
+
+Phase timings:
+
+| Phase | Measured from | To |
+|-------|---------------|----|
+| DNS lookup | Lookup start | Lookup done; 0 for an IP address endpoint |
+| Connect | Start of the TCP dial | Connection established |
+| TLS handshake | Handshake start | Handshake done; 0 for plain HTTP |
+| Request write | Connection ready, after any TLS handshake | Request written |
+| Response (time to first byte) | Request written | First response byte |
+
+With a proxy configured, through `proxy_url` or the `HTTPS_PROXY`, `HTTP_PROXY`
+and `NO_PROXY` environment variables, the DNS and connect phases describe the
+connection to the proxy.
+
+### DNS probes
+
+The probe sends one query for `dns_query` with exactly `dns_record_type` to the
+server in `endpoint`, over UDP, and retries over TCP when the answer is
+truncated. The name is queried as fully qualified: no search domains are
+appended and `/etc/hosts` is not consulted.
+
+`network.dns.status` is 1 only when the server answers `NOERROR` with at least
+one record of the requested type. `NXDOMAIN`, any other response code, an
+answer without a record of that type, or no answer before `timeout` is 0.
+`network.dns.lookup_duration` is emitted only with status 1.
+
+### Traceroute
+
+Traceroute is IPv4 only. The destination (the host part of the endpoint) is
+resolved with the target's resolver, `dns_server` or the system resolver, and
+the first IPv4 address is traced; a destination with no IPv4 address fails
+with an error. Each target's traceroute uses random probe identifiers, so
+concurrent traces and other receivers on the host are unlikely to claim each
+other's replies.
+
+A hop that answers none of its probes within `traceroute.timeout` is recorded
+with address `*`, `network.traceroute.hop.status` = 0, and no latency. After
+`max_consecutive_timeouts` such hops in a row the trace is abandoned rather
+than probing up to `max_hops`.
+
+With `on_failure`, a target that stays down is not traced on every cycle: it
+is traced on its first failing probe, then every `interval` probes (every 10
+when `interval` is 0) while it stays down.
+
+Traceroutes run inside the probe cycle and are stopped at its deadline.
+
+## Probes per hop
+
+Routers rate-limit ICMP time-exceeded generation, so a single probe regularly
+goes unanswered on a hop that is working. With one probe per hop, that reads
+as a missing hop, and a run of them can trip `max_consecutive_timeouts` and
 truncate the trace before it reaches the destination.
 
-Every standard traceroute implementation sends three probes per hop for this reason.
-This receiver sends up to `probes_per_hop` but **stops at the first reply**, so a
-healthy path costs exactly one probe per hop, the same as before, and only silent hops
-pay for retries. That matters when tracing on a schedule: sending three probes to every
-hop on every cycle would worsen the rate limiting causing the gaps.
+Classic traceroute and Windows `tracert` send three probes per hop by default
+for this reason. This receiver sends up to `probes_per_hop` but stops at the
+first reply, so a healthy path costs one probe per hop and only silent hops
+are retried. Sending three probes to every hop on every cycle would worsen the
+rate limiting that causes the gaps.
 
 Each hop in a traceroute log record carries `probes`, and the record carries
-`traceroute.hops_retried`. A hop with `probes > 1` answered only after a retry, which
-distinguishes a router that is rate-limiting from one that is genuinely silent.
+`traceroute.hops_retried`. A hop with `probes` above 1 answered only after a
+retry, which distinguishes a router that is rate-limiting from one that is
+silent.
 
-Note the trace still records a hop as answered from its first reply, so the reported
-latency is that probe's RTT rather than a best-of-N.
+A hop is recorded from its first reply, so its latency is that probe's RTT,
+not a best of N.
 
 ## Logs
 
-The receiver can emit log records as well as metrics. Which signals it produces is
-decided by pipeline membership, not by configuration — reference the receiver from a
-logs pipeline and it emits logs, from a metrics pipeline and it emits metrics, from
-both and it emits both.
+The receiver emits log records as well as metrics. Which signals it produces
+is decided by pipeline membership, not configuration: reference the receiver
+from a logs pipeline and it emits logs, from a metrics pipeline and it emits
+metrics, from both and it emits both.
 
-Two probe types produce records, because for them the unit of meaning is a
-transaction rather than a number:
+Two probe types produce records:
 
-- **Traceroute** — one record per trace, with the hops as an ordered array. The path
-  is a single observation, so keeping it together avoids reassembling it at query time
-  and makes a route change a diff between two records.
-- **HTTP** — one record per transaction, with the phases together. Averaged metric
-  series cannot answer "this check was slow, which phase caused it?", because the
-  phases are independent series that cannot be correlated back to one request.
+- **Traceroute**: one record per trace, with the hops as an ordered array, so
+  a route change is a difference between two records.
+- **HTTP**: one record per request, with the phases together, so a slow check
+  can be attributed to a phase. Separate metric series cannot be correlated
+  back to one request.
 
-**DNS and ICMP probes emit no records.** A single duration plus a status is a metric,
-and turning it into a log costs cheap aggregation, native threshold alerting, and
-usually retention, in exchange for nothing.
+DNS and ICMP probes emit no records; their results are metrics.
 
 ### Sharing one probe cycle
 
-A receiver wired into both pipelines is instantiated twice by the collector. The
-receiver shares probe execution between the two instances, so each target is probed
-**once** per collection interval and both signals describe the same observation. Both
-signals run on the same `collection_interval`.
+A receiver referenced from both pipelines is instantiated twice by the
+collector. The two instances share probe execution, so each target is probed
+once per cycle and both signals describe the same observation. Both use the
+same `collection_interval`.
 
 ### HTTP record
 
 ```jsonc
 {
-  "Timestamp": "<request start, not completion>",
-  "SeverityText": "INFO",              // ERROR when the check fails
+  "Timestamp": "<request start>",
+  "SeverityText": "INFO",                  // ERROR when no response was received
   "Attributes": {
     "server.address": "https://www.cloudflare.com",
     "server.resolved_ip": "104.16.124.96",
     "http.request.method": "GET",
     "http.response.status_code": 200,
     "http.response.size": 1256,
-    "network.protocol.version": "HTTP/2.0",
+    "network.protocol.version": "HTTP/2.0", // HTTP/1.1 unless the server offers HTTP/2
     "tls.cert.days_remaining": 61.4,
-    "dns.server": "1.1.1.1:53"
+    "dns.server": "192.0.2.53"
   },
   "Body": {
     "phases": {
-      "dns_ms": 2.1, "connect_ms": 11.4, "tls_ms": 184.7,
-      "write_ms": 0.3, "ttfb_ms": 8.2, "total_ms": 206.7
+      "dns_ms": 2.1, "connect_ms": 11.4, "tls_ms": 18.7,
+      "write_ms": 0.3, "ttfb_ms": 8.2, "total_ms": 41.2
     },
     "tls": {
       "version": "TLS 1.3",
       "cipher": "TLS_AES_128_GCM_SHA256",
+      "negotiated_protocol": "h2",
       "cert": { "issuer": "...", "subject": "...", "not_after": "...", "days_remaining": 61.4 }
     }
   }
 }
 ```
 
-A failed check is `SeverityText: ERROR` and adds an `error` block with the failing
-phase and the underlying message. This matters because a failed HTTP probe reports
-status code `0` regardless of cause — the error text is the only thing separating a
-DNS failure from a refused connection from a timeout.
+A failed request is `SeverityText: ERROR`, carries `error.type` with the phase
+that failed (for example `dns`, `connect`, `tls` or `response`), and adds an
+`error` block with that phase and the error message. Its `phases` contain only
+the phases that completed. A failed HTTP probe reports status code 0 whatever
+the cause, so the record is what separates a DNS failure from a refused
+connection or a timeout.
 
-Phase semantics match the corresponding metrics exactly, including their quirks:
-`connect_ms` is measured from DNS-done rather than from connection start, `write_ms`
-spans the TLS handshake, and `ttfb_ms` is time to first byte rather than a full body
-read.
+A response with a 4xx or 5xx status is a successful probe and is logged at
+`INFO`.
 
 ### Traceroute record
 
 ```jsonc
 {
   "Timestamp": "<trace start>",
-  "SeverityText": "INFO",              // WARN when the destination was not reached
+  "SeverityText": "INFO",                  // WARN when the destination was not reached
   "Attributes": {
     "server.address": "www.cloudflare.com",
     "server.resolved_ip": "104.16.124.96",
     "traceroute.method": "udp",
     "traceroute.hop_count": 11,
     "traceroute.hops_answered": 8,
+    "traceroute.hops_retried": 1,
     "traceroute.reached_dest": true,
     "traceroute.aborted_early": false
   },
   "Body": {
     "hops": [
-      { "index": 1, "address": "172.16.1.1",     "timed_out": false, "rtt_ms": 0.443 },
-      { "index": 2, "address": "10.112.162.67",  "timed_out": false, "rtt_ms": 11.34 },
-      { "index": 3, "address": "*",              "timed_out": true }
+      { "index": 1, "address": "172.16.1.1",    "timed_out": false, "probes": 1, "rtt_ms": 0.443 },
+      { "index": 2, "address": "10.112.162.67", "timed_out": false, "probes": 2, "rtt_ms": 11.34 },
+      { "index": 3, "address": "*",             "timed_out": true,  "probes": 3 }
     ]
   }
 }
 ```
 
-Hops that never answered are included with `timed_out: true` and the conventional `*`
-address, carrying no `rtt_ms` — the only duration available for such a hop is the
-timeout that was configured, which is not a measurement. `traceroute.aborted_early`
-distinguishes a path truncated by the consecutive-timeout bail-out from a genuinely
-short one.
+Hops that never answered are included with `timed_out: true` and the address
+`*`, and carry no `rtt_ms`: the only duration available for them is the
+configured timeout, which is not a measurement. `traceroute.aborted_early`
+separates a path cut short by `max_consecutive_timeouts` from a short one.
+`traceroute.method` is `native` on Windows.
 
 ### Security
 
-Request and response **headers and bodies are never recorded**, and there is no option
-to enable it. Auth headers, cookies, and payloads are exactly what HTTP checks carry.
-Only the response size is captured.
+Request and response headers and bodies are never recorded, and there is no
+option to record them. Only the response size is captured.
 
-Endpoint credentials are always stripped. A target configured as
-`https://user:pass@host` reaches records and resource attributes without its userinfo.
+All userinfo is removed from endpoints, username included, wherever an
+endpoint appears: `https://user:pass@host/` and `https://token@host/` are both
+reported as `https://host/`. Only HTTP endpoints can carry userinfo; ICMP and
+DNS endpoints containing `@` are rejected. The path and query string are
+reported as configured, so do not put secrets in them; send them in `headers`.
 
 ### Volume
 
-Records scale with targets and interval, not with hops: one traceroute record per trace
-rather than one per hop. At a 60s interval that is ~1,440 records per target per day for
-HTTP plus the same for traceroute — roughly 30x fewer than per-hop records would be.
+Records scale with targets and interval, not with hops: one traceroute record
+per trace rather than one per hop. At a 60 s interval an HTTP target produces
+1,440 records per day. A target traced every `interval` probes adds
+1,440 / `interval` traceroute records per day, plus the traces `on_failure`
+triggers.
 
 ### Configuration
 
@@ -267,69 +465,100 @@ service:
 
 ## Metrics
 
-### Failed probes
+Each data point is timestamped with the start of its target's probe.
 
-A probe that fails emits only its outcome metric and no timings:
+### Failed and skipped probes
 
-| Failure | Emitted | Suppressed |
-|---------|---------|------------|
-| DNS query failed or timed out | `network.dns.status` = 0 | `network.dns.lookup_duration` |
-| HTTP request failed or timed out | `network.http.status` = 0 | all six `network.http.*` durations |
-| ICMP lost every packet | `network.ping.packet_loss` = 1.0 | `network.ping.latency_min`/`avg`/`max` |
-| Traceroute hop did not answer | nothing for that hop | `network.traceroute.hop.latency` |
+A probe that fails emits its outcome metric and no timings:
 
-The timing metrics are suppressed because a failed probe has no duration to
-report. The only figure available is how long the receiver waited before giving
-up, and the per-phase timers never fire at all, so publishing them would write
-the configured timeout into the latency series as though it were a measurement
-and report 0 ms for phases that never ran.
+| Failure | Emitted | Not emitted |
+|---------|---------|-------------|
+| DNS: no answer with a record of the requested type, or no answer at all | `network.dns.status` = 0 | `network.dns.lookup_duration` |
+| HTTP: no response (DNS, connect or TLS failure, timeout) | `network.http.status` = 0 | All six `network.http.*` durations |
+| ICMP: no echo reply | `network.ping.packet_loss` = 1 | `network.ping.latency_min`/`avg`/`max` |
+| ICMP: hostname did not resolve, socket or send failed, or ICMP unavailable | `network.ping.packet_loss` = 1 | `network.ping.latency_min`/`avg`/`max` |
+| Traceroute hop did not answer | `network.traceroute.hop.status` = 0, `traceroute.hop.address` = `*` | `network.traceroute.hop.latency` for that hop |
+| Traceroute could not run | Nothing; the reason is in the scrape error | All traceroute metrics for that trace |
+| Target skipped at the cycle deadline | Nothing | Everything for that target in that cycle |
 
-Alert on the status metrics, not on durations. A failure produces a gap in the
-timing series rather than a fabricated value, so averages and percentiles over
-those series stay meaningful.
+A failed probe has no duration to report. The only figure available is how
+long the receiver waited, so publishing it would write the configured timeout
+into the latency series as though it were a measurement.
+
+Alert on the status and packet loss metrics, not on durations. A failure
+leaves a gap in the timing series rather than a fabricated value, so averages
+and percentiles over them stay meaningful. A skipped target leaves a gap in
+every series, including status.
+
+When targets fail in a way that is an error rather than a measurement (a
+traceroute that cannot run, for example), the scrape error is one summary
+line, `N of M targets failed: ...`, instead of one line per target.
 
 ### DNS targets
 
 | Metric | Type | Unit | Description |
 |--------|------|------|-------------|
-| `network.dns.status` | Gauge | 1 | 1 = server responded successfully, 0 = error or timeout |
-| `network.dns.lookup_duration` | Gauge | ms | Time for the DNS server to respond to the query |
+| `network.dns.status` | Gauge | 1 | 1 = `NOERROR` with a record of the requested type, 0 otherwise |
+| `network.dns.lookup_duration` | Gauge | ms | Time for the server to answer; only with status 1 |
 
-Attributes: `dns.query` (the hostname that was resolved)
+Attributes: `dns.query`
 
 ### ICMP targets
 
 | Metric | Type | Unit | Description |
 |--------|------|------|-------------|
-| `network.ping.latency_min` | Gauge | ms | Minimum RTT |
-| `network.ping.latency_avg` | Gauge | ms | Average RTT |
-| `network.ping.latency_max` | Gauge | ms | Maximum RTT |
-| `network.ping.packet_loss` | Gauge | 1 | Packet loss ratio (0.0–1.0) |
+| `network.ping.packet_loss` | Gauge | 1 | Fraction of echo requests without a reply (0.0-1.0) |
+| `network.ping.latency_min` | Gauge | ms | Minimum RTT of the replies received |
+| `network.ping.latency_avg` | Gauge | ms | Average RTT of the replies received |
+| `network.ping.latency_max` | Gauge | ms | Maximum RTT of the replies received |
 
-Attributes: `ping.method` (icmp or http after fallback), `dns.server`
+Attributes: `ping.method` (always `icmp`), `dns.server`
 
 ### HTTP targets
 
 | Metric | Type | Unit | Description |
 |--------|------|------|-------------|
-| `network.http.status` | Gauge | 1 | 1 = response received, 0 = error/timeout |
-| `network.http.duration` | Gauge | ms | Total round-trip time |
-| `network.http.dns_lookup_duration` | Gauge | ms | DNS resolution time |
-| `network.http.client_connection_duration` | Gauge | ms | TCP connect time |
-| `network.http.tls_handshake_duration` | Gauge | ms | TLS handshake time (0 for plain HTTP) |
-| `network.http.request_duration` | Gauge | ms | Request write time |
-| `network.http.response_duration` | Gauge | ms | Time to first response byte |
+| `network.http.status` | Gauge | 1 | 1 = a response was received (any status code), 0 = no response |
+| `network.http.duration` | Gauge | ms | Total request time |
+| `network.http.dns_lookup_duration` | Gauge | ms | DNS lookup; 0 for an IP address endpoint |
+| `network.http.client_connection_duration` | Gauge | ms | TCP dial start to connection established |
+| `network.http.tls_handshake_duration` | Gauge | ms | TLS handshake; 0 for plain HTTP |
+| `network.http.request_duration` | Gauge | ms | Request write, excluding the TLS handshake |
+| `network.http.response_duration` | Gauge | ms | Request written to first response byte |
 
-Attributes: `http.response.status_code`, `dns.server`
+Attributes: `http.response.status_code` (on `network.http.status` and
+`network.http.duration`), `dns.server`
 
 ### Traceroute
 
 | Metric | Type | Unit | Description |
 |--------|------|------|-------------|
-| `network.traceroute.hop.latency` | Gauge | ms | RTT to a single hop |
+| `network.traceroute.hop.status` | Gauge | 1 | 1 = the hop answered one of its probes, 0 = it answered none |
+| `network.traceroute.hop.latency` | Gauge | ms | RTT to a hop that answered |
 
 Attributes: `traceroute.hop.index`, `traceroute.hop.address`, `dns.server`
 
+`network.traceroute.hop.status` is a double so that averages are not
+truncated: averaged over time, it gives the fraction of traces in which a hop
+answered.
+
+### The `dns.server` attribute
+
+`dns.server` is the configured `dns_server` exactly as written, for example
+`192.0.2.53:53`. Without `dns_server` it is the system resolver detected at
+startup, written as a bare address without a port, for example `192.0.2.53`:
+the first `nameserver` in `/etc/resolv.conf` on Linux and macOS, or the first
+DNS server of an active network adapter on Windows (IPv4 preferred). It is
+empty when no resolver could be detected.
+
 ### Resource attributes
 
-Each target produces its own resource with `target.endpoint` set to the configured `endpoint` value.
+Each target produces its own resource with `target.endpoint` set to the
+configured `endpoint`, with any userinfo removed.
+
+### Metric volume
+
+Per target and cycle: an ICMP target emits up to 4 data points, an HTTP target
+up to 7, a DNS target up to 2. A traceroute adds up to 2 data points per hop.
+Traceroute series are keyed by hop index and hop address, so route changes and
+load-balanced paths add series over time.
