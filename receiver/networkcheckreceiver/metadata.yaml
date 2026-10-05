@@ -11,28 +11,27 @@ status:
 resource_attributes:
   target.endpoint:
     type: string
-    description: The target endpoint (IP, hostname, or URL) being monitored.
+    description: The configured target endpoint (IP address, hostname, or URL) with any userinfo removed.
     enabled: true
 
 attributes:
   dns.query:
     type: string
-    description: The DNS hostname queried against the target DNS server.
+    description: The name queried against the target DNS server (dns_query).
   dns.server:
     type: string
-    description: The DNS server used to resolve the target hostname.
+    description: The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port.
   http.response.status_code:
     type: int
     description: The HTTP response status code.
   ping.method:
     type: string
-    description: The method used to probe the target (icmp or http).
+    description: The method used to probe the target. Only icmp is emitted.
     enum:
       - icmp
-      - http
   traceroute.hop.address:
     type: string
-    description: The IP address of the traceroute hop.
+    description: The IP address of the traceroute hop, or * when the hop did not answer.
   traceroute.hop.index:
     type: int
     description: The traceroute hop index (TTL value).
@@ -40,7 +39,7 @@ attributes:
 metrics:
   network.dns.lookup_duration:
     enabled: true
-    description: Time for the DNS server to respond to a query.
+    description: Time for the DNS server to answer the query. Emitted only when network.dns.status is 1.
     unit: ms
     stability: alpha
     gauge:
@@ -49,7 +48,7 @@ metrics:
 
   network.dns.status:
     enabled: true
-    description: 1 if the DNS server responded successfully, 0 on error or timeout.
+    description: 1 if the server answered NOERROR with at least one record of the configured type, 0 otherwise (another response code, no record of that type, or no answer before the timeout).
     unit: "1"
     stability: alpha
     gauge:
@@ -58,7 +57,7 @@ metrics:
 
   network.http.client_connection_duration:
     enabled: true
-    description: Time spent establishing the TCP connection.
+    description: Time from the start of the TCP dial until the connection was established.
     unit: ms
     stability: alpha
     gauge:
@@ -67,7 +66,7 @@ metrics:
 
   network.http.dns_lookup_duration:
     enabled: true
-    description: Time spent resolving the target hostname via DNS.
+    description: Time spent resolving the target hostname. Zero when the endpoint is an IP address.
     unit: ms
     stability: alpha
     gauge:
@@ -76,7 +75,7 @@ metrics:
 
   network.http.duration:
     enabled: true
-    description: Total HTTP request round-trip duration.
+    description: Total duration of the HTTP request.
     unit: ms
     stability: alpha
     gauge:
@@ -85,7 +84,7 @@ metrics:
 
   network.http.request_duration:
     enabled: true
-    description: Time spent writing the HTTP request.
+    description: Time spent writing the HTTP request, excluding the TLS handshake.
     unit: ms
     stability: alpha
     gauge:
@@ -94,7 +93,7 @@ metrics:
 
   network.http.response_duration:
     enabled: true
-    description: Time spent reading the HTTP response.
+    description: Time from the request being written to the first response byte.
     unit: ms
     stability: alpha
     gauge:
@@ -103,7 +102,7 @@ metrics:
 
   network.http.status:
     enabled: true
-    description: 1 if an HTTP response was received, 0 on connection error or timeout.
+    description: 1 if an HTTP response was received, whatever its status code, 0 on connection error or timeout.
     unit: "1"
     stability: alpha
     gauge:
@@ -121,7 +120,7 @@ metrics:
 
   network.ping.latency_avg:
     enabled: true
-    description: Average round-trip latency across the ping packet count.
+    description: Average round-trip latency of the echo replies received.
     unit: ms
     stability: alpha
     gauge:
@@ -130,7 +129,7 @@ metrics:
 
   network.ping.latency_max:
     enabled: true
-    description: Maximum round-trip latency across the ping packet count.
+    description: Maximum round-trip latency of the echo replies received.
     unit: ms
     stability: alpha
     gauge:
@@ -139,7 +138,7 @@ metrics:
 
   network.ping.latency_min:
     enabled: true
-    description: Minimum round-trip latency across the ping packet count.
+    description: Minimum round-trip latency of the echo replies received.
     unit: ms
     stability: alpha
     gauge:
@@ -148,7 +147,7 @@ metrics:
 
   network.ping.packet_loss:
     enabled: true
-    description: Fraction of packets lost during the ping (0.0 to 1.0).
+    description: Fraction of echo requests that got no reply (0.0 to 1.0). 1 when the probe could not run, for example because the hostname did not resolve.
     unit: "1"
     stability: alpha
     gauge:
@@ -157,7 +156,7 @@ metrics:
 
   network.traceroute.hop.latency:
     enabled: true
-    description: Round-trip latency to a single traceroute hop.
+    description: Round-trip latency to a traceroute hop that answered. Not emitted for hops that did not answer.
     unit: ms
     stability: alpha
     gauge:
@@ -166,9 +165,27 @@ metrics:
 
   network.traceroute.hop.status:
     enabled: true
-    description: 1 if the traceroute hop answered within the timeout, 0 if it did not. Averaging gives the fraction of probes a hop answered.
+    description: 1 if the traceroute hop answered any of its probes within the per-hop timeout, 0 if it answered none. Averaged over time, the fraction of traces in which the hop answered.
     unit: "1"
     stability: alpha
     gauge:
       value_type: double
     attributes: [traceroute.hop.index, traceroute.hop.address, dns.server]
+
+# The lifecycle test starts and stops the receiver without probing: the first
+# scrape is held back by initial_delay, so no packet leaves the host.
+tests:
+  config:
+    collection_interval: 1m
+    initial_delay: 10s
+    targets:
+      - endpoint: 127.0.0.1
+        method: icmp
+        ping_count: 1
+      - endpoint: http://127.0.0.1:9/
+        method: http
+        timeout: 1s
+      - endpoint: 127.0.0.1
+        method: dns
+        dns_query: example.com
+        timeout: 1s

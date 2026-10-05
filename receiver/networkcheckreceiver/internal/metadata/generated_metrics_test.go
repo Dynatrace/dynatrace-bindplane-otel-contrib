@@ -148,25 +148,25 @@ func TestMetricsBuilder(t *testing.T) {
 			allMetricsCount++
 			mb.RecordNetworkPingLatencyAvgDataPoint(ts, 1, AttributePingMethodIcmp, "dns.server-val")
 			if tt.name == "reaggregate_set" {
-				mb.RecordNetworkPingLatencyAvgDataPoint(ts, 3, AttributePingMethodHTTP, "dns.server-val-2")
+				mb.RecordNetworkPingLatencyAvgDataPoint(ts, 3, AttributePingMethodIcmp, "dns.server-val-2")
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordNetworkPingLatencyMaxDataPoint(ts, 1, AttributePingMethodIcmp, "dns.server-val")
 			if tt.name == "reaggregate_set" {
-				mb.RecordNetworkPingLatencyMaxDataPoint(ts, 3, AttributePingMethodHTTP, "dns.server-val-2")
+				mb.RecordNetworkPingLatencyMaxDataPoint(ts, 3, AttributePingMethodIcmp, "dns.server-val-2")
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordNetworkPingLatencyMinDataPoint(ts, 1, AttributePingMethodIcmp, "dns.server-val")
 			if tt.name == "reaggregate_set" {
-				mb.RecordNetworkPingLatencyMinDataPoint(ts, 3, AttributePingMethodHTTP, "dns.server-val-2")
+				mb.RecordNetworkPingLatencyMinDataPoint(ts, 3, AttributePingMethodIcmp, "dns.server-val-2")
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordNetworkPingPacketLossDataPoint(ts, 1, AttributePingMethodIcmp, "dns.server-val")
 			if tt.name == "reaggregate_set" {
-				mb.RecordNetworkPingPacketLossDataPoint(ts, 3, AttributePingMethodHTTP, "dns.server-val-2")
+				mb.RecordNetworkPingPacketLossDataPoint(ts, 3, AttributePingMethodIcmp, "dns.server-val-2")
 			}
 			defaultMetricsCount++
 			allMetricsCount++
@@ -234,7 +234,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.dns.lookup_duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Time for the DNS server to respond to a query.", mi.Description())
+						assert.Equal(t, "Time for the DNS server to answer the query. Emitted only when network.dns.status is 1.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -249,7 +249,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.dns.lookup_duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Time for the DNS server to respond to a query.", mi.Description())
+						assert.Equal(t, "Time for the DNS server to answer the query. Emitted only when network.dns.status is 1.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -274,7 +274,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.dns.status"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "1 if the DNS server responded successfully, 0 on error or timeout.", mi.Description())
+						assert.Equal(t, "1 if the server answered NOERROR with at least one record of the configured type, 0 otherwise (another response code, no record of that type, or no answer before the timeout).", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -289,7 +289,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.dns.status"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "1 if the DNS server responded successfully, 0 on error or timeout.", mi.Description())
+						assert.Equal(t, "1 if the server answered NOERROR with at least one record of the configured type, 0 otherwise (another response code, no record of that type, or no answer before the timeout).", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -314,7 +314,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.client_connection_duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Time spent establishing the TCP connection.", mi.Description())
+						assert.Equal(t, "Time from the start of the TCP dial until the connection was established.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -329,7 +329,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.client_connection_duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Time spent establishing the TCP connection.", mi.Description())
+						assert.Equal(t, "Time from the start of the TCP dial until the connection was established.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -354,7 +354,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.dns_lookup_duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Time spent resolving the target hostname via DNS.", mi.Description())
+						assert.Equal(t, "Time spent resolving the target hostname. Zero when the endpoint is an IP address.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -369,7 +369,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.dns_lookup_duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Time spent resolving the target hostname via DNS.", mi.Description())
+						assert.Equal(t, "Time spent resolving the target hostname. Zero when the endpoint is an IP address.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -394,7 +394,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Total HTTP request round-trip duration.", mi.Description())
+						assert.Equal(t, "Total duration of the HTTP request.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -412,7 +412,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Total HTTP request round-trip duration.", mi.Description())
+						assert.Equal(t, "Total duration of the HTTP request.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -439,7 +439,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.request_duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Time spent writing the HTTP request.", mi.Description())
+						assert.Equal(t, "Time spent writing the HTTP request, excluding the TLS handshake.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -454,7 +454,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.request_duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Time spent writing the HTTP request.", mi.Description())
+						assert.Equal(t, "Time spent writing the HTTP request, excluding the TLS handshake.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -479,7 +479,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.response_duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Time spent reading the HTTP response.", mi.Description())
+						assert.Equal(t, "Time from the request being written to the first response byte.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -494,7 +494,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.response_duration"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Time spent reading the HTTP response.", mi.Description())
+						assert.Equal(t, "Time from the request being written to the first response byte.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -519,7 +519,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.status"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "1 if an HTTP response was received, 0 on connection error or timeout.", mi.Description())
+						assert.Equal(t, "1 if an HTTP response was received, whatever its status code, 0 on connection error or timeout.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -537,7 +537,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.http.status"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "1 if an HTTP response was received, 0 on connection error or timeout.", mi.Description())
+						assert.Equal(t, "1 if an HTTP response was received, whatever its status code, 0 on connection error or timeout.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -604,7 +604,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.ping.latency_avg"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Average round-trip latency across the ping packet count.", mi.Description())
+						assert.Equal(t, "Average round-trip latency of the echo replies received.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -622,7 +622,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.ping.latency_avg"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Average round-trip latency across the ping packet count.", mi.Description())
+						assert.Equal(t, "Average round-trip latency of the echo replies received.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -649,7 +649,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.ping.latency_max"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Maximum round-trip latency across the ping packet count.", mi.Description())
+						assert.Equal(t, "Maximum round-trip latency of the echo replies received.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -667,7 +667,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.ping.latency_max"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Maximum round-trip latency across the ping packet count.", mi.Description())
+						assert.Equal(t, "Maximum round-trip latency of the echo replies received.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -694,7 +694,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.ping.latency_min"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Minimum round-trip latency across the ping packet count.", mi.Description())
+						assert.Equal(t, "Minimum round-trip latency of the echo replies received.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -712,7 +712,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.ping.latency_min"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Minimum round-trip latency across the ping packet count.", mi.Description())
+						assert.Equal(t, "Minimum round-trip latency of the echo replies received.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -739,7 +739,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.ping.packet_loss"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Fraction of packets lost during the ping (0.0 to 1.0).", mi.Description())
+						assert.Equal(t, "Fraction of echo requests that got no reply (0.0 to 1.0). 1 when the probe could not run, for example because the hostname did not resolve.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -757,7 +757,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.ping.packet_loss"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Fraction of packets lost during the ping (0.0 to 1.0).", mi.Description())
+						assert.Equal(t, "Fraction of echo requests that got no reply (0.0 to 1.0). 1 when the probe could not run, for example because the hostname did not resolve.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -784,7 +784,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.traceroute.hop.latency"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Round-trip latency to a single traceroute hop.", mi.Description())
+						assert.Equal(t, "Round-trip latency to a traceroute hop that answered. Not emitted for hops that did not answer.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -805,7 +805,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.traceroute.hop.latency"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "Round-trip latency to a single traceroute hop.", mi.Description())
+						assert.Equal(t, "Round-trip latency to a traceroute hop that answered. Not emitted for hops that did not answer.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -834,7 +834,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.traceroute.hop.status"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "1 if the traceroute hop answered within the timeout, 0 if it did not. Averaging gives the fraction of probes a hop answered.", mi.Description())
+						assert.Equal(t, "1 if the traceroute hop answered any of its probes within the per-hop timeout, 0 if it answered none. Averaged over time, the fraction of traces in which the hop answered.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())
@@ -855,7 +855,7 @@ func TestMetricsBuilder(t *testing.T) {
 						validatedMetrics["network.traceroute.hop.status"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
 						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
-						assert.Equal(t, "1 if the traceroute hop answered within the timeout, 0 if it did not. Averaging gives the fraction of probes a hop answered.", mi.Description())
+						assert.Equal(t, "1 if the traceroute hop answered any of its probes within the per-hop timeout, 0 if it answered none. Averaged over time, the fraction of traces in which the hop answered.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
 						assert.Equal(t, start, dp.StartTimestamp())

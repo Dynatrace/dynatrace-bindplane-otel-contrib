@@ -26,7 +26,6 @@ type AttributePingMethod int
 const (
 	_ AttributePingMethod = iota
 	AttributePingMethodIcmp
-	AttributePingMethodHTTP
 )
 
 // String returns the string representation of the AttributePingMethod.
@@ -34,8 +33,6 @@ func (av AttributePingMethod) String() string {
 	switch av {
 	case AttributePingMethodIcmp:
 		return "icmp"
-	case AttributePingMethodHTTP:
-		return "http"
 	}
 	return ""
 }
@@ -43,7 +40,6 @@ func (av AttributePingMethod) String() string {
 // MapAttributePingMethod is a helper map of string to AttributePingMethod attribute value.
 var MapAttributePingMethod = map[string]AttributePingMethod{
 	"icmp": AttributePingMethodIcmp,
-	"http": AttributePingMethodHTTP,
 }
 
 var MetricsInfo = metricsInfo{
@@ -142,7 +138,7 @@ type metricNetworkDNSLookupDuration struct {
 // init fills network.dns.lookup_duration metric with initial data.
 func (m *metricNetworkDNSLookupDuration) init() {
 	m.data.SetName("network.dns.lookup_duration")
-	m.data.SetDescription("Time for the DNS server to respond to a query.")
+	m.data.SetDescription("Time for the DNS server to answer the query. Emitted only when network.dns.status is 1.")
 	m.data.SetUnit("ms")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -231,7 +227,7 @@ type metricNetworkDNSStatus struct {
 // init fills network.dns.status metric with initial data.
 func (m *metricNetworkDNSStatus) init() {
 	m.data.SetName("network.dns.status")
-	m.data.SetDescription("1 if the DNS server responded successfully, 0 on error or timeout.")
+	m.data.SetDescription("1 if the server answered NOERROR with at least one record of the configured type, 0 otherwise (another response code, no record of that type, or no answer before the timeout).")
 	m.data.SetUnit("1")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -320,7 +316,7 @@ type metricNetworkHTTPClientConnectionDuration struct {
 // init fills network.http.client_connection_duration metric with initial data.
 func (m *metricNetworkHTTPClientConnectionDuration) init() {
 	m.data.SetName("network.http.client_connection_duration")
-	m.data.SetDescription("Time spent establishing the TCP connection.")
+	m.data.SetDescription("Time from the start of the TCP dial until the connection was established.")
 	m.data.SetUnit("ms")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -409,7 +405,7 @@ type metricNetworkHTTPDNSLookupDuration struct {
 // init fills network.http.dns_lookup_duration metric with initial data.
 func (m *metricNetworkHTTPDNSLookupDuration) init() {
 	m.data.SetName("network.http.dns_lookup_duration")
-	m.data.SetDescription("Time spent resolving the target hostname via DNS.")
+	m.data.SetDescription("Time spent resolving the target hostname. Zero when the endpoint is an IP address.")
 	m.data.SetUnit("ms")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -498,7 +494,7 @@ type metricNetworkHTTPDuration struct {
 // init fills network.http.duration metric with initial data.
 func (m *metricNetworkHTTPDuration) init() {
 	m.data.SetName("network.http.duration")
-	m.data.SetDescription("Total HTTP request round-trip duration.")
+	m.data.SetDescription("Total duration of the HTTP request.")
 	m.data.SetUnit("ms")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -590,7 +586,7 @@ type metricNetworkHTTPRequestDuration struct {
 // init fills network.http.request_duration metric with initial data.
 func (m *metricNetworkHTTPRequestDuration) init() {
 	m.data.SetName("network.http.request_duration")
-	m.data.SetDescription("Time spent writing the HTTP request.")
+	m.data.SetDescription("Time spent writing the HTTP request, excluding the TLS handshake.")
 	m.data.SetUnit("ms")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -679,7 +675,7 @@ type metricNetworkHTTPResponseDuration struct {
 // init fills network.http.response_duration metric with initial data.
 func (m *metricNetworkHTTPResponseDuration) init() {
 	m.data.SetName("network.http.response_duration")
-	m.data.SetDescription("Time spent reading the HTTP response.")
+	m.data.SetDescription("Time from the request being written to the first response byte.")
 	m.data.SetUnit("ms")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -768,7 +764,7 @@ type metricNetworkHTTPStatus struct {
 // init fills network.http.status metric with initial data.
 func (m *metricNetworkHTTPStatus) init() {
 	m.data.SetName("network.http.status")
-	m.data.SetDescription("1 if an HTTP response was received, 0 on connection error or timeout.")
+	m.data.SetDescription("1 if an HTTP response was received, whatever its status code, 0 on connection error or timeout.")
 	m.data.SetUnit("1")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -949,7 +945,7 @@ type metricNetworkPingLatencyAvg struct {
 // init fills network.ping.latency_avg metric with initial data.
 func (m *metricNetworkPingLatencyAvg) init() {
 	m.data.SetName("network.ping.latency_avg")
-	m.data.SetDescription("Average round-trip latency across the ping packet count.")
+	m.data.SetDescription("Average round-trip latency of the echo replies received.")
 	m.data.SetUnit("ms")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -1041,7 +1037,7 @@ type metricNetworkPingLatencyMax struct {
 // init fills network.ping.latency_max metric with initial data.
 func (m *metricNetworkPingLatencyMax) init() {
 	m.data.SetName("network.ping.latency_max")
-	m.data.SetDescription("Maximum round-trip latency across the ping packet count.")
+	m.data.SetDescription("Maximum round-trip latency of the echo replies received.")
 	m.data.SetUnit("ms")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -1133,7 +1129,7 @@ type metricNetworkPingLatencyMin struct {
 // init fills network.ping.latency_min metric with initial data.
 func (m *metricNetworkPingLatencyMin) init() {
 	m.data.SetName("network.ping.latency_min")
-	m.data.SetDescription("Minimum round-trip latency across the ping packet count.")
+	m.data.SetDescription("Minimum round-trip latency of the echo replies received.")
 	m.data.SetUnit("ms")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -1225,7 +1221,7 @@ type metricNetworkPingPacketLoss struct {
 // init fills network.ping.packet_loss metric with initial data.
 func (m *metricNetworkPingPacketLoss) init() {
 	m.data.SetName("network.ping.packet_loss")
-	m.data.SetDescription("Fraction of packets lost during the ping (0.0 to 1.0).")
+	m.data.SetDescription("Fraction of echo requests that got no reply (0.0 to 1.0). 1 when the probe could not run, for example because the hostname did not resolve.")
 	m.data.SetUnit("1")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -1317,7 +1313,7 @@ type metricNetworkTracerouteHopLatency struct {
 // init fills network.traceroute.hop.latency metric with initial data.
 func (m *metricNetworkTracerouteHopLatency) init() {
 	m.data.SetName("network.traceroute.hop.latency")
-	m.data.SetDescription("Round-trip latency to a single traceroute hop.")
+	m.data.SetDescription("Round-trip latency to a traceroute hop that answered. Not emitted for hops that did not answer.")
 	m.data.SetUnit("ms")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)
@@ -1412,7 +1408,7 @@ type metricNetworkTracerouteHopStatus struct {
 // init fills network.traceroute.hop.status metric with initial data.
 func (m *metricNetworkTracerouteHopStatus) init() {
 	m.data.SetName("network.traceroute.hop.status")
-	m.data.SetDescription("1 if the traceroute hop answered within the timeout, 0 if it did not. Averaging gives the fraction of probes a hop answered.")
+	m.data.SetDescription("1 if the traceroute hop answered any of its probes within the per-hop timeout, 0 if it answered none. Averaged over time, the fraction of traces in which the hop answered.")
 	m.data.SetUnit("1")
 	m.data.SetEmptyGauge()
 	m.data.Gauge().DataPoints().EnsureCapacity(m.capacity)

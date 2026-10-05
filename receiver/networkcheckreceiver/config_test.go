@@ -380,3 +380,15 @@ func TestLoadConfig(t *testing.T) {
 		require.False(t, cfg.Traceroute.Enabled)
 	})
 }
+
+// The generated lifecycle test loads tests::config without validating it.
+func TestMetadataTestConfigIsValid(t *testing.T) {
+	cm, err := confmaptest.LoadConf("metadata.yaml")
+	require.NoError(t, err)
+	sub, err := cm.Sub("tests::config")
+	require.NoError(t, err)
+	cfg := createDefaultConfig().(*Config)
+	require.NoError(t, sub.Unmarshal(cfg))
+	require.Len(t, cfg.Targets, 3)
+	require.NoError(t, confmap.Validate(cfg))
+}

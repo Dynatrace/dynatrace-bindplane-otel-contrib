@@ -14,7 +14,7 @@ metrics:
 
 ### network.dns.lookup_duration
 
-Time for the DNS server to respond to a query.
+Time for the DNS server to answer the query. Emitted only when network.dns.status is 1.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -24,11 +24,11 @@ Time for the DNS server to respond to a query.
 
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
-| dns.query | The DNS hostname queried against the target DNS server. | Any Str | Recommended | - |
+| dns.query | The name queried against the target DNS server (dns_query). | Any Str | Recommended | - |
 
 ### network.dns.status
 
-1 if the DNS server responded successfully, 0 on error or timeout.
+1 if the server answered NOERROR with at least one record of the configured type, 0 otherwise (another response code, no record of that type, or no answer before the timeout).
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -38,11 +38,11 @@ Time for the DNS server to respond to a query.
 
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
-| dns.query | The DNS hostname queried against the target DNS server. | Any Str | Recommended | - |
+| dns.query | The name queried against the target DNS server (dns_query). | Any Str | Recommended | - |
 
 ### network.http.client_connection_duration
 
-Time spent establishing the TCP connection.
+Time from the start of the TCP dial until the connection was established.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -52,11 +52,11 @@ Time spent establishing the TCP connection.
 
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.http.dns_lookup_duration
 
-Time spent resolving the target hostname via DNS.
+Time spent resolving the target hostname. Zero when the endpoint is an IP address.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -66,11 +66,11 @@ Time spent resolving the target hostname via DNS.
 
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.http.duration
 
-Total HTTP request round-trip duration.
+Total duration of the HTTP request.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -81,11 +81,11 @@ Total HTTP request round-trip duration.
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
 | http.response.status_code | The HTTP response status code. | Any Int | Recommended | - |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.http.request_duration
 
-Time spent writing the HTTP request.
+Time spent writing the HTTP request, excluding the TLS handshake.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -95,11 +95,11 @@ Time spent writing the HTTP request.
 
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.http.response_duration
 
-Time spent reading the HTTP response.
+Time from the request being written to the first response byte.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -109,11 +109,11 @@ Time spent reading the HTTP response.
 
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.http.status
 
-1 if an HTTP response was received, 0 on connection error or timeout.
+1 if an HTTP response was received, whatever its status code, 0 on connection error or timeout.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -124,7 +124,7 @@ Time spent reading the HTTP response.
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
 | http.response.status_code | The HTTP response status code. | Any Int | Recommended | - |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.http.tls_handshake_duration
 
@@ -138,11 +138,11 @@ Time spent completing the TLS handshake. Zero for non-TLS targets.
 
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.ping.latency_avg
 
-Average round-trip latency across the ping packet count.
+Average round-trip latency of the echo replies received.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -152,12 +152,12 @@ Average round-trip latency across the ping packet count.
 
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
-| ping.method | The method used to probe the target (icmp or http). | Str: ``icmp``, ``http`` | Recommended | - |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| ping.method | The method used to probe the target. Only icmp is emitted. | Str: ``icmp`` | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.ping.latency_max
 
-Maximum round-trip latency across the ping packet count.
+Maximum round-trip latency of the echo replies received.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -167,12 +167,12 @@ Maximum round-trip latency across the ping packet count.
 
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
-| ping.method | The method used to probe the target (icmp or http). | Str: ``icmp``, ``http`` | Recommended | - |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| ping.method | The method used to probe the target. Only icmp is emitted. | Str: ``icmp`` | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.ping.latency_min
 
-Minimum round-trip latency across the ping packet count.
+Minimum round-trip latency of the echo replies received.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -182,12 +182,12 @@ Minimum round-trip latency across the ping packet count.
 
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
-| ping.method | The method used to probe the target (icmp or http). | Str: ``icmp``, ``http`` | Recommended | - |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| ping.method | The method used to probe the target. Only icmp is emitted. | Str: ``icmp`` | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.ping.packet_loss
 
-Fraction of packets lost during the ping (0.0 to 1.0).
+Fraction of echo requests that got no reply (0.0 to 1.0). 1 when the probe could not run, for example because the hostname did not resolve.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -197,12 +197,12 @@ Fraction of packets lost during the ping (0.0 to 1.0).
 
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
-| ping.method | The method used to probe the target (icmp or http). | Str: ``icmp``, ``http`` | Recommended | - |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| ping.method | The method used to probe the target. Only icmp is emitted. | Str: ``icmp`` | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.traceroute.hop.latency
 
-Round-trip latency to a single traceroute hop.
+Round-trip latency to a traceroute hop that answered. Not emitted for hops that did not answer.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -213,12 +213,12 @@ Round-trip latency to a single traceroute hop.
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
 | traceroute.hop.index | The traceroute hop index (TTL value). | Any Int | Recommended | - |
-| traceroute.hop.address | The IP address of the traceroute hop. | Any Str | Recommended | - |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| traceroute.hop.address | The IP address of the traceroute hop, or * when the hop did not answer. | Any Str | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ### network.traceroute.hop.status
 
-1 if the traceroute hop answered within the timeout, 0 if it did not. Averaging gives the fraction of probes a hop answered.
+1 if the traceroute hop answered any of its probes within the per-hop timeout, 0 if it answered none. Averaged over time, the fraction of traces in which the hop answered.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -229,11 +229,11 @@ Round-trip latency to a single traceroute hop.
 | Name | Description | Values | Requirement Level | Semantic Convention |
 | ---- | ----------- | ------ | ----------------- | ------------------- |
 | traceroute.hop.index | The traceroute hop index (TTL value). | Any Int | Recommended | - |
-| traceroute.hop.address | The IP address of the traceroute hop. | Any Str | Recommended | - |
-| dns.server | The DNS server used to resolve the target hostname. | Any Str | Recommended | - |
+| traceroute.hop.address | The IP address of the traceroute hop, or * when the hop did not answer. | Any Str | Recommended | - |
+| dns.server | The DNS server associated with the target, either the configured dns_server or the system resolver detected at startup. The detected resolver is reported as a bare address without a port. | Any Str | Recommended | - |
 
 ## Resource Attributes
 
 | Name | Description | Values | Enabled | Semantic Convention | Stability |
 | ---- | ----------- | ------ | ------- | ------------------- | --------- |
-| target.endpoint | The target endpoint (IP, hostname, or URL) being monitored. | Any Str | true | - | - |
+| target.endpoint | The configured target endpoint (IP address, hostname, or URL) with any userinfo removed. | Any Str | true | - | - |
