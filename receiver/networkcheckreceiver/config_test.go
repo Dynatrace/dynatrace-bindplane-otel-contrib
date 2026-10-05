@@ -150,8 +150,9 @@ func TestValidateFailureThreshold(t *testing.T) {
 func TestValidateTargetTimeout(t *testing.T) {
 	runValidateCases(t, []validateCase{
 		{"0 means default", func(c *Config) { c.Targets[0].Timeout = 0 }, ""},
-		{"equal to interval", func(c *Config) { c.Targets[0].Timeout = c.CollectionInterval }, ""},
-		{"above interval", func(c *Config) { c.Targets[0].Timeout = c.CollectionInterval + time.Second }, "target[0]: timeout must not exceed collection_interval"},
+		{"equal to the ceiling", func(c *Config) { c.Targets[0].Timeout = c.CollectionInterval - c.CollectionInterval/5 }, ""},
+		{"equal to the cycle budget", func(c *Config) { c.Targets[0].Timeout = c.CollectionInterval - c.CollectionInterval/10 }, "target[0]: timeout must be at most 80% of collection_interval"},
+		{"equal to interval", func(c *Config) { c.Targets[0].Timeout = c.CollectionInterval }, "target[0]: timeout must be at most 80% of collection_interval"},
 		{"negative", func(c *Config) { c.Targets[0].Timeout = -time.Second }, "target[0]: timeout must be >= 0"},
 	})
 }

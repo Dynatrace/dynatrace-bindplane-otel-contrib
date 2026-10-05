@@ -414,3 +414,16 @@ func TestProber_BatchRotation(t *testing.T) {
 	}
 	require.Equal(t, []int64{3, 3, 2, 2, 2}, got)
 }
+
+func TestEffectiveTimeoutClampsToCeiling(t *testing.T) {
+	interval := 10 * time.Second // budget 9s, ceiling 8s
+	require.Equal(t, 8*time.Second, effectiveTimeout(TargetConfig{Method: MethodHTTP}, interval), "default 10s clamped to 80%")
+	require.Equal(t, 5*time.Second, effectiveTimeout(TargetConfig{}, interval), "icmp default under the ceiling")
+	many := TargetConfig{Method: MethodICMP, PingCount: 30} // 29 × 200ms of pacing
+	require.Equal(t, 8*time.Second-29*icmpInterval, effectiveTimeout(many, interval), "pacing comes out of the ceiling")
+	explicit := TargetConfig{Method: MethodDNS}
+	explicit.Timeout = 3 * time.Second
+	require.Equal(t, 3*time.Second, effectiveTimeout(explicit, interval), "explicit timeout under the ceiling kept")
+	require.Equal(t, 10*time.Second, effectiveTimeout(TargetConfig{Method: MethodHTTP}, 0), "no interval, no clamp")
+	require.Equal(t, 100*time.Millisecond, effectiveTimeout(TargetConfig{PingCount: 100}, time.Second), "floor")
+}

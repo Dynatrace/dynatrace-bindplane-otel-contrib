@@ -261,6 +261,7 @@ func (p *sharedProber) start(ctx context.Context, host component.Host) error {
 		// Redacted as a matter of course: the string becomes the dns.server
 		// attribute as written, and the prober resolves through it unchanged.
 		dnsServer := redactEndpoint(tc.DNSServer)
+		tc.Timeout = effectiveTimeout(tc, p.cfg.CollectionInterval)
 		if dnsServer == "" {
 			dnsServer = p.systemDNS
 		}
@@ -317,10 +318,52 @@ func (p *sharedProber) probeLimit() int {
 	return defaultMaxConcurrentProbes
 }
 
+// timeoutCeiling is the longest per-probe timeout a target may run with: 80%
+// of the collection interval, a tenth of the interval short of the 90% cycle
+// budget. The gap is what lets a probe that starts at the top of the cycle
+// time out on its own, and be reported as down, before the cycle deadline
+// cuts it and reports it as skipped. Validation applies the same ceiling to
+// explicit timeouts.
+func timeoutCeiling(interval time.Duration) time.Duration {
+	return interval - interval/5
+}
+
+// effectiveTimeout is the per-probe timeout a target runs with: its own, or
+// the prober's default for the method, clamped to timeoutCeiling. For ICMP the
+// packets sent before the last one are paced icmpInterval apart and that time
+// comes out of the ceiling too, so the whole probe fits. Without the clamp a
+// default 10s HTTP timeout at a 10s interval would be cut by the 9s budget on
+// every hung probe and reported as skipped rather than as down.
+func effectiveTimeout(tc TargetConfig, interval time.Duration) time.Duration {
+	d := tc.Timeout
+	if d <= 0 {
+		switch tc.Method {
+		case MethodHTTP:
+			d = defaultHTTPTimeout
+		default: // icmp, dns
+			d = 5 * time.Second
+		}
+	}
+	if interval <= 0 {
+		return d
+	}
+	ceiling := timeoutCeiling(interval)
+	if tc.Method == "" || tc.Method == MethodICMP {
+		count := tc.PingCount
+		if count <= 0 {
+			count = 3
+		}
+		ceiling -= time.Duration(count-1) * icmpInterval
+	}
+	ceiling = max(ceiling, 100*time.Millisecond)
+	return min(d, ceiling)
+}
+
 // worstCaseCycle estimates how long a cycle takes when every probe in the
-// batch runs to its timeout, using the defaults the probers apply. It is the
+// batch runs to its timeout, using the timeouts the probers apply. It is the
 // sizing aid behind the startup warning, not a bound the prober enforces.
 func worstCaseCycle(cfg *Config) time.Duration {
+	interval := cfg.CollectionInterval
 	n := len(cfg.Targets)
 	if cfg.BatchSize > 0 && cfg.BatchSize < n {
 		n = cfg.BatchSize
@@ -343,10 +386,8 @@ func worstCaseCycle(cfg *Config) time.Duration {
 	for _, t := range cfg.Targets {
 		var d time.Duration
 		switch t.Method {
-		case MethodHTTP:
-			d = orDefault(t.Timeout, 10*time.Second)
-		case MethodDNS:
-			d = orDefault(t.Timeout, 5*time.Second)
+		case MethodHTTP, MethodDNS:
+			d = effectiveTimeout(t, interval)
 		default:
 			count := t.PingCount
 			if count <= 0 {
@@ -354,7 +395,7 @@ func worstCaseCycle(cfg *Config) time.Duration {
 			}
 			// The ICMP prober paces packets 200ms apart, then waits one timeout
 			// for the last reply.
-			d = time.Duration(count-1)*200*time.Millisecond + orDefault(t.Timeout, 5*time.Second)
+			d = time.Duration(count-1)*icmpInterval + effectiveTimeout(t, interval)
 		}
 		if d > slowest {
 			slowest = d

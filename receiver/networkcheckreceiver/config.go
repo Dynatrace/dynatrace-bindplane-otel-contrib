@@ -252,8 +252,8 @@ func (t *TargetConfig) validate(i int, interval time.Duration) error {
 
 	if t.Timeout < 0 {
 		errs = multierr.Append(errs, fmt.Errorf("target[%d]: timeout must be >= 0", i))
-	} else if interval > 0 && t.Timeout > interval {
-		errs = multierr.Append(errs, fmt.Errorf("target[%d]: timeout must not exceed collection_interval", i))
+	} else if interval > 0 && t.Timeout > timeoutCeiling(interval) {
+		errs = multierr.Append(errs, fmt.Errorf("target[%d]: timeout must be at most 80%% of collection_interval so the probe finishes inside the cycle budget", i))
 	}
 
 	for _, key := range unsupportedClientKeys(t.ClientConfig) {

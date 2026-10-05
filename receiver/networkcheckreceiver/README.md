@@ -159,7 +159,12 @@ receivers:
       include_tls_details: true    # Certificate and handshake detail in HTTPS records. Default true.
 ```
 
-Every `timeout` and `traceroute.timeout` must be at most `collection_interval`.
+A target `timeout` must be at most 80% of `collection_interval`: a tenth of the
+interval short of the 90% probe cycle budget, so a probe that starts at the top
+of the cycle times out on its own and is reported as down before the cycle
+deadline would skip it. When a target sets no timeout, the default (10 s for
+HTTP, 5 s for ICMP and DNS) is clamped to the same ceiling, less the ICMP
+packet pacing. `traceroute.timeout` must be at most `collection_interval`.
 Configuration errors name the target by its index, for example `target[2]`.
 
 ### Targets
