@@ -25,6 +25,7 @@ import (
 	"net/http/httptrace"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -160,62 +161,8 @@ func newHTTPPinger(ctx context.Context, _ component.Host, _ component.TelemetryS
 }
 
 func (p *httpPinger) ping(ctx context.Context) (PingResult, error) {
-	var (
-		dnsStart, dnsDone         time.Time
-		connectStart, connectDone time.Time
-		tlsStart, tlsDone         time.Time
-		wroteRequest              time.Time
-		gotFirstResponseByte      time.Time
-		requestStart              time.Time
-	)
-
-	var (
-		resolvedIP string
-		tlsState   tls.ConnectionState
-		haveTLS    bool
-
-		// Each of these hooks fires on failure as well as success, so the
-		// timestamps alone cannot say which phase broke. The errors can.
-		dnsErr, connectErr, tlsErr, writeErr error
-	)
-
-	trace := &httptrace.ClientTrace{
-		DNSStart: func(_ httptrace.DNSStartInfo) { dnsStart = time.Now() },
-		DNSDone: func(info httptrace.DNSDoneInfo) {
-			dnsDone = time.Now()
-			dnsErr = info.Err
-			if len(info.Addrs) > 0 {
-				resolvedIP = info.Addrs[0].IP.String()
-			}
-		},
-		ConnectStart: func(_, _ string) { connectStart = time.Now() },
-		ConnectDone: func(_, addr string, err error) {
-			connectDone = time.Now()
-			connectErr = err
-			// ConnectDone receives the dial target, which is a hostname when the
-			// transport dials by name. Only take it when it is genuinely an
-			// address, otherwise server.resolved_ip would carry a hostname; the
-			// DNSDone value stands in that case.
-			if host, _, splitErr := net.SplitHostPort(addr); splitErr == nil && net.ParseIP(host) != nil {
-				resolvedIP = host
-			}
-		},
-		TLSHandshakeStart: func() { tlsStart = time.Now() },
-		TLSHandshakeDone: func(cs tls.ConnectionState, err error) {
-			tlsDone = time.Now()
-			tlsErr = err
-			if err == nil {
-				tlsState, haveTLS = cs, true
-			}
-		},
-		WroteRequest: func(info httptrace.WroteRequestInfo) {
-			wroteRequest = time.Now()
-			writeErr = info.Err
-		},
-		GotFirstResponseByte: func() { gotFirstResponseByte = time.Now() },
-	}
-
-	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), p.httpMethod, p.url.String(), nil)
+	var pt probeTrace
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, pt.hooks()), p.httpMethod, p.url.String(), nil)
 	if err != nil {
 		// Unreachable: the URL and method were validated in newHTTPPinger.
 		return PingResult{}, fmt.Errorf("building request for %s: %w", redactEndpoint(p.url.String()), urlErrReason(err))
@@ -227,85 +174,134 @@ func (p *httpPinger) ping(ctx context.Context) (PingResult, error) {
 		req.Host = p.host
 	}
 
-	requestStart = time.Now()
+	start := time.Now()
 	resp, err := p.client.Do(req)
+	// Taken before the body is read: the total runs to the response headers.
 	end := time.Now()
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	// A cancelled or expired caller context says nothing about the target, so
+	// it is returned as an error rather than recorded as a failed probe.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return PingResult{}, ctxErr
+	}
 
+	t, resolvedIP, tlsState := pt.snapshot()
 	if p.proxied {
 		// The address dialled was the proxy's; the target's is not observable.
 		resolvedIP = ""
 	}
-
-	statusCode := 0
-	var responseSize int64
-	var protocol string
-	if resp != nil {
-		statusCode = resp.StatusCode
-		protocol = resp.Proto
-		// Drain and close body so the connection can be reused. The byte count
-		// is the response size; only the timing was kept before.
-		responseSize, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
+	res := PingResult{
+		TotalDuration: end.Sub(start),
+		Method:        MethodHTTP,
+		ResolvedIP:    resolvedIP,
+	}
+	res.DNSLookup, res.TCPConnect, res.TLSHandshake, res.RequestWrite, res.ResponseRead = t.durations()
+	if tlsState != nil {
+		res.TLS = tlsDetailsFrom(*tlsState, end)
 	}
 
 	if err != nil {
-		// Record a failed probe but don't return an error — it's a valid measurement.
-		return PingResult{
-			TotalDuration: end.Sub(requestStart),
-			StatusCode:    0,
-			Method:        MethodHTTP,
-			ResolvedIP:    resolvedIP,
-			ErrMessage:    urlErrReason(err).Error(),
-			ErrPhase: failurePhase(phaseTimings{
-				dnsStart: dnsStart, dnsDone: dnsDone,
-				connectStart: connectStart, connectDone: connectDone,
-				tlsStart: tlsStart, tlsDone: tlsDone,
-				wroteRequest: wroteRequest, gotFirstByte: gotFirstResponseByte,
-				dnsErr: dnsErr, connectErr: connectErr, tlsErr: tlsErr, writeErr: writeErr,
-			}),
-		}, nil
+		// A failed request is a measurement, not an error. It keeps the
+		// phases that completed before the one that broke.
+		res.ErrMessage = urlErrReason(err).Error()
+		res.ErrPhase = failurePhase(t)
+		return res, nil
 	}
 
-	var (
-		dnsLookup    time.Duration
-		tcpConnect   time.Duration
-		tlsHandshake time.Duration
-		reqWrite     time.Duration
-		respRead     time.Duration
-	)
-	if !dnsStart.IsZero() && !dnsDone.IsZero() {
-		dnsLookup = dnsDone.Sub(dnsStart)
-	}
-	if !dnsDone.IsZero() && !connectDone.IsZero() {
-		tcpConnect = connectDone.Sub(dnsDone)
-	}
-	if !tlsStart.IsZero() && !tlsDone.IsZero() {
-		tlsHandshake = tlsDone.Sub(tlsStart)
-	}
-	if !connectDone.IsZero() && !wroteRequest.IsZero() {
-		reqWrite = wroteRequest.Sub(connectDone)
-	}
-	if !wroteRequest.IsZero() && !gotFirstResponseByte.IsZero() {
-		respRead = gotFirstResponseByte.Sub(wroteRequest)
-	}
-
-	res := PingResult{
-		DNSLookup:     dnsLookup,
-		TCPConnect:    tcpConnect,
-		TLSHandshake:  tlsHandshake,
-		RequestWrite:  reqWrite,
-		ResponseRead:  respRead,
-		TotalDuration: end.Sub(requestStart),
-		StatusCode:    statusCode,
-		Method:        MethodHTTP,
-		ResolvedIP:    resolvedIP,
-		ResponseSize:  responseSize,
-		Protocol:      protocol,
-	}
-	if haveTLS {
-		res.TLS = tlsDetailsFrom(tlsState, end)
-	}
+	res.StatusCode = resp.StatusCode
+	res.Protocol = resp.Proto
+	res.ResponseSize, _ = io.Copy(io.Discard, resp.Body)
 	return res, nil
+}
+
+// probeTrace records what the httptrace hooks observe during one request.
+// Hooks run on transport goroutines and can still fire after Do has returned
+// (a dial that outlives a timed-out request, the losing dial of a Happy
+// Eyeballs race), so every field is guarded by mu.
+type probeTrace struct {
+	mu         sync.Mutex
+	t          phaseTimings
+	resolvedIP string
+	tls        *tls.ConnectionState
+}
+
+// mark sets *at to now under the lock.
+func (pt *probeTrace) mark(at *time.Time) {
+	now := time.Now()
+	pt.mu.Lock()
+	*at = now
+	pt.mu.Unlock()
+}
+
+func (pt *probeTrace) snapshot() (phaseTimings, string, *tls.ConnectionState) {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+	return pt.t, pt.resolvedIP, pt.tls
+}
+
+func (pt *probeTrace) hooks() *httptrace.ClientTrace {
+	return &httptrace.ClientTrace{
+		DNSStart: func(httptrace.DNSStartInfo) { pt.mark(&pt.t.dnsStart) },
+		DNSDone: func(info httptrace.DNSDoneInfo) {
+			now := time.Now()
+			pt.mu.Lock()
+			defer pt.mu.Unlock()
+			pt.t.dnsDone, pt.t.dnsErr = now, info.Err
+			if len(info.Addrs) > 0 {
+				pt.resolvedIP = info.Addrs[0].IP.String()
+			}
+		},
+		ConnectStart: func(_, _ string) {
+			now := time.Now()
+			pt.mu.Lock()
+			defer pt.mu.Unlock()
+			// One dial starts per address tried, and both address families
+			// may race; the phase runs from the first.
+			if pt.t.connectStart.IsZero() {
+				pt.t.connectStart = now
+			}
+		},
+		ConnectDone: func(_, addr string, err error) {
+			now := time.Now()
+			pt.mu.Lock()
+			defer pt.mu.Unlock()
+			if !pt.t.connectDone.IsZero() {
+				return // a losing parallel dial reporting after the winner
+			}
+			// ConnectDone receives the dial target, which is a hostname when
+			// the transport dials by name. Only take it when it is genuinely
+			// an address, otherwise server.resolved_ip would carry a
+			// hostname; the DNSDone value stands in that case.
+			if host, _, splitErr := net.SplitHostPort(addr); splitErr == nil && net.ParseIP(host) != nil {
+				pt.resolvedIP = host
+			}
+			// A failed dial moves on to the next address, so the error stands
+			// only until one succeeds.
+			pt.t.connectErr = err
+			if err == nil {
+				pt.t.connectDone = now
+			}
+		},
+		TLSHandshakeStart: func() { pt.mark(&pt.t.tlsStart) },
+		TLSHandshakeDone: func(cs tls.ConnectionState, err error) {
+			now := time.Now()
+			pt.mu.Lock()
+			defer pt.mu.Unlock()
+			pt.t.tlsDone, pt.t.tlsErr = now, err
+			if err == nil {
+				pt.tls = &cs
+			}
+		},
+		WroteRequest: func(info httptrace.WroteRequestInfo) {
+			now := time.Now()
+			pt.mu.Lock()
+			defer pt.mu.Unlock()
+			pt.t.wroteRequest, pt.t.writeErr = now, info.Err
+		},
+		GotFirstResponseByte: func() { pt.mark(&pt.t.gotFirstByte) },
+	}
 }
 
 // overrideResolver sends every lookup to server instead of the configured
@@ -352,6 +348,37 @@ type phaseTimings struct {
 	tlsStart, tlsDone                    time.Time
 	wroteRequest, gotFirstByte           time.Time
 	dnsErr, connectErr, tlsErr, writeErr error
+}
+
+// durations returns the length of each phase that completed. A phase that
+// failed or never finished is zero, so a failed probe still reports the phases
+// that ran before the one that broke.
+//
+// Connect runs from the first dial start (from DNS done only when no dial
+// start was seen), so an IP-literal target, which has no DNS phase, still
+// measures it. Write runs from the end of the TLS handshake, or of the connect
+// for plain HTTP, so it does not include the handshake. First byte runs from
+// the request being written.
+func (t phaseTimings) durations() (dns, connect, tlsHandshake, write, firstByte time.Duration) {
+	span := func(from, to time.Time, err error) time.Duration {
+		if from.IsZero() || to.IsZero() || err != nil {
+			return 0
+		}
+		return to.Sub(from)
+	}
+	connectFrom := t.connectStart
+	if connectFrom.IsZero() {
+		connectFrom = t.dnsDone
+	}
+	writeFrom := t.tlsDone
+	if writeFrom.IsZero() {
+		writeFrom = t.connectDone
+	}
+	return span(t.dnsStart, t.dnsDone, t.dnsErr),
+		span(connectFrom, t.connectDone, t.connectErr),
+		span(t.tlsStart, t.tlsDone, t.tlsErr),
+		span(writeFrom, t.wroteRequest, t.writeErr),
+		span(t.wroteRequest, t.gotFirstByte, nil)
 }
 
 // failurePhase names the request phase that broke. A bare status code of 0 says

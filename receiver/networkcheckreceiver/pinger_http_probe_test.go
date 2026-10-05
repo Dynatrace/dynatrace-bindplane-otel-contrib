@@ -16,6 +16,8 @@ package networkcheckreceiver
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -246,4 +248,180 @@ func TestHTTPPinger_SendsConfiguredHeaders(t *testing.T) {
 	require.Equal(t, "admin", user)
 	require.Equal(t, "s3cret", pass)
 	require.Equal(t, "Bearer t0ken", seen[1].Header.Get("Authorization"))
+}
+
+func TestPhaseTimingsDurations(t *testing.T) {
+	t0 := time.Unix(1000, 0)
+	at := func(ms int) time.Time { return t0.Add(time.Duration(ms) * time.Millisecond) }
+	ms := func(n int) time.Duration { return time.Duration(n) * time.Millisecond }
+
+	t.Run("https", func(t *testing.T) {
+		dns, conn, hs, write, ttfb := phaseTimings{
+			dnsStart: at(0), dnsDone: at(10),
+			connectStart: at(12), connectDone: at(20),
+			tlsStart: at(20), tlsDone: at(50),
+			wroteRequest: at(51), gotFirstByte: at(80),
+		}.durations()
+		require.Equal(t, []time.Duration{ms(10), ms(8), ms(30), ms(1), ms(29)}, []time.Duration{dns, conn, hs, write, ttfb})
+	})
+
+	t.Run("IP literal over plain HTTP", func(t *testing.T) {
+		dns, conn, hs, write, ttfb := phaseTimings{
+			connectStart: at(0), connectDone: at(5),
+			wroteRequest: at(6), gotFirstByte: at(9),
+		}.durations()
+		require.Equal(t, []time.Duration{0, ms(5), 0, ms(1), ms(3)}, []time.Duration{dns, conn, hs, write, ttfb})
+	})
+
+	t.Run("connect falls back to DNS done without a dial start", func(t *testing.T) {
+		_, conn, _, _, _ := phaseTimings{dnsStart: at(0), dnsDone: at(10), connectDone: at(15)}.durations()
+		require.Equal(t, ms(5), conn)
+	})
+
+	t.Run("failed and unfinished phases are zero", func(t *testing.T) {
+		dns, conn, hs, write, ttfb := phaseTimings{
+			dnsStart: at(0), dnsDone: at(10),
+			connectStart: at(10), connectDone: at(20),
+			tlsStart: at(20), tlsDone: at(30), tlsErr: errors.New("bad certificate"),
+		}.durations()
+		require.Equal(t, []time.Duration{ms(10), ms(10), 0, 0, 0}, []time.Duration{dns, conn, hs, write, ttfb})
+	})
+}
+
+func TestHTTPPinger_IPLiteralMeasuresConnect(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+
+	r := probeHTTP(t, httpTarget(srv.URL, nil))
+	require.Equal(t, http.StatusOK, r.StatusCode, r.ErrMessage)
+	require.Zero(t, r.DNSLookup, "an IP literal needs no lookup")
+	require.Positive(t, r.TCPConnect, "connect used to be measured from DNS done, which never fires here")
+	require.Positive(t, r.ResponseRead)
+	require.Equal(t, "127.0.0.1", r.ResolvedIP)
+	require.GreaterOrEqual(t, r.TotalDuration, r.TCPConnect+r.RequestWrite+r.ResponseRead)
+}
+
+func TestHTTPPinger_HostnameHasDNSPhase(t *testing.T) {
+	clearProxyEnv(t)
+	r := probeHTTP(t, httpTarget("http://localhost:"+okServer(t)+"/", nil))
+	require.Equal(t, http.StatusOK, r.StatusCode, r.ErrMessage)
+	require.Positive(t, r.DNSLookup)
+	require.Positive(t, r.TCPConnect)
+	require.NotNil(t, net.ParseIP(r.ResolvedIP), r.ResolvedIP)
+}
+
+func TestHTTPPinger_RequestWriteExcludesTLSHandshake(t *testing.T) {
+	const handshakeDelay = 150 * time.Millisecond
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	srv.TLS = &tls.Config{
+		GetConfigForClient: func(*tls.ClientHelloInfo) (*tls.Config, error) {
+			time.Sleep(handshakeDelay)
+			return nil, nil
+		},
+	}
+	srv.StartTLS()
+	defer srv.Close()
+
+	r := probeHTTP(t, httpTarget(srv.URL, func(tc *TargetConfig) { tc.TLS.InsecureSkipVerify = true }))
+	require.Equal(t, http.StatusOK, r.StatusCode, r.ErrMessage)
+	require.GreaterOrEqual(t, r.TLSHandshake, handshakeDelay)
+	require.Less(t, r.RequestWrite, handshakeDelay/2, "write used to be measured from connect done and so included the handshake")
+}
+
+func TestHTTPPinger_TimeoutKeepsCompletedPhases(t *testing.T) {
+	clearProxyEnv(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-time.After(5 * time.Second):
+		}
+	}))
+	defer srv.Close()
+	_, port, err := net.SplitHostPort(srv.Listener.Addr().String())
+	require.NoError(t, err)
+
+	const timeout = 300 * time.Millisecond
+	r := probeHTTP(t, httpTarget("http://localhost:"+port+"/", func(tc *TargetConfig) { tc.Timeout = timeout }))
+	require.Equal(t, 0, r.StatusCode)
+	require.Equal(t, "response", r.ErrPhase)
+	require.Contains(t, r.ErrMessage, "Client.Timeout exceeded")
+	require.Positive(t, r.DNSLookup, "phases before the timeout completed and are kept")
+	require.Positive(t, r.TCPConnect)
+	require.Zero(t, r.ResponseRead, "no first byte arrived")
+	require.GreaterOrEqual(t, r.TotalDuration, timeout)
+	require.Less(t, r.TotalDuration, timeout+300*time.Millisecond)
+}
+
+func TestHTTPPinger_FailurePhases(t *testing.T) {
+	clearProxyEnv(t)
+	closed := closedPort(t)
+	_, closedPortNum, err := net.SplitHostPort(closed)
+	require.NoError(t, err)
+	untrusted := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer untrusted.Close()
+
+	t.Run("connection refused, IP literal", func(t *testing.T) {
+		r := probeHTTP(t, httpTarget("http://"+closed+"/", nil))
+		require.Equal(t, "connect", r.ErrPhase)
+		require.Zero(t, r.TCPConnect, "a refused connect did not complete")
+	})
+
+	t.Run("connection refused, hostname", func(t *testing.T) {
+		r := probeHTTP(t, httpTarget("http://localhost:"+closedPortNum+"/", nil))
+		require.Equal(t, "connect", r.ErrPhase)
+		require.Positive(t, r.DNSLookup)
+		require.Zero(t, r.TCPConnect)
+	})
+
+	t.Run("certificate not trusted", func(t *testing.T) {
+		r := probeHTTP(t, httpTarget(untrusted.URL, nil))
+		require.Equal(t, 0, r.StatusCode)
+		require.Equal(t, "tls", r.ErrPhase)
+		require.Positive(t, r.TCPConnect)
+		require.Zero(t, r.TLSHandshake)
+		require.Nil(t, r.TLS)
+	})
+}
+
+// Cancellation comes from the caller (shutdown, scrape deadline), not from the
+// target, so it must surface as an error rather than as a status-0 probe.
+func TestHTTPPinger_CallerContextEndsProbe(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
+	p := newTestHTTPPinger(t, httpTarget(srv.URL, nil))
+
+	t.Run("cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		time.AfterFunc(100*time.Millisecond, cancel)
+		r, err := p.ping(ctx)
+		require.ErrorIs(t, err, context.Canceled)
+		require.Equal(t, PingResult{}, r)
+	})
+
+	t.Run("deadline", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		_, err := p.ping(ctx)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+}
+
+func TestHTTPPinger_RedirectNotFollowed(t *testing.T) {
+	var followed recorder
+	mux := http.NewServeMux()
+	mux.HandleFunc("/from", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/to", http.StatusFound) })
+	mux.Handle("/to", followed.handler(http.StatusOK))
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	r := probeHTTP(t, httpTarget(srv.URL+"/from", nil))
+	require.Equal(t, http.StatusFound, r.StatusCode)
+	require.Empty(t, followed.seen())
 }
