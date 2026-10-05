@@ -198,3 +198,58 @@ func TestHopsAbortedEarly(t *testing.T) {
 		require.False(t, hopsAbortedEarly(hops, 30, 5))
 	})
 }
+
+func TestShouldRunRateLimitsOnFailure(t *testing.T) {
+	fail := PingResult{Method: MethodICMP, PacketLoss: 1}
+	pass := PingResult{Method: MethodICMP}
+
+	// run feeds results to a fresh tracerouter and returns the checks that traced.
+	run := func(cfg TracerouteConfig, results []PingResult) []int {
+		tr := newTracerouter(cfg, "example.com", "")
+		var traced []int
+		for i, r := range results {
+			if tr.shouldRun(i+1, r) {
+				traced = append(traced, i+1)
+			}
+		}
+		return traced
+	}
+	repeat := func(r PingResult, n int) []PingResult {
+		out := make([]PingResult, n)
+		for i := range out {
+			out[i] = r
+		}
+		return out
+	}
+	onFailure := TracerouteConfig{Enabled: true, OnFailure: true, FailureThreshold: 0.5}
+
+	t.Run("a target that stays down is traced on the first failure and every 10th after", func(t *testing.T) {
+		require.Equal(t, []int{1, 11, 21}, run(onFailure, repeat(fail, 25)))
+	})
+	t.Run("recovery resets the streak", func(t *testing.T) {
+		results := append(append(repeat(fail, 3), pass), repeat(fail, 3)...)
+		require.Equal(t, []int{1, 5}, run(onFailure, results))
+	})
+	t.Run("healthy target is never traced by on_failure", func(t *testing.T) {
+		require.Empty(t, run(onFailure, repeat(pass, 25)))
+	})
+	t.Run("with an interval, the interval re-traces a target that stays down", func(t *testing.T) {
+		cfg := onFailure
+		cfg.Interval = 4
+		// Down from check 2: first failure at 2, then the interval at 4, 8, 12.
+		results := append([]PingResult{pass}, repeat(fail, 11)...)
+		require.Equal(t, []int{2, 4, 8, 12}, run(cfg, results))
+	})
+	t.Run("interval alone is unchanged", func(t *testing.T) {
+		require.Equal(t, []int{3, 6, 9}, run(TracerouteConfig{Enabled: true, Interval: 3}, repeat(fail, 10)))
+	})
+	t.Run("loss below the threshold is not a failure", func(t *testing.T) {
+		require.Empty(t, run(onFailure, repeat(PingResult{Method: MethodICMP, PacketLoss: 0.25}, 5)))
+	})
+	t.Run("disabled never traces", func(t *testing.T) {
+		cfg := onFailure
+		cfg.Enabled = false
+		cfg.Interval = 1
+		require.Empty(t, run(cfg, repeat(fail, 5)))
+	})
+}

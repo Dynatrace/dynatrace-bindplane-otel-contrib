@@ -62,6 +62,15 @@ func (t *tracerouter) abortAfter() int {
 	return t.cfg.MaxConsecutiveTimeouts
 }
 
+// failureTraceEvery is how many consecutive failing checks pass between
+// on_failure traces when no interval is configured. Without a limit a target
+// that stays down is traced on every check, and a trace into a dead path is the
+// most expensive thing the receiver does: it walks silent hops at the full hop
+// timeout until the early abort.
+// Deliberate simplification: a fixed cadence; make it configurable if one
+// value does not fit every deployment.
+const failureTraceEvery = 10
+
 // icmpProtocolIPv4 is the IANA protocol number for ICMP, required by
 // icmp.ParseMessage to interpret an IPv4 ICMP message.
 const icmpProtocolIPv4 = 1
@@ -205,6 +214,11 @@ type tracerouter struct {
 	// dnsServer is the resolver the target is configured with ("" = system),
 	// so the trace resolves the destination the same way the probe does.
 	dnsServer string
+
+	// failStreak counts consecutive checks that met the on_failure condition.
+	// A tracerouter belongs to one target, which is probed by one goroutine at
+	// a time, so it needs no locking.
+	failStreak int
 }
 
 func newTracerouter(cfg TracerouteConfig, endpoint string, dnsServer string) *tracerouter {
@@ -231,17 +245,28 @@ func hostFromEndpoint(endpoint string) string {
 
 // shouldRun returns true if a traceroute should be performed given the current
 // check count and the most recent ping result for the target.
+//
+// interval traces every Nth check. on_failure additionally traces the first
+// failing check of a streak; while the target keeps failing it traces again
+// only every failureTraceEvery failing checks, and only when no interval is
+// set, since the interval schedule already re-traces a target that stays
+// down. A passing check ends the streak.
 func (t *tracerouter) shouldRun(checkCount int, result PingResult) bool {
 	if !t.cfg.Enabled {
 		return false
 	}
-	if t.cfg.Interval > 0 && checkCount%t.cfg.Interval == 0 {
+	run := t.cfg.Interval > 0 && checkCount%t.cfg.Interval == 0
+
+	failing := t.cfg.OnFailure && result.Method == MethodICMP && result.PacketLoss >= t.cfg.FailureThreshold
+	if !failing {
+		t.failStreak = 0
+		return run
+	}
+	t.failStreak++
+	if t.failStreak == 1 {
 		return true
 	}
-	if t.cfg.OnFailure && result.Method == MethodICMP && result.PacketLoss >= t.cfg.FailureThreshold {
-		return true
-	}
-	return false
+	return run || (t.cfg.Interval <= 0 && (t.failStreak-1)%failureTraceEvery == 0)
 }
 
 // trace performs a traceroute to t.host and returns per-hop results.
