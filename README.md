@@ -43,6 +43,7 @@ pkg/                Public utility packages
 | [googlecloudstoragerehydrationreceiver](receiver/googlecloudstoragerehydrationreceiver) | Rehydrates OTLP data from Google Cloud Storage that was stored using the GCS exporter |
 | [httpreceiver](receiver/httpreceiver) | Collects logs from services via HTTP |
 | [m365receiver](receiver/m365receiver) | Receives metrics and logs from Microsoft 365 via the Microsoft Graph and Management APIs |
+| [networkcheckreceiver](receiver/networkcheckreceiver) | Actively probes network targets and emits ICMP, HTTP, and DNS latency metrics plus optional traceroute data |
 | [oktareceiver](receiver/oktareceiver) | Collects logs from an Okta domain |
 | [pcapreceiver](receiver/pcapreceiver) | Captures network packets and emits them as OpenTelemetry logs |
 | [pluginreceiver](receiver/pluginreceiver) | Runs templated OpenTelemetry pipelines stored within a plugin |
