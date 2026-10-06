@@ -510,3 +510,13 @@ func TestWalkStopsOnProbeError(t *testing.T) {
 	require.ErrorIs(t, err, boom)
 	require.Len(t, res.Hops, 1, "hops gathered before the failure are kept")
 }
+
+func TestShouldRunSkipsUnresolvedName(t *testing.T) {
+	tr := newTracerouter(TracerouteConfig{Enabled: true, Interval: 1, OnFailure: true, FailureThreshold: 0.5}, "h", "")
+	unresolved := PingResult{Method: MethodICMP, PacketLoss: 1, ErrPhase: "dns"}
+	for i := 1; i <= 3; i++ {
+		require.False(t, tr.shouldRun(i, unresolved), "check %d: a trace would fail at the same lookup", i)
+	}
+	// The streak was left alone, so the first reachable failure traces.
+	require.True(t, tr.shouldRun(4, PingResult{Method: MethodICMP, PacketLoss: 1}))
+}

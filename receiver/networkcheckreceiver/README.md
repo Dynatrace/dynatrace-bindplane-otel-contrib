@@ -19,7 +19,7 @@ target, when an ICMP target's packet loss reaches a threshold, or both.
 
 | Feature | Linux | macOS | Windows |
 |---------|-------|-------|---------|
-| ICMP ping | `CAP_NET_RAW`, or none when the collector's group ID is inside `net.ipv4.ping_group_range` | None | Administrator |
+| ICMP ping | `CAP_NET_RAW`, or none when the collector's group ID is inside `net.ipv4.ping_group_range` | None | None on Windows Server 2022, where a standard user can open the raw socket; hardened hosts may require elevation |
 | UDP traceroute (default) | None | root | None (native API, see below) |
 | ICMP traceroute | root or `CAP_NET_RAW`; without it every traced cycle fails with `operation not permitted` | root | None (native API, see below) |
 | HTTP probe | None | None | None |
@@ -27,9 +27,11 @@ target, when an ICMP target's packet loss reaches a threshold, or both.
 
 At startup the receiver tries a raw ICMP socket first and, if that is not
 permitted, an unprivileged datagram ICMP socket. Raw sockets need root or
-`CAP_NET_RAW` on Linux, root on macOS, and Administrator on Windows. Datagram
-ICMP sockets work without privilege on macOS, and on Linux when the collector's
-group ID is inside `net.ipv4.ping_group_range`; Windows has none.
+`CAP_NET_RAW` on Linux and root on macOS; on Windows Server 2022 a standard
+user can open one. Datagram ICMP sockets work without privilege on macOS, and
+on Linux when the collector's group ID is inside `net.ipv4.ping_group_range`;
+Windows has none. The check runs only when the configuration has ICMP
+targets.
 
 If neither socket can be opened, the receiver logs one warning, `ICMP sockets
 unavailable; ICMP targets will report packet_loss 1 until the collector can
@@ -77,8 +79,10 @@ user, so `capabilities.add` alone has no effect for a non-root collector.
 ### Windows
 
 When the collector runs as a Windows service it runs as `LocalSystem`, which
-has the privilege ICMP ping needs. Run from an unelevated shell, it does not,
-and ICMP targets report packet loss 1.
+has every privilege ICMP ping could need. A standard user on Windows Server
+2022 can open the raw socket too; on a host where it cannot, the receiver
+logs the "ICMP sockets unavailable" warning and ICMP targets report packet
+loss 1.
 
 Traceroute on Windows ignores `traceroute.method` and uses the IP Helper API
 (`IcmpSendEcho`), the mechanism the built-in `tracert.exe` uses. Windows does

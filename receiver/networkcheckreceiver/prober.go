@@ -232,7 +232,12 @@ func (p *sharedProber) start(ctx context.Context, host component.Host) error {
 
 	p.systemDNS = detectSystemDNS()
 
-	icmpAvailable, icmpPrivileged := probeICMPMode()
+	// The capability check costs a real socket and a warning; a receiver
+	// without ICMP targets has no use for either.
+	icmpAvailable, icmpPrivileged := true, true
+	if hasICMPTargets(p.cfg.Targets) {
+		icmpAvailable, icmpPrivileged = probeICMPMode()
+	}
 	switch {
 	case !icmpAvailable:
 		// ICMP targets stay ICMP: the pinger reports packet_loss 1 with the
@@ -310,6 +315,17 @@ func (p *sharedProber) start(ctx context.Context, host component.Host) error {
 }
 
 const skipHint = "raise max_concurrent_probes or collection_interval, or lower per-target timeouts"
+
+// hasICMPTargets reports whether any target probes with ICMP (the default
+// method).
+func hasICMPTargets(targets []TargetConfig) bool {
+	for _, t := range targets {
+		if t.Method == "" || t.Method == MethodICMP {
+			return true
+		}
+	}
+	return false
+}
 
 func (p *sharedProber) probeLimit() int {
 	if p.cfg.MaxConcurrentProbes > 0 {
@@ -595,8 +611,10 @@ func (p *sharedProber) probeTarget(ctx context.Context, ts *targetState) targetR
 	}
 	trace, traceErr := ts.tr.trace(ctx)
 	<-p.traceSem
-	if ctx.Err() != nil {
+	if ctxDone(ctx) {
 		// A trace cut off at the deadline is a partial path, not a measurement.
+		// The walk stops on the wall clock, which can be a moment before the
+		// context's own timer fires, so the deadline is checked the same way.
 		return tr
 	}
 	tr.traced = true

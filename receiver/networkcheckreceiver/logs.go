@@ -258,9 +258,7 @@ func buildTracerouteLogRecord(lr plog.LogRecord, ts *targetState, tr TraceResult
 	}
 	attrs.PutInt("traceroute.hop_count", int64(len(tr.Hops)))
 	attrs.PutInt("traceroute.hops_answered", int64(answered))
-	if retried > 0 {
-		attrs.PutInt("traceroute.hops_retried", int64(retried))
-	}
+	attrs.PutInt("traceroute.hops_retried", int64(retried))
 	attrs.PutBool("traceroute.reached_dest", tr.Reached)
 	attrs.PutBool("traceroute.aborted_early", tr.AbortedEarly)
 	if ts.dnsServer != "" {

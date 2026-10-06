@@ -427,3 +427,23 @@ func TestEffectiveTimeoutClampsToCeiling(t *testing.T) {
 	require.Equal(t, 10*time.Second, effectiveTimeout(TargetConfig{Method: MethodHTTP}, 0), "no interval, no clamp")
 	require.Equal(t, 100*time.Millisecond, effectiveTimeout(TargetConfig{PingCount: 100}, time.Second), "floor")
 }
+
+func TestProber_ICMPCheckOnlyWithICMPTargets(t *testing.T) {
+	orig := probeICMPMode
+	calls := 0
+	probeICMPMode = func() (bool, bool) { calls++; return true, false }
+	t.Cleanup(func() { probeICMPMode = orig })
+
+	settings := receivertest.NewNopSettings(metadata.Type)
+	httpOnly := createDefaultConfig().(*Config)
+	httpOnly.Targets = []TargetConfig{{Method: MethodHTTP}}
+	httpOnly.Targets[0].Endpoint = "http://127.0.0.1:9/"
+	require.NoError(t, newSharedProber(httpOnly, settings).start(context.Background(), componenttest.NewNopHost()))
+	require.Equal(t, 0, calls, "no ICMP targets, no capability check")
+
+	withICMP := createDefaultConfig().(*Config)
+	withICMP.Targets = []TargetConfig{{}}
+	withICMP.Targets[0].Endpoint = "127.0.0.1"
+	require.NoError(t, newSharedProber(withICMP, settings).start(context.Background(), componenttest.NewNopHost()))
+	require.Equal(t, 1, calls)
+}

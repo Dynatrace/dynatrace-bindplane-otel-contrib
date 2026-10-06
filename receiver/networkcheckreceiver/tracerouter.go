@@ -363,17 +363,18 @@ func (t *tracerouter) shouldRun(checkCount int, result PingResult) bool {
 	if !t.cfg.Enabled {
 		return false
 	}
+	if result.ErrPhase == "dns" {
+		// The name did not resolve, so a trace would fail at the same lookup.
+		// Neither schedule runs it; the failure streak is left alone so the
+		// first reachable failure still traces.
+		return false
+	}
 	run := t.cfg.Interval > 0 && checkCount%t.cfg.Interval == 0
 
 	failing := t.cfg.OnFailure && result.Method == MethodICMP && result.PacketLoss >= t.cfg.FailureThreshold
 	if !failing {
 		t.failStreak = 0
 		return run
-	}
-	if result.ErrPhase == "dns" {
-		// The name did not resolve, so a trace would fail at the same lookup;
-		// the streak still counts so the first reachable failure traces.
-		return false
 	}
 	t.failStreak++
 	if t.failStreak == 1 {
