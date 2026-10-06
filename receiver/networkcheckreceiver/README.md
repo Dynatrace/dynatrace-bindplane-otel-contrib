@@ -110,9 +110,11 @@ section's key, for example `http::targets::0: ...`. On top of those:
 
 Each section runs as a receiver of its own type, named after this receiver
 and the section, for example `http_check/networkcheck/http` for
-`networkcheck`, or `icmp_check/edge/icmp` for `networkcheck/edge`. That ID,
-and a logger named after the section, appear in the collector's own logs and
-telemetry.
+`networkcheck`, or `icmp_check/edge/icmp` for `networkcheck/edge`. That ID
+labels the section's internal telemetry, for example
+`otelcol_receiver_accepted_metric_points{receiver="icmp_check/networkcheck/icmp"}`.
+Its log lines carry this receiver's ID and a logger named after the section
+(`icmp`).
 
 ## Traceroute
 
