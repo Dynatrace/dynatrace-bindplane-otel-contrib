@@ -49,7 +49,10 @@ func buildTraceLogRecord(lr plog.LogRecord, t *target, tr TraceResult, trigger m
 		if !h.TimedOut {
 			answered++
 		}
-		if h.Probes > 1 {
+		// A hop counts as retried only when it did answer after an earlier
+		// probe went unanswered: that is what tells a rate-limiting router
+		// from a silent one. A silent hop used every probe without answering.
+		if !h.TimedOut && h.Probes > 1 {
 			retried++
 		}
 	}

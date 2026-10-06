@@ -101,7 +101,9 @@ func TestLinuxUDPTraceHonoursCancel(t *testing.T) {
 }
 
 // The tests below need a real network path and are opted into with
-// TRACEROUTE_NET=1: CI runners commonly drop ICMP.
+// TRACEROUTE_NET=1: CI runners commonly drop ICMP, and cloud networks (Azure,
+// for one) answer neither for the gateway nor for intermediate hops, so these
+// assertions hold only on a network whose routers send time-exceeded.
 func requireNetTests(t *testing.T) {
 	if os.Getenv("TRACEROUTE_NET") == "" {
 		t.Skip("set TRACEROUTE_NET=1 to run traceroute tests against the network")

@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"runtime"
 	"testing"
 	"time"
 
@@ -47,6 +48,9 @@ func TestICMPPacketConnIsNotNetConn(t *testing.T) {
 // TestSetTTLViaIPv4PacketConn exercises the accessor traceICMP relies on, which
 // is the call that previously panicked.
 func TestSetTTLViaIPv4PacketConn(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("datagram ICMP sockets do not exist on Windows; the native traceroute path does not use them")
+	}
 	// "udp4" is the unprivileged ICMP socket flavor; raw "ip4:icmp" needs root.
 	conn, err := icmp.ListenPacket("udp4", "0.0.0.0")
 	if err != nil {

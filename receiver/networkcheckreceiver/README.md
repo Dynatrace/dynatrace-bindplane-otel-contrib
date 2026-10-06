@@ -126,6 +126,15 @@ address `*`, `traceroute.hop.status` 0 and no latency. After
 `max_consecutive_timeouts` such hops in a row the trace stops early instead
 of probing up to `max_hops`.
 
+Cloud networks hide intermediate hops: from an Azure VM every hop up to the
+destination is silent (twelve of them to 1.1.1.1, the same as `tracert`
+shows), so with the default `max_consecutive_timeouts: 5` a reachable
+destination is reported as not reached and `aborted_early`. On such hosts
+raise `max_consecutive_timeouts` (15, or 0 to disable the early abort) and
+lower `timeout` and `probes_per_hop` to keep the trace inside the cycle
+budget, for example `timeout: 1s`, `probes_per_hop: 1`,
+`max_consecutive_timeouts: 15`.
+
 ### Traces on failure
 
 The `icmp` section's metrics pass through the receiver on their way to the
@@ -287,7 +296,7 @@ One record per completed trace, with the hops in order:
     "traceroute.method": "udp",            // native on Windows
     "traceroute.hop_count": 11,
     "traceroute.hops_answered": 8,
-    "traceroute.hops_retried": 1,
+    "traceroute.hops_retried": 1,   // hops that answered only after a retry
     "traceroute.reached_dest": true,
     "traceroute.aborted_early": false,
     "dns.server": "192.0.2.53"             // only when the target sets dns_server
@@ -310,6 +319,7 @@ no route) ends the trace: the record carries `traceroute.unreachable: true`,
 
 Hops that never answered have `timed_out: true`, address `*` and no
 `rtt_ms`. `probes` above 1 means the hop answered only after a retry, which
-tells a rate-limiting router from a silent one. `traceroute.aborted_early`
+tells a rate-limiting router from a silent one; `traceroute.hops_retried`
+counts those hops, not the silent ones. `traceroute.aborted_early`
 tells a path cut short by `max_consecutive_timeouts` from a short one. A
 trace that could not run produces no record.
