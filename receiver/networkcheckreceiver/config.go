@@ -200,8 +200,8 @@ func (c *Config) Validate() error {
 	// the next.
 	if c.Jitter < 0 {
 		errs = multierr.Append(errs, errors.New("jitter must be >= 0"))
-	} else if interval > 0 && c.Jitter >= interval {
-		errs = multierr.Append(errs, errors.New("jitter must be less than collection_interval"))
+	} else if interval > 0 && c.Jitter > interval/2 {
+		errs = multierr.Append(errs, errors.New("jitter must be at most half of collection_interval; the delay counts against the probe cycle budget"))
 	}
 
 	if c.Traceroute.Enabled {

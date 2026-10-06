@@ -202,7 +202,8 @@ targets, or the current batch when `batch_size` is set). Up to
 at most 4 traceroutes are in flight at once.
 
 A cycle has a budget of `collection_interval` minus 10%, measured from when
-the cycle was requested, so the `jitter` delay counts against it. A target
+the cycle was requested, so the `jitter` delay counts against it; `jitter` must be
+at most half of `collection_interval`, and the startup estimate includes it. A target
 that has not been probed when the budget runs out, or whose probe returns
 after it, is skipped for that cycle: it emits no metrics, no log record and no
 error, which leaves a gap in its series rather than reporting it down, and the

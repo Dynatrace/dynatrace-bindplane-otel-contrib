@@ -102,7 +102,7 @@ func (s *networkCheckLogsScraper) render(cycle *probeCycle) (plog.Logs, error) {
 		}
 		if res.traced && len(res.trace.Hops) > 0 {
 			rec := plog.NewLogRecord()
-			buildTracerouteLogRecord(rec, ts, res.trace, res.startedAt, observed, s.cfg.Logs)
+			buildTracerouteLogRecord(rec, ts, res.trace, res.traceTime(), observed, s.cfg.Logs)
 			s.lb.AppendLogRecord(rec)
 		}
 

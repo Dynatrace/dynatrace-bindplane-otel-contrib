@@ -56,6 +56,9 @@ func TestRedactEndpoint(t *testing.T) {
 		// An "@" outside userinfo used to fall into the truncation branch and
 		// rewrite the endpoint to a different host: https://b.c, https://alice.
 		{"at in query", "https://h.example/?e=a@b.c", "https://h.example/?e=a@b.c"},
+		{"schemeless at in query", "example.com/search?email=a@b.c", "example.com/search?email=a@b.c"},
+		{"schemeless at in path", "localhost:8080/@alice", "localhost:8080/@alice"},
+		{"schemeless credentials with path", "user:pw@host/path", "host/path"},
 		{"at in path", "https://h.example/p@x", "https://h.example/p@x"},
 		{"mastodon-style path", "https://mastodon.example/@alice", "https://mastodon.example/@alice"},
 		{"at in fragment", "https://h.example/#f@g", "https://h.example/#f@g"},

@@ -160,8 +160,8 @@ func TestValidateTargetTimeout(t *testing.T) {
 func TestValidateJitter(t *testing.T) {
 	runValidateCases(t, []validateCase{
 		{"0", func(c *Config) { c.Jitter = 0 }, ""},
-		{"just below interval", func(c *Config) { c.Jitter = c.CollectionInterval - time.Millisecond }, ""},
-		{"equal to interval", func(c *Config) { c.Jitter = c.CollectionInterval }, "jitter must be less than collection_interval"},
+		{"half of interval", func(c *Config) { c.Jitter = c.CollectionInterval / 2 }, ""},
+		{"above half of interval", func(c *Config) { c.Jitter = c.CollectionInterval/2 + time.Millisecond }, "jitter must be at most half of collection_interval"},
 		{"negative", func(c *Config) { c.Jitter = -1 }, "jitter must be >= 0"},
 	})
 }

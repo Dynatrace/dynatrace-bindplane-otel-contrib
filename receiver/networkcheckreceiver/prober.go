@@ -63,6 +63,19 @@ type targetResult struct {
 	traced   bool
 	trace    TraceResult
 	traceErr error
+
+	// traceStartedAt is when the traceroute began. It runs after the ping and
+	// possibly after a wait for a trace slot, so its telemetry is stamped
+	// with its own start rather than the ping's.
+	traceStartedAt time.Time
+}
+
+// traceTime is the timestamp for a result's traceroute telemetry.
+func (r targetResult) traceTime() time.Time {
+	if r.traceStartedAt.IsZero() {
+		return r.startedAt
+	}
+	return r.traceStartedAt
 }
 
 // probeCycle is one pass over the active batch of targets. Both the metrics and
@@ -148,20 +161,11 @@ func newSharedProber(cfg *Config, settings receiver.Settings) *sharedProber {
 // stop cancels the in-flight cycle, if any, and makes every later cycle return
 // immediately with all targets skipped. Idempotent.
 func (p *sharedProber) stop() {
-	if p.stopFn != nil {
-		p.stopFn()
-	}
+	p.stopFn()
 }
 
 func (p *sharedProber) stopped() bool {
-	return p.stopCtx != nil && p.stopCtx.Err() != nil
-}
-
-func (p *sharedProber) stopContext() context.Context {
-	if p.stopCtx == nil {
-		return context.Background()
-	}
-	return p.stopCtx
+	return p.stopCtx.Err() != nil
 }
 
 var (
@@ -181,7 +185,7 @@ func acquireProber(id component.ID, cfg *Config, settings receiver.Settings) *sh
 	defer proberRegistryMu.Unlock()
 
 	if e, ok := proberRegistry[id]; ok {
-		if e.prober.cfg == cfg {
+		if e.prober.cfg == cfg && !e.prober.stopped() {
 			e.refs++
 			return e.prober
 		}
@@ -439,7 +443,8 @@ func worstCaseCycle(cfg *Config) time.Duration {
 		traceWaves := (n + maxConcurrentTraces - 1) / maxConcurrentTraces
 		est += time.Duration(traceWaves) * time.Duration(probes*silent) * orDefault(tr.Timeout, 3*time.Second)
 	}
-	return est
+	// The jitter delay is charged against the same budget.
+	return est + cfg.Jitter
 }
 
 // latestCycle returns the probe cycle that describes "now" for the caller.
@@ -469,12 +474,10 @@ func (p *sharedProber) latestCycle(ctx context.Context, maxAge time.Duration) *p
 		done := make(chan struct{})
 		p.inflight = done
 		batch := p.activeBatch()
+		windowed := p.cfg.BatchSize > 0 && p.cfg.BatchSize < len(p.targets)
 		start := 0
-		if len(batch) > 0 {
+		if !windowed && len(batch) > 0 {
 			start = p.probeStart % len(batch)
-		}
-		if p.cfg.BatchSize > 0 && len(p.targets) > 0 {
-			p.batchOffset = (p.batchOffset + len(batch)) % len(p.targets)
 		}
 		p.mu.Unlock()
 
@@ -484,7 +487,17 @@ func (p *sharedProber) latestCycle(ctx context.Context, maxAge time.Duration) *p
 		p.last = cycle
 		p.cycles++
 		p.inflight = nil
-		if firstSkipped >= 0 {
+		switch {
+		case windowed:
+			// The window advances past the targets that were probed, so a
+			// skipped tail is the head of the next window instead of waiting
+			// for the window to come round again.
+			advance := len(batch)
+			if firstSkipped >= 0 {
+				advance = firstSkipped
+			}
+			p.batchOffset = (p.batchOffset + advance) % len(p.targets)
+		case firstSkipped >= 0:
 			p.probeStart = (start + firstSkipped) % len(batch)
 		}
 		close(done)
@@ -503,7 +516,7 @@ func (p *sharedProber) cycleContext(ctx context.Context, requestedAt time.Time) 
 		cancel()
 		return cctx, cancel
 	}
-	unlink := context.AfterFunc(p.stopContext(), cancel)
+	unlink := context.AfterFunc(p.stopCtx, cancel)
 	if budget := p.cycleMaxAge(); budget > 0 {
 		var cancelDeadline context.CancelFunc
 		cctx, cancelDeadline = context.WithDeadline(cctx, requestedAt.Add(budget))
@@ -520,11 +533,6 @@ func (p *sharedProber) runCycle(ctx context.Context, batch []*targetState, start
 	cctx, cancel := p.cycleContext(ctx, requestedAt)
 	defer cancel()
 
-	if p.traceSem == nil {
-		// Only the cycle runner reaches here, so this cannot race.
-		p.traceSem = make(chan struct{}, maxConcurrentTraces)
-	}
-
 	cycle := &probeCycle{requestedAt: requestedAt, results: make([]targetResult, len(batch))}
 	for i, ts := range batch {
 		cycle.results[i] = targetResult{target: ts, skipped: true}
@@ -532,9 +540,11 @@ func (p *sharedProber) runCycle(ctx context.Context, batch []*targetState, start
 
 	if p.cfg.Jitter > 0 {
 		delay := time.Duration(rand.Int64N(int64(p.cfg.Jitter))) // #nosec G404 -- jitter is not security-sensitive
+		timer := time.NewTimer(delay)
 		select {
 		case <-cctx.Done():
-		case <-time.After(delay):
+			timer.Stop()
+		case <-timer.C:
 		}
 	}
 	cycle.at = time.Now()
@@ -553,8 +563,9 @@ probing:
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer func() { <-sem }()
-			cycle.results[i] = p.probeTarget(cctx, batch[i])
+			release := sync.OnceFunc(func() { <-sem })
+			defer release()
+			cycle.results[i] = p.probeTarget(cctx, batch[i], release)
 		}()
 	}
 	wg.Wait()
@@ -583,8 +594,10 @@ probing:
 
 // probeTarget runs one target's ping and, when due, its traceroute. A probe
 // that is still running when ctx ends is reported as skipped rather than as a
-// failure: the target did not fail, the cycle ran out of time.
-func (p *sharedProber) probeTarget(ctx context.Context, ts *targetState) targetResult {
+// failure: the target did not fail, the cycle ran out of time. releaseSlot
+// gives the probe-concurrency slot back; it is called as soon as the ping is
+// done so that waiting for a trace slot never holds up other pings.
+func (p *sharedProber) probeTarget(ctx context.Context, ts *targetState, releaseSlot func()) targetResult {
 	tr := targetResult{target: ts, startedAt: time.Now()}
 	if ctx.Err() != nil {
 		tr.skipped = true
@@ -592,6 +605,7 @@ func (p *sharedProber) probeTarget(ctx context.Context, ts *targetState) targetR
 	}
 
 	tr.ping, tr.pingErr = ts.p.ping(ctx)
+	releaseSlot()
 	if ctx.Err() != nil {
 		return targetResult{target: ts, startedAt: tr.startedAt, skipped: true}
 	}
@@ -609,6 +623,7 @@ func (p *sharedProber) probeTarget(ctx context.Context, ts *targetState) targetR
 		return tr
 	case p.traceSem <- struct{}{}:
 	}
+	tr.traceStartedAt = time.Now()
 	trace, traceErr := ts.tr.trace(ctx)
 	<-p.traceSem
 	if ctxDone(ctx) {

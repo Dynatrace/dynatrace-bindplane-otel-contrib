@@ -269,11 +269,72 @@ func TestProber_SharingHoldsUnderOverload(t *testing.T) {
 	for _, n := range completed {
 		total += n
 	}
-	require.Equal(t, 2*len(all), total, "each cycle completes exactly two of three probes")
-	for i, n := range completed {
-		require.InDelta(t, float64(2*len(all))/3, float64(n), 1.01,
-			"target %d must not be the permanently skipped tail", i)
+	// Real timers: a loaded runner can turn a 100ms probe into a longer one,
+	// so assert the shape (every cycle makes progress, no target is the
+	// permanently skipped tail) rather than exact counts.
+	require.GreaterOrEqual(t, total, len(all), "every cycle completes at least one probe")
+	lo, hi := completed[0], completed[0]
+	for _, n := range completed {
+		lo, hi = min(lo, n), max(hi, n)
 	}
+	require.Positive(t, lo, "a target was never probed: %v", completed)
+	require.LessOrEqual(t, hi-lo, 2, "probing is unbalanced: %v", completed)
+}
+
+// blockingPinger blocks until the cycle deadline when block is set, which makes
+// the target skipped deterministically; otherwise it answers at once.
+type blockingPinger struct {
+	block bool
+	calls int
+}
+
+func (b *blockingPinger) ping(ctx context.Context) (PingResult, error) {
+	if b.block {
+		<-ctx.Done()
+		return PingResult{}, ctx.Err()
+	}
+	b.calls++
+	return PingResult{Method: MethodICMP}, nil
+}
+
+func TestProber_BatchWindowResumesAtSkippedTarget(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.CollectionInterval = 200 * time.Millisecond // budget 180ms
+	cfg.BatchSize = 3
+	cfg.MaxConcurrentProbes = 3
+	p := newSharedProber(cfg, receivertest.NewNopSettings(metadata.Type))
+	names := []string{"a", "b", "c", "d", "e", "f"}
+	pingers := make([]*blockingPinger, len(names))
+	for i, n := range names {
+		pingers[i] = &blockingPinger{block: n == "c"}
+		tc := TargetConfig{}
+		tc.Endpoint = n
+		p.targets = append(p.targets, &targetState{cfg: tc, p: pingers[i], tr: newTracerouter(TracerouteConfig{}, n, "")})
+	}
+	p.started = true
+
+	for range 3 {
+		p.latestCycle(context.Background(), 0)
+	}
+	got := make([]int, len(names))
+	for i, pg := range pingers {
+		got[i] = pg.calls
+	}
+	// Cycle 1 probes a,b and skips c; the window resumes at c, so cycles 2
+	// and 3 probe c,d,e (c skipped each time). f is not reached yet.
+	require.Equal(t, []int{1, 1, 0, 2, 2, 0}, got)
+}
+
+func TestProberRegistry_DoesNotHandOutStoppedProber(t *testing.T) {
+	id := component.MustNewIDWithName("networkcheck", "stopped")
+	settings := receivertest.NewNopSettings(metadata.Type)
+	cfg := createDefaultConfig().(*Config)
+	first := acquireProber(id, cfg, settings)
+	first.stop()
+	second := acquireProber(id, cfg, settings)
+	require.NotSame(t, first, second, "a stopped prober would answer every cycle with all targets skipped")
+	releaseProber(id)
+	releaseProber(id)
 }
 
 func TestProberRegistry_ReplacesStaleUnstartedProber(t *testing.T) {

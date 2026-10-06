@@ -106,6 +106,7 @@ func (s *networkCheckScraper) render(cycle *probeCycle) (pmetric.Metrics, error)
 		// seconds, so one cycle-wide timestamp misplaces every target but the
 		// first.
 		now := pcommon.NewTimestampFromTime(res.startedAt)
+		traceNow := pcommon.NewTimestampFromTime(res.traceTime())
 
 		s.rb.SetTargetEndpoint(endpoint)
 		s.recordMetrics(now, ts, res.ping)
@@ -127,7 +128,7 @@ func (s *networkCheckScraper) render(cycle *probeCycle) (pmetric.Metrics, error)
 					status = 0
 				}
 				s.mb.RecordNetworkTracerouteHopStatusDataPoint(
-					now,
+					traceNow,
 					status,
 					int64(hop.Index),
 					hop.Address,
@@ -141,7 +142,7 @@ func (s *networkCheckScraper) render(cycle *probeCycle) (pmetric.Metrics, error)
 					continue
 				}
 				s.mb.RecordNetworkTracerouteHopLatencyDataPoint(
-					now,
+					traceNow,
 					msFloat(hop.RTT),
 					int64(hop.Index),
 					hop.Address,

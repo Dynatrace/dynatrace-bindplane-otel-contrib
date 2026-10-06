@@ -45,9 +45,21 @@ func redactEndpoint(endpoint string) string {
 		u.User = nil
 		return u.String()
 	}
-	// Unparseable, or no authority to take userinfo from (a bare
-	// "user:pass@host" parses as scheme "user" with an opaque rest): drop
-	// everything up to the last "@" rather than risk emitting a credential.
+	if !strings.Contains(endpoint, "://") {
+		// Schemeless input (an icmp or dns host, or an http target given
+		// without a scheme) parses with no authority. Give it one the way the
+		// prober does, so an "@" in its path or query is told apart from
+		// userinfo, and return the result without the prefix.
+		if u, err := url.Parse("http://" + endpoint); err == nil && u.Host != "" {
+			if u.User == nil {
+				return endpoint
+			}
+			u.User = nil
+			return strings.TrimPrefix(u.String(), "http://")
+		}
+	}
+	// Unparseable, or no authority to take userinfo from: drop everything up
+	// to the last "@" rather than risk emitting a credential.
 	i := strings.LastIndex(endpoint, "@")
 	if scheme := strings.Index(endpoint, "://"); scheme >= 0 && scheme < i {
 		return endpoint[:scheme+3] + endpoint[i+1:]
