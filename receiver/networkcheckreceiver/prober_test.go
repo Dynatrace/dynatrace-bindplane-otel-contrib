@@ -197,8 +197,12 @@ func TestProber_JitterDoesNotConsumeFreshnessBudget(t *testing.T) {
 	p := newStubProber(t, 200*time.Millisecond, 1, s)
 	p.cfg.Jitter = 100 * time.Millisecond
 
+	// Measured from before the first call: if freshness were measured after
+	// the jitter wait, the second call would still find the first cycle
+	// fresh and reuse it.
+	start := time.Now()
 	first := p.latestCycle(context.Background(), p.cycleMaxAge())
-	time.Sleep(p.cycleMaxAge() + 20*time.Millisecond)
+	time.Sleep(time.Until(start.Add(p.cfg.CollectionInterval + 20*time.Millisecond)))
 	second := p.latestCycle(context.Background(), p.cycleMaxAge())
 	require.NotSame(t, first, second)
 	require.EqualValues(t, 2, s.calls.Load())

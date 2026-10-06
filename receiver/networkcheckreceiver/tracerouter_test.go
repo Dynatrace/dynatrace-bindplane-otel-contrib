@@ -448,3 +448,16 @@ func TestWalkStopsAtUnreachable(t *testing.T) {
 	require.Equal(t, "10.0.0.2", res.Hops[1].Address)
 	require.False(t, res.Hops[1].TimedOut)
 }
+
+// A router that cannot forward the probe answers destination unreachable,
+// which ends the path but is not the destination answering, even when a
+// probe mechanism reports it as "reached".
+func TestWalkRouterUnreachableIsNotReached(t *testing.T) {
+	tr := newTracerouter(defaultTracerouteConfig(), "192.0.2.1", "")
+	res, err := tr.walk(context.Background(), "192.0.2.1", func(int, time.Time) (string, bool, time.Duration, error) {
+		return "10.0.0.1", true, time.Millisecond, nil
+	})
+	require.NoError(t, err)
+	require.False(t, res.Reached)
+	require.Len(t, res.Hops, 1, "the unreachable ends the walk")
+}

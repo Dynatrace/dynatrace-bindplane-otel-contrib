@@ -455,7 +455,10 @@ func (t *tracerouter) walk(ctx context.Context, dest string, probe probeFunc) (T
 		})
 
 		if reached || from == dest {
-			res.Reached = true
+			// Reached only when the destination itself answered: a probe
+			// mechanism that misreads a router's answer as "arrived" must not
+			// mark the path complete.
+			res.Reached = from == dest
 			break
 		}
 	}
