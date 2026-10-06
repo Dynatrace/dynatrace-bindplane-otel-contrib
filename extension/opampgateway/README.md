@@ -142,6 +142,26 @@ status code and optional response headers.
 If the upstream server does not respond within 30 seconds, the agent receives a
 `504 Gateway Timeout`.
 
+## Chaining Gateways
+
+The `server.endpoint` of a gateway can point at another gateway's
+`listener.endpoint` instead of the OpAMP server, so agents can connect through
+any number of gateways:
+
+```
+agent -> gateway C -> gateway B -> gateway A -> OpAMP server
+```
+
+Each gateway authenticates its own agents by sending an `OpampGatewayConnect`
+message upstream. That message is created by the gateway rather than by an
+agent, so it has no `instance_uid`. A gateway that receives such a message from
+a downstream gateway relays it unchanged toward the OpAMP server and routes the
+matching `OpampGatewayConnectResult` back to the gateway that sent it, using the
+`request_uid` in the message. The OpAMP server therefore makes the accept or
+reject decision for every agent, no matter how many gateways are in between.
+
+Messages that carry an `instance_uid` are routed by agent ID as usual.
+
 ## Telemetry
 
 The extension emits the following metrics, all tagged with a `direction`

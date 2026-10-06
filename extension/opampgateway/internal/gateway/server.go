@@ -74,6 +74,10 @@ type server struct {
 
 	// pendingAuthRequests tracks pending authentication requests awaiting responses
 	pendingAuthRequests *authRequests
+
+	// chainedConnects tracks authentication requests relayed on behalf of downstream
+	// gateways, so their results can be routed back to the gateway that asked.
+	chainedConnects *chainedConnects
 }
 
 var (
@@ -98,6 +102,7 @@ func newServer(serverConfig confighttp.ServerConfig, authTimeout time.Duration, 
 		shutdownCancel:             cancel,
 		telemetry:                  telemetry,
 		pendingAuthRequests:        newAuthRequests(),
+		chainedConnects:            newChainedConnects(),
 	}
 }
 
@@ -109,6 +114,7 @@ func (s *server) Start(ctx context.Context, host component.Host, telemetrySettin
 	s.agentConnections = newConnections[*downstreamConnection]()
 	s.downstreamConnections = newConnections[*downstreamConnection]()
 	s.pendingAuthRequests = newAuthRequests()
+	s.chainedConnects = newChainedConnects()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(handlePath, s.handleRequest)
@@ -207,6 +213,7 @@ func (s *server) getDownstreamConnection(connectionID string) (*downstreamConnec
 func (s *server) removeDownstreamConnection(conn *downstreamConnection) {
 	s.downstreamConnections.remove(conn.id)
 	s.agentConnections.removeByValue(conn)
+	s.chainedConnects.removeConnection(conn)
 }
 
 func (s *server) closeDownstreamConnections(downstreamConnectionIDs []string) {
