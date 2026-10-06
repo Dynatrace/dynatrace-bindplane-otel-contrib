@@ -175,7 +175,7 @@ func TestProber_StopCutsInflightCycle(t *testing.T) {
 func TestProber_JitterInterruptedByStop(t *testing.T) {
 	s := &stubTrace{d: time.Millisecond}
 	p := newStubProber(t, time.Hour, 1, s)
-	p.cfg.Jitter = 10 * time.Second
+	p.cfg.Jitter = time.Hour // never elapses: the stop must be what ends the wait
 
 	done := make(chan *traceCycle, 1)
 	go func() { done <- p.latestCycle(context.Background(), p.cycleMaxAge()) }()

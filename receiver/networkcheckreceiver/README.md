@@ -68,7 +68,7 @@ receivers:
       schedule: true               # false: trace only on failure.
       method: udp                  # udp or icmp. Ignored on Windows.
       max_hops: 30                 # 1-255.
-      timeout: 3s                  # Per probe. At most collection_interval.
+      timeout: 3s                  # Per probe. At most collection_interval when targets are scheduled.
       probes_per_hop: 3            # 1-10. Stops at the first reply.
       max_consecutive_timeouts: 5  # Give up after this many silent hops in a row; 0 = never.
       max_concurrent_traces: 4     # 1-64, scheduled and triggered traces together.
@@ -101,7 +101,8 @@ section's key, for example `http::targets::0: ...`. On top of those:
 
 - At least one section is required.
 - `traceroute` needs targets, or `on_failure` enabled. `on_failure` needs an
-  `icmp` section with its `ping.loss.ratio` metric enabled.
+  `icmp` section with its `ping.loss.ratio` metric and `net.peer.name`
+  resource attribute enabled.
 - Traceroute targets reject a scheme, port, path or userinfo in `host`.
   Bounds are as commented above; `loss_threshold` is 0-100,
   `retrace_every`, `max_hosts` and `timeout` must be positive.
@@ -152,7 +153,10 @@ icmp_check reports as a percentage (0-100), and the host as configured
 - Triggered and scheduled traces share `max_concurrent_traces`. A triggered
   trace waits for a slot and, with the wait, is bounded by
   `on_failure.timeout`. A trace that does not finish in time emits nothing and
-  logs a warning.
+  logs a warning. At startup the receiver warns when one trace into a path
+  that stops answering (`probes_per_hop` × `timeout` ×
+  `max_consecutive_timeouts`, or `max_hops` when that is 0) exceeds
+  `on_failure.timeout`.
 - At most `max_hosts` failing hosts are tracked; further failing hosts are not
   traced until one recovers, and a warning is logged once.
 
@@ -199,7 +203,8 @@ A receiver in both a metrics and a logs pipeline traces each target once per
 cycle; both signals describe the same trace.
 
 Shutdown cancels traces in flight, scheduled and triggered, and waits only
-as long as a probe takes to notice.
+as long as a probe takes to notice. Shutdown also waits for an icmp round already in flight in the
+upstream child, up to its `ping_timeout` (5 s by default).
 
 ## Privileges
 

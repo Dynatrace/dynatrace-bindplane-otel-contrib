@@ -223,6 +223,13 @@ func (p *sharedProber) start() {
 	}
 	p.started = true
 
+	if of := p.cfg.OnFailure; of.Enabled && worstCaseTrace(p.cfg) > of.Timeout {
+		p.logger.Warn("a triggered trace into a path that stops answering cannot finish within on_failure.timeout and will emit nothing",
+			zap.Duration("worst_case_trace", worstCaseTrace(p.cfg)),
+			zap.Duration("on_failure_timeout", of.Timeout),
+			zap.String("hint", "raise on_failure.timeout, or lower timeout, probes_per_hop or max_consecutive_timeouts"),
+		)
+	}
 	if est, budget := worstCaseCycle(p.cfg), p.cycleMaxAge(); budget > 0 && est > budget {
 		p.logger.Warn("worst-case trace cycle exceeds the collection interval; targets will be skipped on cycles where traces run into silent hops",
 			zap.Duration("worst_case_cycle", est),
@@ -260,15 +267,22 @@ func worstCaseCycle(cfg *TracerouteConfig) time.Duration {
 	if n == 0 {
 		return 0
 	}
+	limit := traceLimit(cfg)
+	waves := (n + limit - 1) / limit
+	// The jitter delay is charged against the same budget.
+	return time.Duration(waves)*worstCaseTrace(cfg) + cfg.Jitter
+}
+
+// worstCaseTrace is how long one trace takes when the path stops answering:
+// probes_per_hop × timeout for every silent hop up to the early abort, or up
+// to max_hops when the abort is disabled.
+func worstCaseTrace(cfg *TracerouteConfig) time.Duration {
 	t := newTracerouter(cfg, "", "")
 	silent := t.abortAfter()
 	if silent == 0 || silent > t.maxHops() {
 		silent = t.maxHops()
 	}
-	limit := traceLimit(cfg)
-	waves := (n + limit - 1) / limit
-	// The jitter delay is charged against the same budget.
-	return time.Duration(waves*t.probesPerHop()*silent)*t.hopTimeout() + cfg.Jitter
+	return time.Duration(t.probesPerHop()*silent) * t.hopTimeout()
 }
 
 // latestCycle returns the cycle that describes "now" for the caller. A caller

@@ -238,6 +238,9 @@ func (c *Config) Validate() error {
 	if !c.ICMP.MetricsBuilderConfig.Metrics.PingLossRatio.Enabled {
 		return errors.New("traceroute::on_failure::enabled requires the icmp section's ping.loss.ratio metric, which it reads to find failing hosts")
 	}
+	if !c.ICMP.MetricsBuilderConfig.ResourceAttributes.NetPeerName.Enabled {
+		return errors.New("traceroute::on_failure::enabled requires the icmp section's net.peer.name resource attribute, which names the failing host")
+	}
 	return nil
 }
 
@@ -245,9 +248,11 @@ func (c *Config) Validate() error {
 // first.
 func (c *TracerouteConfig) Validate() error {
 	var errs error
+	// The interval paces scheduled traces only; trigger-only ignores it.
 	interval := c.CollectionInterval
-
-	if interval <= 0 {
+	if !c.scheduled() {
+		interval = 0
+	} else if interval <= 0 {
 		errs = multierr.Append(errs, errors.New("collection_interval must be > 0"))
 	}
 	if c.InitialDelay < 0 {

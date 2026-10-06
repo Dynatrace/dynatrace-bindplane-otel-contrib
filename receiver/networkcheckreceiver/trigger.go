@@ -102,6 +102,15 @@ func (t *triggerConsumer) Capabilities() consumer.Capabilities {
 // ConsumeMetrics reads the batch before handing it on: once forwarded, the
 // pipeline owns it.
 func (t *triggerConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics) error {
+	// Read before forwarding: once forwarded, the pipeline owns the batch. A
+	// host listed twice in one batch is one observation, its worst loss, so
+	// duplicate icmp targets do not double-count the streak.
+	type seen struct {
+		ip   string
+		loss float64
+	}
+	hosts := map[string]seen{}
+	var order []string
 	rms := md.ResourceMetrics()
 	for i := range rms.Len() {
 		rm := rms.At(i)
@@ -110,12 +119,27 @@ func (t *triggerConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics
 		if !ok || name.Str() == "" {
 			continue
 		}
-		if loss, ok := lossPercent(rm); ok {
-			ip, _ := attrs.Get(peerIPAttr)
-			t.observe(name.Str(), ip.Str(), loss >= t.cfg.OnFailure.LossThreshold)
+		loss, ok := lossPercent(rm)
+		if !ok {
+			continue
+		}
+		ip, _ := attrs.Get(peerIPAttr)
+		prev, known := hosts[name.Str()]
+		if !known {
+			order = append(order, name.Str())
+		}
+		if !known || loss > prev.loss {
+			hosts[name.Str()] = seen{ip: ip.Str(), loss: loss}
 		}
 	}
-	return t.next.ConsumeMetrics(ctx, md)
+	// Forward first so a triggered trace never reaches the pipeline ahead of
+	// the icmp batch that caused it.
+	err := t.next.ConsumeMetrics(ctx, md)
+	for _, host := range order {
+		s := hosts[host]
+		t.observe(host, s.ip, s.loss >= t.cfg.OnFailure.LossThreshold)
+	}
+	return err
 }
 
 // lossPercent returns the last ping.loss.ratio data point of a resource.
@@ -213,8 +237,9 @@ func (t *triggerConsumer) run(host, ip string, st *hostState) {
 	}
 	defer func() { <-t.prober.sem }()
 	// The slot and the deadline can arrive together; a trace with no time
-	// left would only log that it did not finish.
-	if ctx.Err() != nil {
+	// left would only log that it did not finish. The stop context's children
+	// are cancelled a moment after it, so the prober is asked as well.
+	if ctx.Err() != nil || t.prober.stopped() {
 		if !t.prober.stopped() {
 			t.warnNoSlot(host)
 		}

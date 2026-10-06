@@ -235,6 +235,8 @@ func (r *networkCheck) Shutdown(ctx context.Context) error {
 			errs = errors.Join(errs, fmt.Errorf("stopping the %s section: %w", s.name, err))
 		}
 	}
+	// A second Shutdown must be a no-op; scraperhelper's panics.
+	r.sections = nil
 	if r.prober != nil {
 		releaseProber(r.id)
 		r.prober = nil
