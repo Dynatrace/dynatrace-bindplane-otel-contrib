@@ -82,7 +82,7 @@ func probeRecvErr(ctx context.Context, raddr *net.UDPAddr, ttl int, deadline tim
 	}
 	var waitErr error
 	if err := raw.Control(func(fd uintptr) {
-		from, reached, waitErr = awaitErrQueue(ctx, int(fd), deadline)
+		from, reached, waitErr = awaitErrQueue(ctx, int(fd), deadline, raddr.IP)
 	}); err != nil {
 		return "", false, 0, err
 	}
@@ -100,14 +100,17 @@ const pollSlice = 50 * time.Millisecond
 // Only POLLERR is waited for (it is always reported, so the event mask is
 // empty). A UDP reply from the destination is ignored, as it is on the raw
 // socket path: nothing normally listens on the traceroute port.
-func awaitErrQueue(ctx context.Context, fd int, deadline time.Time) (from string, reached bool, err error) {
+func awaitErrQueue(ctx context.Context, fd int, deadline time.Time, dest net.IP) (from string, reached bool, err error) {
 	buf := make([]byte, 64) // receives the quoted probe, which is not needed
 	oob := make([]byte, unix.CmsgSpace(64))
 	fds := []unix.PollFd{{Fd: int32(fd)}} // #nosec G115 -- a file descriptor fits in int32
 	for {
 		_, oobn, _, _, recvErr := unix.Recvmsg(fd, buf, oob, unix.MSG_ERRQUEUE|unix.MSG_DONTWAIT)
 		if recvErr == nil {
-			if from, reached, ok := parseRecvErr(oob[:oobn]); ok {
+			if from, reached, unreachable, ok := parseRecvErr(oob[:oobn], dest); ok {
+				if unreachable {
+					return from, false, errUnreachable
+				}
 				return from, reached, nil
 			}
 			continue // a local error rather than an ICMP one; read the next
@@ -131,28 +134,32 @@ func awaitErrQueue(ctx context.Context, fd int, deadline time.Time) (from string
 // payload is a struct sock_extended_err (errno u32, origin u8, type u8, code
 // u8, pad u8, info u32, data u32) followed by the offender: the struct
 // sockaddr_in of the host that sent the ICMP error.
-func parseRecvErr(oob []byte) (from string, reached bool, ok bool) {
+func parseRecvErr(oob []byte, dest net.IP) (from string, reached, unreachable, ok bool) {
 	msgs, err := unix.ParseSocketControlMessage(oob)
 	if err != nil {
-		return "", false, false
+		return "", false, false, false
 	}
 	for _, m := range msgs {
 		if m.Header.Level != unix.SOL_IP || m.Header.Type != unix.IP_RECVERR || len(m.Data) < 24 {
 			continue
 		}
-		origin, icmpType := m.Data[4], ipv4.ICMPType(m.Data[5])
+		origin, icmpType, icmpCode := m.Data[4], ipv4.ICMPType(m.Data[5]), m.Data[6]
 		family := binary.NativeEndian.Uint16(m.Data[16:18])
 		if origin != unix.SO_EE_ORIGIN_ICMP || family != unix.AF_INET {
 			continue
 		}
-		addr := net.IP(m.Data[20:24]).String()
+		offender := net.IP(m.Data[20:24])
 		switch icmpType {
 		case ipv4.ICMPTypeTimeExceeded:
-			return addr, false, true
+			return offender.String(), false, false, true
 		case ipv4.ICMPTypeDestinationUnreachable:
-			// Port unreachable from the destination: the probe arrived.
-			return addr, true, true
+			// Only port unreachable (code 3) from the destination means the
+			// probe arrived. Anything else ends the path at the sender.
+			if icmpCode == 3 && offender.Equal(dest) {
+				return offender.String(), true, false, true
+			}
+			return offender.String(), false, true, true
 		}
 	}
-	return "", false, false
+	return "", false, false, false
 }

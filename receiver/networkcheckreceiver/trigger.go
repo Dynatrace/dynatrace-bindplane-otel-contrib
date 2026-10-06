@@ -55,6 +55,24 @@ type triggerConsumer struct {
 
 	// warnedFull rate-limits the max_hosts warning to once per receiver.
 	warnedFull bool
+
+	// lastSlotWarn rate-limits the no-slot warning to once a minute: under a
+	// storm of failing hosts every one of them would otherwise log it.
+	lastSlotWarn time.Time
+}
+
+// warnNoSlot reports a triggered trace given up because no trace slot came
+// free within on_failure.timeout, at most once a minute.
+func (t *triggerConsumer) warnNoSlot(host string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if time.Since(t.lastSlotWarn) < time.Minute {
+		return
+	}
+	t.lastSlotWarn = time.Now()
+	t.settings.Logger.Warn("no trace slot came free within on_failure.timeout; triggered traceroutes are being skipped",
+		zap.String("host", host), zap.Int("max_concurrent_traces", t.cfg.MaxConcurrentTraces),
+		zap.Duration("timeout", t.cfg.OnFailure.Timeout))
 }
 
 // hostState is a failing host. It is dropped when the host passes and no
@@ -188,10 +206,20 @@ func (t *triggerConsumer) run(host, ip string, st *hostState) {
 	select {
 	case t.prober.sem <- struct{}{}:
 	case <-ctx.Done():
-		logger.Debug("no trace slot free within on_failure.timeout; skipping triggered traceroute")
+		if !t.prober.stopped() {
+			t.warnNoSlot(host)
+		}
 		return
 	}
 	defer func() { <-t.prober.sem }()
+	// The slot and the deadline can arrive together; a trace with no time
+	// left would only log that it did not finish.
+	if ctx.Err() != nil {
+		if !t.prober.stopped() {
+			t.warnNoSlot(host)
+		}
+		return
+	}
 
 	// The address icmp_check pinged, so the trace follows the same path even
 	// when the name resolves to several addresses.

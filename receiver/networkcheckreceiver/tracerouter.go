@@ -203,11 +203,17 @@ func awaitProbeReply(ctx context.Context, conn *icmp.PacketConn, deadline time.T
 				return peerAddr.String(), false, nil
 			}
 		case *icmp.DstUnreach:
-			// The target answering our UDP probe on a closed port means the
-			// probe arrived: the path is complete.
-			if matchesProbe(body.Data, k) {
+			if !matchesProbe(body.Data, k) {
+				continue
+			}
+			// Only the destination answering a UDP probe with port unreachable
+			// (code 3) means the probe arrived. Any other unreachable, or one
+			// sent by a router or by this host for an address with no route,
+			// ends the path short of the destination.
+			if k.udp && msg.Code == 3 && peerAddr.IP.Equal(k.dst) {
 				return peerAddr.String(), true, nil
 			}
+			return peerAddr.String(), false, errUnreachable
 		case *icmp.Echo:
 			if !k.udp && msg.Type == ipv4.ICMPTypeEchoReply &&
 				body.ID == k.echoID && body.Seq == k.echoSeq && peerAddr.IP.Equal(k.dst) {
@@ -253,7 +259,19 @@ type TraceResult struct {
 	// silent hops rather than reaching the destination or the TTL ceiling.
 	// Without this, a truncated path is indistinguishable from a short one.
 	AbortedEarly bool
+
+	// Unreachable is true when a hop answered with an ICMP destination
+	// unreachable that does not mean "arrived": a router reporting the host
+	// or network unreachable or administratively prohibited, or the local
+	// host for an address with no route. The last hop is the one that said
+	// so; the destination was not reached.
+	Unreachable bool
 }
+
+// errUnreachable is returned by a probe whose answer was an ICMP destination
+// unreachable other than the destination's own port unreachable: the path
+// ends at the answering hop.
+var errUnreachable = errors.New("destination unreachable")
 
 // tracerouter traces one target. It is used by one goroutine at a time.
 type tracerouter struct {
@@ -394,6 +412,11 @@ func (t *tracerouter) walk(ctx context.Context, dest string, probe probeFunc) (T
 			probes++
 			var err error
 			from, reached, rtt, err = probe(ttl, t.hopDeadline(ctx))
+			if errors.Is(err, errUnreachable) && from != "" {
+				res.Hops = append(res.Hops, HopResult{Index: ttl, Address: from, RTT: rtt, Probes: probes})
+				res.Unreachable = true
+				return res, nil
+			}
 			if err != nil {
 				return res, err
 			}

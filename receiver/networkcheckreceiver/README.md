@@ -147,6 +147,12 @@ icmp_check reports as a percentage (0-100), and the host as configured
 - At most `max_hosts` failing hosts are tracked; further failing hosts are not
   traced until one recovers, and a warning is logged once.
 
+Trace slots are shared between scheduled and triggered traces and are not
+assigned fairly under sustained contention: with more failing hosts than
+`max_concurrent_traces` can serve inside `on_failure.timeout`, some hosts are
+skipped (a rate-limited warning says so). Raise `max_concurrent_traces` or
+`on_failure.timeout` if that happens.
+
 Triggered traces are emitted as they finish, with `traceroute.trigger:
 ping_failure`, as metrics and, when the receiver is also in a logs pipeline,
 as a log record. Scheduled traces carry `traceroute.trigger: scheduled`.
@@ -295,6 +301,12 @@ One record per completed trace, with the hops in order:
   }
 }
 ```
+
+A hop that answers with an ICMP destination unreachable other than the
+destination's own port unreachable (a router reporting the host or network
+unreachable or administratively prohibited, or this host for an address with
+no route) ends the trace: the record carries `traceroute.unreachable: true`,
+`reached_dest` is false and `traceroute.reached` is 0.
 
 Hops that never answered have `timed_out: true`, address `*` and no
 `rtt_ms`. `probes` above 1 means the hop answered only after a retry, which

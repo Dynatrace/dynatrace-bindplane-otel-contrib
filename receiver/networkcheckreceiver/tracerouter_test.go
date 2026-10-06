@@ -426,3 +426,25 @@ func TestWalkStopsOnProbeError(t *testing.T) {
 	require.ErrorIs(t, err, boom)
 	require.Len(t, res.Hops, 1, "hops gathered before the failure are kept")
 }
+
+func TestWalkStopsAtUnreachable(t *testing.T) {
+	tr := newTracerouter(defaultTracerouteConfig(), "h", "")
+	probe := func(ttl int, _ time.Time) (string, bool, time.Duration, error) {
+		switch ttl {
+		case 1:
+			return "10.0.0.1", false, time.Millisecond, nil
+		case 2:
+			// A router says the network is unreachable: the path ends here.
+			return "10.0.0.2", false, 2 * time.Millisecond, errUnreachable
+		}
+		t.Fatalf("probe sent past the unreachable hop: ttl %d", ttl)
+		return "", false, 0, nil
+	}
+	res, err := tr.walk(context.Background(), "203.0.113.9", probe)
+	require.NoError(t, err)
+	require.True(t, res.Unreachable)
+	require.False(t, res.Reached)
+	require.Len(t, res.Hops, 2)
+	require.Equal(t, "10.0.0.2", res.Hops[1].Address)
+	require.False(t, res.Hops[1].TimedOut)
+}

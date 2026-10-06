@@ -80,6 +80,9 @@ func buildTraceLogRecord(lr plog.LogRecord, t *target, tr TraceResult, trigger m
 	attrs.PutInt("traceroute.hops_retried", int64(retried))
 	attrs.PutBool("traceroute.reached_dest", tr.Reached)
 	attrs.PutBool("traceroute.aborted_early", tr.AbortedEarly)
+	if tr.Unreachable {
+		attrs.PutBool("traceroute.unreachable", true)
+	}
 	if t.dnsServer != "" {
 		attrs.PutStr("dns.server", t.dnsServer)
 	}
