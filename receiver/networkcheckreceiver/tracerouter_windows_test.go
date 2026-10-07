@@ -40,27 +40,29 @@ func TestNativeHop(t *testing.T) {
 		sendErr error
 		reply   icmpEchoReply
 		want    HopResult
-		done    bool
+		outcome nativeOutcome
 		err     error
 	}{
 		{"destination answered", 1, windows.Errno(0), icmpEchoReply{Address: addr("192.0.2.1"), Status: ipSuccess, RoundTripTime: 12},
-			HopResult{Index: 3, Address: "192.0.2.1", RTT: 12 * time.Millisecond, Probes: 2}, true, nil},
+			HopResult{Index: 3, Address: "192.0.2.1", RTT: 12 * time.Millisecond, Probes: 2}, nativeReached, nil},
 		{"ttl expired in transit", 1, windows.Errno(0), icmpEchoReply{Address: addr("10.0.0.1"), Status: ipTTLExpiredTransit, RoundTripTime: 4},
-			HopResult{Index: 3, Address: "10.0.0.1", RTT: 4 * time.Millisecond, Probes: 2}, false, nil},
+			HopResult{Index: 3, Address: "10.0.0.1", RTT: 4 * time.Millisecond, Probes: 2}, nativeNext, nil},
 		{"zero round trip falls back to elapsed", 1, windows.Errno(0), icmpEchoReply{Address: addr("10.0.0.1"), Status: ipTTLExpiredTransit},
-			HopResult{Index: 3, Address: "10.0.0.1", RTT: elapsed, Probes: 2}, false, nil},
-		{"timed out", 0, windows.Errno(ipReqTimedOut), icmpEchoReply{}, silent, false, nil},
-		{"no reply without an error code", 0, windows.Errno(0), icmpEchoReply{}, silent, false, nil},
-		{"no reply with a non-errno error", 0, errors.New("unexpected"), icmpEchoReply{}, silent, false, nil},
-		// IP_DEST_HOST_UNREACHABLE: the path cannot continue past this hop.
-		{"other status ends the path", 1, windows.Errno(0), icmpEchoReply{Address: addr("10.0.0.1"), Status: 11003}, silent, true, nil},
-		{"local failure", 0, windows.ERROR_INVALID_PARAMETER, icmpEchoReply{}, silent, false, windows.ERROR_INVALID_PARAMETER},
+			HopResult{Index: 3, Address: "10.0.0.1", RTT: elapsed, Probes: 2}, nativeNext, nil},
+		{"timed out", 0, windows.Errno(ipReqTimedOut), icmpEchoReply{}, silent, nativeNext, nil},
+		{"no reply without an error code", 0, windows.Errno(0), icmpEchoReply{}, silent, nativeNext, nil},
+		{"no reply with a non-errno error", 0, errors.New("unexpected"), icmpEchoReply{}, silent, nativeNext, nil},
+		// IP_DEST_HOST_UNREACHABLE: the router that said so is the last hop;
+		// the path cannot continue past it.
+		{"other status ends the path", 1, windows.Errno(0), icmpEchoReply{Address: addr("10.0.0.1"), Status: 11003, RoundTripTime: 2},
+			HopResult{Index: 3, Address: "10.0.0.1", RTT: 2 * time.Millisecond, Probes: 2}, nativeUnreachable, nil},
+		{"local failure", 0, windows.ERROR_INVALID_PARAMETER, icmpEchoReply{}, silent, nativeNext, windows.ERROR_INVALID_PARAMETER},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			hop, done, err := nativeHop(3, 2, tc.n, tc.sendErr, tc.reply, elapsed)
+			hop, outcome, err := nativeHop(3, 2, tc.n, tc.sendErr, tc.reply, elapsed)
 			require.ErrorIs(t, err, tc.err)
 			require.Equal(t, tc.want, hop)
-			require.Equal(t, tc.done, done)
+			require.Equal(t, tc.outcome, outcome)
 		})
 	}
 }

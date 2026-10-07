@@ -75,21 +75,31 @@ type icmpEchoReply struct {
 // tracePath maps the path with the IP Helper API whichever method is
 // configured; the method only chooses a probe type on the other platforms.
 func (t *tracerouter) tracePath(ctx context.Context, _ string, dest string) (TraceResult, error) {
-	hops, err := t.traceNative(ctx, dest)
+	hops, unreachable, err := t.traceNative(ctx, dest)
 	return TraceResult{
 		Hops:         hops,
 		Method:       "native",
 		Reached:      hopsReachedDest(hops, dest),
 		AbortedEarly: hopsAbortedEarly(hops, t.maxHops(), t.abortAfter()),
+		Unreachable:  unreachable,
 	}, err
 }
 
 // traceNative maps the path to dest using IcmpSendEcho with an incrementing
 // TTL. It needs no Administrator rights.
-func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopResult, err error) {
+// nativeOutcome says how a hop's reply ends, or does not end, the walk.
+type nativeOutcome int
+
+const (
+	nativeNext        nativeOutcome = iota // continue with the next TTL
+	nativeReached                          // the destination answered
+	nativeUnreachable                      // a hop reported the path cannot continue
+)
+
+func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopResult, unreachable bool, err error) {
 	destIP := net.ParseIP(dest).To4()
 	if destIP == nil {
-		return nil, fmt.Errorf("traceroute requires an IPv4 destination, got %q", dest)
+		return nil, false, fmt.Errorf("traceroute requires an IPv4 destination, got %q", dest)
 	}
 	// IPAddr is a DWORD holding the octets in network byte order, which is the
 	// same as reading the 4 bytes in memory order on a little-endian host.
@@ -97,7 +107,7 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 
 	handle, _, createErr := procIcmpCreateFile.Call()
 	if windows.Handle(handle) == windows.InvalidHandle {
-		return nil, fmt.Errorf("IcmpCreateFile: %w", createErr)
+		return nil, false, fmt.Errorf("IcmpCreateFile: %w", createErr)
 	}
 	defer procIcmpCloseHandle.Call(handle)
 
@@ -117,7 +127,7 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 		// Probe until this hop answers or the attempts are exhausted. Only a
 		// silent hop is retried, so a healthy path costs one probe per hop.
 		hop := HopResult{Index: ttl, Address: unansweredHopAddress, TimedOut: true}
-		done := false
+		outcome := nativeNext
 		for attempt := 0; attempt < t.probesPerHop(); attempt++ {
 			// IcmpSendEcho blocks for its whole timeout and cannot be
 			// cancelled, so the wait is cut to ctx's deadline up front.
@@ -148,10 +158,10 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 				reply = *(*icmpEchoReply)(unsafe.Pointer(&replyBuf[0]))
 			}
 			var err error
-			if hop, done, err = nativeHop(ttl, attempt+1, n, sendErr, reply, elapsed); err != nil {
-				return hops, err
+			if hop, outcome, err = nativeHop(ttl, attempt+1, n, sendErr, reply, elapsed); err != nil {
+				return hops, false, err
 			}
-			if !hop.TimedOut || done {
+			if !hop.TimedOut || outcome != nativeNext {
 				break
 			}
 		}
@@ -159,12 +169,16 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 		// A cancelled retry loop leaves the hop silent without it having been
 		// given its full chance, so stop rather than recording a silent hop
 		// that was never really probed.
-		if hop.TimedOut && !done && ctxDone(ctx) {
+		if hop.TimedOut && outcome == nativeNext && ctxDone(ctx) {
 			break
 		}
 
 		hops = append(hops, hop)
-		if done {
+		if outcome == nativeReached {
+			break
+		}
+		if outcome == nativeUnreachable {
+			unreachable = true
 			break
 		}
 		if !hop.TimedOut {
@@ -177,16 +191,16 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 		}
 	}
 
-	return hops, nil
+	return hops, false, nil
 }
 
 // nativeHop interprets one IcmpSendEcho call, the probes-th sent for the hop at
 // ttl: n is the reply count it returned, sendErr its error, reply the
 // ICMP_ECHO_REPLY it wrote (meaningful only when n != 0) and elapsed how long
-// it took. A silent hop comes back TimedOut and may be probed again; done is
+// it took. A silent hop comes back TimedOut and may be probed again; outcome says
 // true when the walk ends at this hop; err is a local failure that ends the
 // trace.
-func nativeHop(ttl, probes int, n uintptr, sendErr error, reply icmpEchoReply, elapsed time.Duration) (hop HopResult, done bool, err error) {
+func nativeHop(ttl, probes int, n uintptr, sendErr error, reply icmpEchoReply, elapsed time.Duration) (hop HopResult, outcome nativeOutcome, err error) {
 	silent := HopResult{Index: ttl, Address: unansweredHopAddress, TimedOut: true, Probes: probes}
 
 	// A zero reply count means no usable answer. The common case is the hop
@@ -195,15 +209,9 @@ func nativeHop(ttl, probes int, n uintptr, sendErr error, reply icmpEchoReply, e
 	// silent hop.
 	if n == 0 {
 		if errno, ok := sendErr.(windows.Errno); ok && uint32(errno) != ipReqTimedOut && uint32(errno) != 0 {
-			return silent, false, fmt.Errorf("IcmpSendEcho (ttl %d): %w", ttl, sendErr)
+			return silent, nativeNext, fmt.Errorf("IcmpSendEcho (ttl %d): %w", ttl, sendErr)
 		}
-		return silent, false, nil
-	}
-
-	if reply.Status != ipSuccess && reply.Status != ipTTLExpiredTransit {
-		// Unreachable and similar errors identify a real router, but the
-		// path cannot continue past it.
-		return silent, true, nil
+		return silent, nativeNext, nil
 	}
 
 	// RoundTripTime is whole milliseconds and is frequently reported as 0 for
@@ -216,10 +224,21 @@ func nativeHop(ttl, probes int, n uintptr, sendErr error, reply icmpEchoReply, e
 
 	var octets [4]byte
 	binary.LittleEndian.PutUint32(octets[:], reply.Address)
-	return HopResult{
+	hop = HopResult{
 		Index:   ttl,
 		Address: net.IPv4(octets[0], octets[1], octets[2], octets[3]).String(),
 		RTT:     rtt,
 		Probes:  probes,
-	}, reply.Status == ipSuccess, nil
+	}
+	switch reply.Status {
+	case ipSuccess:
+		return hop, nativeReached, nil
+	case ipTTLExpiredTransit:
+		return hop, nativeNext, nil
+	default:
+		// Unreachable and similar statuses name a real router that cannot
+		// forward the probe: the path ends there, short of the destination,
+		// as on the other platforms.
+		return hop, nativeUnreachable, nil
+	}
 }
