@@ -29,8 +29,10 @@ cp "$(go env GOPATH)"/bin/*/telemetrygen telemetrygen/ 2>/dev/null || cp "$(go e
 docker build -t telemetrygen-local:v0.139.0 telemetrygen
 
 # 2. a collector image from a local build of dynatrace-bindplane-otel-collector
-#    (cd ../../../../../dynatrace-bindplane-otel-collector && GOOS=linux make agent)
-cp ../../../../../dynatrace-bindplane-otel-collector/dist/collector_linux_$(go env GOARCH) ./collector_bin
+#    (a sibling checkout by default; point COLLECTOR elsewhere if needed)
+COLLECTOR=${COLLECTOR:-../../../../../dynatrace-bindplane-otel-collector}
+(cd "$COLLECTOR" && make install-ocb && GOOS=linux GOARCH=$(go env GOARCH) make agent)
+cp "$COLLECTOR/dist/collector_linux_$(go env GOARCH)" ./collector_bin
 docker build -t bdot-patched:mybuild --build-arg BIN=collector_bin -f Dockerfile.patched .
 
 # 3. run; results land in results/<scenario>-<tag>/
