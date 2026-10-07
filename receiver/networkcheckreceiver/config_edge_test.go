@@ -193,3 +193,35 @@ func TestScheduleFalseWithTargets(t *testing.T) {
 	err = confmap.Validate(mustLoad(t, "tcp: {targets: [{endpoint: '127.0.0.1:1'}]}\ntraceroute: {schedule: false, targets: [{host: 192.0.2.1}]}"))
 	require.ErrorContains(t, err, "nothing to trace: add targets")
 }
+
+func TestHTTPTargetsWithCredentialsAreRejected(t *testing.T) {
+	validate := func(t *testing.T, yaml string) error {
+		t.Helper()
+		cfg, err := load(t, yaml)
+		require.NoError(t, err)
+		return confmap.Validate(cfg)
+	}
+	err := validate(t, `
+http:
+  targets:
+    - endpoint: https://user:pw@example.test/health
+`)
+	require.ErrorContains(t, err, "http::targets::0: credentials in the endpoint URL are not allowed")
+	require.NotContains(t, err.Error(), "pw", "the credential must not be quoted")
+
+	err = validate(t, `
+http:
+  targets:
+    - endpoint: https://example.test/health
+      endpoints: [https://example.test/a, https://u:pw@example.test/b]
+`)
+	require.ErrorContains(t, err, "http::targets::0: credentials")
+
+	require.NoError(t, validate(t, `
+http:
+  targets:
+    - endpoint: https://example.test/health
+      headers:
+        Authorization: "Bearer not-in-the-url"
+`))
+}

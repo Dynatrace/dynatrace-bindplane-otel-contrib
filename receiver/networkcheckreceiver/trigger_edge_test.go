@@ -314,7 +314,7 @@ func TestTrigger_ShutdownWithInflightTraces(t *testing.T) {
 // packet (initial_delay 1h), starts them, and puts the trigger on trace.
 func triggerReceiver(t *testing.T, name string, withLogs bool, trace func(string) func(context.Context) (TraceResult, error)) (*networkCheck, *consumertest.MetricsSink, *consumertest.LogsSink) {
 	t.Helper()
-	cfg := mustLoad(t, "initial_delay: 1h\nicmp: {targets: [{host: 192.0.2.1}]}\ntraceroute: {}")
+	cfg := mustLoad(t, "initial_delay: 1h\nicmp: {targets: [{host: edge.test}]}\ntraceroute: {}")
 	set := receivertest.NewNopSettings(metadata.Type)
 	set.ID = component.MustNewIDWithName(metadata.Type.String(), name)
 	f := NewFactory()

@@ -103,6 +103,10 @@ section's key, for example `http::targets::0: ...`. On top of those:
 - `traceroute` needs targets, or `on_failure` enabled. `on_failure` needs an
   `icmp` section with its `ping.loss.ratio` metric and `net.peer.name`
   resource attribute enabled.
+- `http` targets must not carry credentials in the endpoint URL
+  (`https://user:pass@host`): http_check reports the URL in the `http.url`
+  attribute unchanged, so they would reach every data point. Use an auth
+  extension or a `headers` entry on the target instead.
 - Traceroute targets reject a scheme, port, path or userinfo in `host`.
   Bounds are as commented above; `loss_threshold` is 0-100,
   `retrace_every`, `max_hosts` and `timeout` must be positive.
@@ -143,11 +147,22 @@ pipeline, unchanged. For every host in them it reads `ping.loss.ratio`, which
 icmp_check reports as a percentage (0-100), and the host as configured
 (`net.peer.name`):
 
-- A check with `ping.loss.ratio` at or above `loss_threshold` fails.
+- A check with `ping.loss.ratio` at or above `loss_threshold` fails. A
+  configured host that is missing from a batch also fails: icmp_check emits
+  nothing for a host it could not resolve or open a socket for, and that is
+  logged once per host rather than left looking like missing data.
 - The first failing check traces the host. While it keeps failing, every
   `retrace_every`-th failing check traces it again: with the default 10, the
   1st, 11th, 21st, ... A passing check resets the count.
 - The trace goes to the address icmp_check pinged (`net.peer.ip`), with the
+  system resolver only when that address is unknown, so a check and the
+  trace it triggers follow the same path even though the `icmp` section has
+  no `dns_server` of its own. `dns_server` on a traceroute target applies to
+  scheduled traces of that target.
+- `batch_size` and `jitter` apply to scheduled traces only. The upstream
+  children probe all their targets each cycle and have no spreading of their
+  own; to keep sections from firing at the same instant, give each its own
+  `initial_delay`.
   system resolver when that is missing. At most one trace per host is in
   flight; a trace that is due while the previous one runs is not started.
 - Triggered and scheduled traces share `max_concurrent_traces`. A triggered

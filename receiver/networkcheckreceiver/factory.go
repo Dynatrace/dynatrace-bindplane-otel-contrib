@@ -86,7 +86,11 @@ func createMetricsReceiver(ctx context.Context, set receiver.Settings, rConf com
 			r.sections = append(r.sections, section{name: "traceroute", Component: ctrl})
 		}
 		if tc.OnFailure.Enabled && cfg.ICMP != nil {
-			r.trigger = newTriggerConsumer(next, r.prober, tc, set)
+			hosts := make([]string, 0, len(cfg.ICMP.Targets))
+			for _, t := range cfg.ICMP.Targets {
+				hosts = append(hosts, t.Host)
+			}
+			r.trigger = newTriggerConsumer(next, r.prober, tc, set, hosts)
 			icmpNext = r.trigger
 		}
 	}

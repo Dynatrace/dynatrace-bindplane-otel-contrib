@@ -48,6 +48,13 @@ type triggerConsumer struct {
 	// newTrace returns the trace function for a destination; tests swap it.
 	newTrace func(dest string) func(context.Context) (TraceResult, error)
 
+	// expected are the icmp section's configured hosts. icmp_check emits
+	// nothing for a host it could not resolve or open a socket for, so a
+	// configured host missing from a batch is a failed check, not missing
+	// data, and is treated like total packet loss.
+	expected []string
+	warned   map[string]bool
+
 	mu     sync.Mutex
 	hosts  map[string]*hostState
 	closed bool
@@ -82,12 +89,14 @@ type hostState struct {
 	inflight bool
 }
 
-func newTriggerConsumer(next consumer.Metrics, p *sharedProber, cfg *TracerouteConfig, settings receiver.Settings) *triggerConsumer {
+func newTriggerConsumer(next consumer.Metrics, p *sharedProber, cfg *TracerouteConfig, settings receiver.Settings, expected []string) *triggerConsumer {
 	return &triggerConsumer{
 		next:     next,
 		prober:   p,
 		cfg:      cfg,
 		settings: settings,
+		expected: expected,
+		warned:   map[string]bool{},
 		hosts:    map[string]*hostState{},
 		newTrace: func(dest string) func(context.Context) (TraceResult, error) {
 			return newTracerouter(cfg, dest, "").trace
@@ -139,7 +148,26 @@ func (t *triggerConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics
 		s := hosts[host]
 		t.observe(host, s.ip, s.loss >= t.cfg.OnFailure.LossThreshold)
 	}
+	for _, host := range t.expected {
+		if _, present := hosts[host]; present {
+			continue
+		}
+		t.warnMissing(host)
+		t.observe(host, "", true)
+	}
 	return err
+}
+
+// warnMissing says once per host that icmp_check reported nothing for it.
+func (t *triggerConsumer) warnMissing(host string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.warned[host] {
+		return
+	}
+	t.warned[host] = true
+	t.settings.Logger.Warn("icmp_check reported nothing for a configured host (it could not be resolved, or no ICMP socket could be opened); treating the check as failed",
+		zap.String("host", host))
 }
 
 // lossPercent returns the last ping.loss.ratio data point of a resource.

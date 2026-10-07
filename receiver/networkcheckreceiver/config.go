@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -53,6 +54,12 @@ type Config struct {
 	DNS        *dnscheckreceiver.Config  `mapstructure:"dns"`
 	TCP        *tcpcheckreceiver.Config  `mapstructure:"tcp"`
 	Traceroute *TracerouteConfig         `mapstructure:"traceroute"`
+
+	// httpCredentialTargets are the indexes of http targets whose endpoint
+	// carries userinfo. http_check copies the endpoint into the http.url
+	// attribute unchanged, so credentials given that way would reach every
+	// data point; Validate rejects them.
+	httpCredentialTargets []int
 }
 
 // TracerouteConfig is the traceroute section.
@@ -183,6 +190,7 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 	if conf.IsSet("http") {
 		c.HTTP = httpcheckreceiver.NewFactory().CreateDefaultConfig().(*httpcheckreceiver.Config)
 		err = multierr.Append(err, c.decodeSection(conf, "http", c.HTTP, &c.HTTP.ControllerConfig))
+		c.httpCredentialTargets = httpTargetsWithCredentials(conf)
 	}
 	if conf.IsSet("icmp") {
 		c.ICMP = icmpcheckreceiver.NewFactory().CreateDefaultConfig().(*icmpcheckreceiver.Config)
@@ -224,10 +232,44 @@ func (c *Config) decodeSection(conf *confmap.Conf, key string, dst any, cc *scra
 	return nil
 }
 
+// httpTargetsWithCredentials lists the http targets whose endpoint or
+// endpoints carry userinfo. The section's own target type is not exported, so
+// the raw configuration is read.
+func httpTargetsWithCredentials(conf *confmap.Conf) []int {
+	sub, err := conf.Sub("http")
+	if err != nil {
+		return nil
+	}
+	targets, _ := sub.Get("targets").([]any)
+	var bad []int
+	for i, t := range targets {
+		m, _ := t.(map[string]any)
+		urls := []any{m["endpoint"]}
+		if list, ok := m["endpoints"].([]any); ok {
+			urls = append(urls, list...)
+		}
+		for _, u := range urls {
+			raw, _ := u.(string)
+			if raw == "" {
+				continue
+			}
+			if parsed, err := url.Parse(raw); err == nil && parsed.User != nil {
+				bad = append(bad, i)
+				break
+			}
+		}
+	}
+	return bad
+}
+
 // Validate checks the rules that span sections.
 func (c *Config) Validate() error {
 	if c.HTTP == nil && c.ICMP == nil && c.DNS == nil && c.TCP == nil && c.Traceroute == nil {
 		return errors.New("at least one of http, icmp, dns, tcp or traceroute must be configured")
+	}
+	for _, i := range c.httpCredentialTargets {
+		// Never quote the endpoint: it is the credential.
+		return fmt.Errorf("http::targets::%d: credentials in the endpoint URL are not allowed, because http_check reports the URL in the http.url attribute; use an auth extension or a headers entry instead", i)
 	}
 	if c.Traceroute == nil || !c.Traceroute.OnFailure.Enabled {
 		return nil

@@ -121,7 +121,7 @@ func newTriggerFixture(t *testing.T, mutate func(*TracerouteConfig)) *triggerFix
 		warns:   warns,
 	}
 	f.prober = newSharedProber(cfg, set.Logger)
-	f.trig = newTriggerConsumer(f.metrics, f.prober, cfg, set)
+	f.trig = newTriggerConsumer(f.metrics, f.prober, cfg, set, nil)
 	f.trig.newTrace = f.tracer.newTrace
 	t.Cleanup(func() {
 		f.prober.stop()
@@ -349,4 +349,29 @@ func TestTrigger_CloseStopsTraces(t *testing.T) {
 	require.NoError(t, f.trig.ConsumeMetrics(context.Background(), pingBatch(ping{"b.test", "192.0.2.2", 100})))
 	require.Len(t, f.tracer.traced(), 1, "no trace starts after close")
 	require.Len(t, f.metrics.AllMetrics(), 2, "batches are still forwarded")
+}
+
+// icmp_check emits nothing for a host it cannot resolve or open a socket for.
+// A configured host missing from a batch is therefore a failed check: it is
+// traced like total loss, warned about once, and reset when it reappears.
+func TestTrigger_ConfiguredHostMissingFromBatchFails(t *testing.T) {
+	f := newTriggerFixture(t, nil)
+	f.trig.expected = []string{"a.test", "b.test"}
+
+	f.check(t, ping{"a.test", "192.0.2.1", 0}) // b.test missing: first failure traces
+	_, traces := splitBatches(f.metrics.AllMetrics())
+	require.Len(t, traces, 1)
+	addr, _ := traces[0].ResourceMetrics().At(0).Resource().Attributes().Get("server.address")
+	require.Equal(t, "b.test", addr.Str())
+	require.Equal(t, 1, f.warns.FilterMessageSnippet("reported nothing").Len())
+
+	f.check(t, ping{"a.test", "192.0.2.1", 0}) // still missing: streak 2, no retrace, no second warning
+	_, traces = splitBatches(f.metrics.AllMetrics())
+	require.Len(t, traces, 1)
+	require.Equal(t, 1, f.warns.FilterMessageSnippet("reported nothing").Len())
+
+	f.check(t, ping{"a.test", "192.0.2.1", 0}, ping{"b.test", "192.0.2.2", 0}) // back and passing: reset
+	f.check(t, ping{"a.test", "192.0.2.1", 0})                                 // missing again: first failure traces
+	_, traces = splitBatches(f.metrics.AllMetrics())
+	require.Len(t, traces, 2)
 }
