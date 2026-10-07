@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,8 +34,10 @@ import (
 // The README's privilege claims for the icmp section on Linux: when the
 // collector's group is outside net.ipv4.ping_group_range (root included),
 // icmp_check starts fine, logs "failed to ping host" every check and emits
-// nothing, so nothing is triggered. Runs only where the range excludes this
-// process, e.g. docker run --sysctl net.ipv4.ping_group_range="1 0".
+// nothing for the host. The trigger treats a configured host that is missing
+// from a batch as a failed check: it warns once and traces the host, which
+// UDP traceroute can do without privileges. Runs only where the range
+// excludes this process, e.g. docker run --sysctl net.ipv4.ping_group_range="1 0".
 func TestLinux_ICMPOutsidePingGroupRange(t *testing.T) {
 	b, err := os.ReadFile("/proc/sys/net/ipv4/ping_group_range")
 	require.NoError(t, err)
@@ -54,10 +57,28 @@ func TestLinux_ICMPOutsidePingGroupRange(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, r.Start(context.Background(), componenttest.NewNopHost()), "not a Start failure")
 	require.Eventually(t, func() bool { return logs.FilterMessage("failed to ping host").Len() >= 2 }, 5*time.Second, 10*time.Millisecond, "an error per check")
+	require.Eventually(t, func() bool { _, ok := triggeredReached(sink); return ok }, 5*time.Second, 10*time.Millisecond, "the silent host is traced")
 	require.NoError(t, r.Shutdown(context.Background()))
 
 	e := logs.FilterMessage("failed to ping host").All()[0]
 	require.Equal(t, "icmp", e.LoggerName)
 	t.Logf("uid=%d gid=%d range=%d-%d error=%v", os.Geteuid(), os.Getegid(), lo, hi, e.ContextMap()["error"])
-	require.Zero(t, sink.DataPointCount(), "nothing emitted, so nothing triggered")
+
+	missing := logs.FilterMessage("icmp_check reported nothing for a configured host (it could not be resolved, or no ICMP socket could be opened); treating the check as failed").All()
+	require.Len(t, missing, 1, "warned once, not once per check")
+	require.Equal(t, "127.0.0.1", missing[0].ContextMap()["host"])
+
+	rm, _ := triggeredReached(sink)
+	host, _ := rm.Resource().Attributes().Get("server.address")
+	require.Equal(t, "127.0.0.1", host.Str())
+	// icmp_check's batches are forwarded empty; everything with a data point
+	// is the triggered trace.
+	for _, md := range sink.AllMetrics() {
+		for i := range md.ResourceMetrics().Len() {
+			ms := md.ResourceMetrics().At(i).ScopeMetrics().At(0).Metrics()
+			for j := range ms.Len() {
+				require.True(t, strings.HasPrefix(ms.At(j).Name(), "traceroute."), ms.At(j).Name())
+			}
+		}
+	}
 }
