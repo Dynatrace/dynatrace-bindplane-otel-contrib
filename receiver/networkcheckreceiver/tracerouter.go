@@ -193,34 +193,46 @@ func awaitProbeReply(ctx context.Context, conn *icmp.PacketConn, deadline time.T
 		if !ok {
 			continue
 		}
-		msg, parseErr := icmp.ParseMessage(icmpProtocolIPv4, buf[:n])
-		if parseErr != nil {
-			continue
-		}
-		switch body := msg.Body.(type) {
-		case *icmp.TimeExceeded:
-			if matchesProbe(body.Data, k) {
-				return peerAddr.String(), false, nil
-			}
-		case *icmp.DstUnreach:
-			if !matchesProbe(body.Data, k) {
-				continue
-			}
-			// Only the destination answering a UDP probe with port unreachable
-			// (code 3) means the probe arrived. Any other unreachable, or one
-			// sent by a router or by this host for an address with no route,
-			// ends the path short of the destination.
-			if k.udp && msg.Code == 3 && peerAddr.IP.Equal(k.dst) {
-				return peerAddr.String(), true, nil
-			}
-			return peerAddr.String(), false, errUnreachable
-		case *icmp.Echo:
-			if !k.udp && msg.Type == ipv4.ICMPTypeEchoReply &&
-				body.ID == k.echoID && body.Seq == k.echoSeq && peerAddr.IP.Equal(k.dst) {
-				return peerAddr.String(), true, nil
-			}
+		if from, reached, matched, err := classifyReply(buf[:n], peerAddr, k); matched {
+			return from, reached, err
 		}
 	}
+}
+
+// classifyReply decides what one ICMP message, b as read from the raw socket
+// and sent by peer, means for the probe k. matched is false when the message
+// is not an answer to k and must be skipped. Otherwise from is the answering
+// address, reached is true when the probe arrived at the destination, and err
+// is errUnreachable when the path ends at peer short of it.
+func classifyReply(b []byte, peer *net.IPAddr, k probeKey) (from string, reached, matched bool, err error) {
+	msg, err := icmp.ParseMessage(icmpProtocolIPv4, b)
+	if err != nil {
+		return "", false, false, nil
+	}
+	switch body := msg.Body.(type) {
+	case *icmp.TimeExceeded:
+		if matchesProbe(body.Data, k) {
+			return peer.String(), false, true, nil
+		}
+	case *icmp.DstUnreach:
+		if !matchesProbe(body.Data, k) {
+			return "", false, false, nil
+		}
+		// Only the destination answering a UDP probe with port unreachable
+		// (code 3) means the probe arrived. Any other unreachable, or one
+		// sent by a router or by this host for an address with no route,
+		// ends the path short of the destination.
+		if k.udp && msg.Code == 3 && peer.IP.Equal(k.dst) {
+			return peer.String(), true, true, nil
+		}
+		return peer.String(), false, true, errUnreachable
+	case *icmp.Echo:
+		if !k.udp && msg.Type == ipv4.ICMPTypeEchoReply &&
+			body.ID == k.echoID && body.Seq == k.echoSeq && peer.IP.Equal(k.dst) {
+			return peer.String(), true, true, nil
+		}
+	}
+	return "", false, false, nil
 }
 
 // HopResult is the outcome of probing one hop.

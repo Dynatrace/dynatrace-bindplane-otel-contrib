@@ -116,12 +116,8 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 
 		// Probe until this hop answers or the attempts are exhausted. Only a
 		// silent hop is retried, so a healthy path costs one probe per hop.
-		var (
-			n       uintptr
-			sendErr error
-			elapsed time.Duration
-			probes  int
-		)
+		hop := HopResult{Index: ttl, Address: unansweredHopAddress, TimedOut: true}
+		done := false
 		for attempt := 0; attempt < t.probesPerHop(); attempt++ {
 			// IcmpSendEcho blocks for its whole timeout and cannot be
 			// cancelled, so the wait is cut to ctx's deadline up front.
@@ -129,13 +125,12 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 			if ctxDone(ctx) || waitMs <= 0 {
 				break
 			}
-			probes++
 
 			// #nosec G115 -- ttl <= maxHops() <= maxTTL (255), and min() keeps it there.
 			opts := ipOptionInformation{TTL: uint8(min(ttl, maxTTL))}
 			sent := time.Now()
 			// #nosec G103 -- the buffers are Go-owned and stay live for this synchronous call; replyBuf is oversized for the reply.
-			n, _, sendErr = procIcmpSendEcho.Call(
+			n, _, sendErr := procIcmpSendEcho.Call(
 				handle,
 				uintptr(destAddr),
 				uintptr(unsafe.Pointer(&payload[0])),
@@ -145,67 +140,86 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 				uintptr(len(replyBuf)),
 				uintptr(waitMs),
 			)
-			elapsed = time.Since(sent)
+			elapsed := time.Since(sent)
 
+			var reply icmpEchoReply
 			if n != 0 {
-				break
+				// #nosec G103 -- replyBuf holds a full ICMP_ECHO_REPLY (see icmpEchoReply) and only fixed-offset fields are read.
+				reply = *(*icmpEchoReply)(unsafe.Pointer(&replyBuf[0]))
 			}
-			if errno, ok := sendErr.(windows.Errno); ok && uint32(errno) != ipReqTimedOut && uint32(errno) != 0 {
-				// Anything other than a timeout is a real failure worth
-				// surfacing rather than retried or recorded as a silent hop.
-				return hops, fmt.Errorf("IcmpSendEcho (ttl %d): %w", ttl, sendErr)
+			var err error
+			if hop, done, err = nativeHop(ttl, attempt+1, n, sendErr, reply, elapsed); err != nil {
+				return hops, err
+			}
+			if !hop.TimedOut || done {
+				break
 			}
 		}
 
-		// A cancelled retry loop leaves n at 0 without the hop having been
+		// A cancelled retry loop leaves the hop silent without it having been
 		// given its full chance, so stop rather than recording a silent hop
 		// that was never really probed.
-		if n == 0 && ctxDone(ctx) {
+		if hop.TimedOut && !done && ctxDone(ctx) {
 			break
 		}
 
-		// A zero reply count means no usable answer. The common case is the
-		// hop staying silent, which surfaces as IP_REQ_TIMED_OUT.
-		if n == 0 {
-			hops = append(hops, HopResult{Index: ttl, Address: unansweredHopAddress, TimedOut: true, Probes: probes})
-			consecutiveTimeouts++
-			if abort := t.abortAfter(); abort > 0 && consecutiveTimeouts >= abort {
-				break
-			}
+		hops = append(hops, hop)
+		if done {
+			break
+		}
+		if !hop.TimedOut {
+			consecutiveTimeouts = 0
 			continue
 		}
-
-		// #nosec G103 -- replyBuf holds a full ICMP_ECHO_REPLY (see icmpEchoReply) and only fixed-offset fields are read.
-		reply := (*icmpEchoReply)(unsafe.Pointer(&replyBuf[0]))
-		if reply.Status != ipSuccess && reply.Status != ipTTLExpiredTransit {
-			// Unreachable and similar errors identify a real router, but the
-			// path cannot continue past it.
-			hops = append(hops, HopResult{Index: ttl, Address: unansweredHopAddress, TimedOut: true, Probes: probes})
-			break
-		}
-		consecutiveTimeouts = 0
-
-		// RoundTripTime is whole milliseconds and is frequently reported as 0
-		// for time-exceeded replies, so fall back to the measured elapsed time
-		// to avoid publishing a stream of zero-latency hops.
-		rtt := time.Duration(reply.RoundTripTime) * time.Millisecond
-		if rtt == 0 {
-			rtt = elapsed
-		}
-
-		var octets [4]byte
-		binary.LittleEndian.PutUint32(octets[:], reply.Address)
-		hops = append(hops, HopResult{
-			Index:   ttl,
-			Address: net.IPv4(octets[0], octets[1], octets[2], octets[3]).String(),
-			RTT:     rtt,
-			Probes:  probes,
-		})
-
-		if reply.Status == ipSuccess {
+		consecutiveTimeouts++
+		if abort := t.abortAfter(); abort > 0 && consecutiveTimeouts >= abort {
 			break
 		}
 	}
 
 	return hops, nil
+}
+
+// nativeHop interprets one IcmpSendEcho call, the probes-th sent for the hop at
+// ttl: n is the reply count it returned, sendErr its error, reply the
+// ICMP_ECHO_REPLY it wrote (meaningful only when n != 0) and elapsed how long
+// it took. A silent hop comes back TimedOut and may be probed again; done is
+// true when the walk ends at this hop; err is a local failure that ends the
+// trace.
+func nativeHop(ttl, probes int, n uintptr, sendErr error, reply icmpEchoReply, elapsed time.Duration) (hop HopResult, done bool, err error) {
+	silent := HopResult{Index: ttl, Address: unansweredHopAddress, TimedOut: true, Probes: probes}
+
+	// A zero reply count means no usable answer. The common case is the hop
+	// staying silent, which surfaces as IP_REQ_TIMED_OUT. Anything else is a
+	// real failure worth surfacing rather than retried or recorded as a
+	// silent hop.
+	if n == 0 {
+		if errno, ok := sendErr.(windows.Errno); ok && uint32(errno) != ipReqTimedOut && uint32(errno) != 0 {
+			return silent, false, fmt.Errorf("IcmpSendEcho (ttl %d): %w", ttl, sendErr)
+		}
+		return silent, false, nil
+	}
+
+	if reply.Status != ipSuccess && reply.Status != ipTTLExpiredTransit {
+		// Unreachable and similar errors identify a real router, but the
+		// path cannot continue past it.
+		return silent, true, nil
+	}
+
+	// RoundTripTime is whole milliseconds and is frequently reported as 0 for
+	// time-exceeded replies, so fall back to the measured elapsed time to
+	// avoid publishing a stream of zero-latency hops.
+	rtt := time.Duration(reply.RoundTripTime) * time.Millisecond
+	if rtt == 0 {
+		rtt = elapsed
+	}
+
+	var octets [4]byte
+	binary.LittleEndian.PutUint32(octets[:], reply.Address)
+	return HopResult{
+		Index:   ttl,
+		Address: net.IPv4(octets[0], octets[1], octets[2], octets[3]).String(),
+		RTT:     rtt,
+		Probes:  probes,
+	}, reply.Status == ipSuccess, nil
 }
