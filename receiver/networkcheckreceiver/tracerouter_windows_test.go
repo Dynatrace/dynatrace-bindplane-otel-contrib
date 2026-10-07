@@ -82,7 +82,10 @@ func TestNativeTraceLoopback(t *testing.T) {
 	require.Len(t, res.Hops, 1)
 	require.Equal(t, "127.0.0.1", res.Hops[0].Address)
 	require.False(t, res.Hops[0].TimedOut)
-	require.Positive(t, res.Hops[0].RTT)
+	// IcmpSendEcho reports whole milliseconds and the fallback clock can read
+	// 0 for a reply inside the same millisecond, so loopback's RTT is only
+	// bounded above.
+	require.Less(t, res.Hops[0].RTT, 2*time.Second)
 }
 
 // The walk is driven with crafted replies: a hop that answers with anything

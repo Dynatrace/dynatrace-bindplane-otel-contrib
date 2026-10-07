@@ -242,7 +242,9 @@ upstream child, up to its `ping_timeout` (5 s by default).
 - Windows ignores `method` and traces with the IP Helper API
   (`IcmpSendEcho`), as `tracert.exe` does: Windows does not deliver inbound
   ICMP time-exceeded messages to raw sockets. `traceroute.method` in log
-  records is `native` there.
+  records is `native` there, and `traceroute.hop.latency` is whole
+  milliseconds: a hop that answers within the millisecond reports 0, as
+  `tracert.exe` prints `<1 ms`.
 
 ### Kubernetes
 
