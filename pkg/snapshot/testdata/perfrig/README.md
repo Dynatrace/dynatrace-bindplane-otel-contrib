@@ -16,7 +16,7 @@ needed to run it again.
 | `configs/batch1000/{with,no}.yaml` | as above with a `batch` processor (1,000 records) first in both |
 | `run.sh` | one scenario for one image: 90 s of telemetrygen load into both collectors at once, docker stats sampling, per-record CPU and allocation from the collectors' own metrics, 30 s CPU profile and heap profile from the with-snapshot side |
 | `analyze.sh` | extracts the cum % of the snapshot-path symbols from a saved profile |
-| `Dockerfile.patched` | drop-in image with the same layout as `observiq/bindplane-agent` built from a locally compiled collector binary (`--build-arg BIN=<file>`) |
+| `Dockerfile.patched` | the released `ghcr.io/dynatrace/dynatrace-bindplane-otel-collector:1.0.0` image with its binary replaced by a locally compiled one (`--build-arg BIN=<file>`), so an A/B run differs only in collector code |
 | `telemetrygen/Dockerfile` | `FROM scratch` image around a cross-compiled telemetrygen binary, for hosts that cannot pull the upstream image |
 | `remote-setup.sh` | Docker install, image builds and architecture checks for a fresh Ubuntu VM (copy the directory and the collector binaries to the VM, run it once, then `run.sh` as above) |
 
@@ -28,13 +28,13 @@ GOOS=linux GOARCH=$(go env GOARCH) go install github.com/open-telemetry/opentele
 cp "$(go env GOPATH)"/bin/*/telemetrygen telemetrygen/ 2>/dev/null || cp "$(go env GOPATH)/bin/telemetrygen" telemetrygen/
 docker build -t telemetrygen-local:v0.139.0 telemetrygen
 
-# 2. a collector image from a local build of bindplane-otel-collector
-#    (cd ../../../../../bindplane-otel-collector && GOOS=linux make agent)
-cp ../../../../../bindplane-otel-collector/dist/collector_linux_$(go env GOARCH) ./collector_bin
+# 2. a collector image from a local build of dynatrace-bindplane-otel-collector
+#    (cd ../../../../../dynatrace-bindplane-otel-collector && GOOS=linux make agent)
+cp ../../../../../dynatrace-bindplane-otel-collector/dist/collector_linux_$(go env GOARCH) ./collector_bin
 docker build -t bdot-patched:mybuild --build-arg BIN=collector_bin -f Dockerfile.patched .
 
 # 3. run; results land in results/<scenario>-<tag>/
-IMAGE=observiq/bindplane-agent:1.107.0 ./run.sh batch1
+IMAGE=ghcr.io/dynatrace/dynatrace-bindplane-otel-collector:1.0.0 ./run.sh batch1
 IMAGE=bdot-patched:mybuild ./run.sh batch1
 IMAGE=bdot-patched:mybuild ./run.sh batch1000
 ```

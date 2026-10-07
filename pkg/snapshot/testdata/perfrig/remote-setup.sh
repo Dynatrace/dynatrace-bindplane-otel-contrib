@@ -43,8 +43,8 @@ mkdir -p results
 
 # --- images ---
 sudo docker build -t telemetrygen-local:v0.139.0 telemetrygen/
-sudo docker pull observiq/bindplane-agent:1.107.0
-sudo docker image inspect observiq/bindplane-agent:1.107.0 -f 'stock image arch={{.Os}}/{{.Architecture}}' | tee -a results/vm-specs.txt
+sudo docker pull ghcr.io/dynatrace/dynatrace-bindplane-otel-collector:1.0.0
+sudo docker image inspect ghcr.io/dynatrace/dynatrace-bindplane-otel-collector:1.0.0 -f 'stock image arch={{.Os}}/{{.Architecture}}' | tee -a results/vm-specs.txt
 for b in budget jit; do
   sudo docker build -t "bdot-patched:$b" --build-arg "BIN=collector_linux_amd64_$b" -f Dockerfile.patched .
   sudo docker image inspect "bdot-patched:$b" -f "$b image arch={{.Os}}/{{.Architecture}}" | tee -a results/vm-specs.txt

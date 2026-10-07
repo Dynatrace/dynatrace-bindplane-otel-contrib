@@ -227,8 +227,10 @@ allocation come from the collector's own `otelcol_process_cpu_seconds` and
 (stock) and drop-in images built from this branch (`docker/Dockerfile.scratch`
 layout).
 
-The rig is checked in under `testdata/perfrig` (README there). Apple M-series
-host (arm64), Docker Desktop:
+The rig is checked in under `testdata/perfrig` (README there); it now defaults
+to `ghcr.io/dynatrace/dynatrace-bindplane-otel-collector:1.0.0`, whose `pkg/snapshot`
+v1.0.0 is the same pre-fix code as the 1.107.0 image these numbers were taken
+against. Apple M-series host (arm64), Docker Desktop:
 
 | Scenario                 | Build     | CPU µs/rec (with · without) | Δ CPU  | Alloc KB/rec (with · without) | Δ alloc | processLogs cum % |
 |--------------------------|-----------|-----------------------------|--------|-------------------------------|---------|-------------------|

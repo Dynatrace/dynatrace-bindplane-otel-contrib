@@ -26,9 +26,14 @@ DUR=${DUR:-90}            # seconds of steady load
 RATE=${RATE:-5000}        # per worker; 4 workers -> 20k records/s
 WORKERS=${WORKERS:-4}
 GEN=${GEN:-telemetrygen-local:v0.139.0}
-IMAGE=${IMAGE:-observiq/bindplane-agent:1.107.0}
-# stock upstream image -> "stock"; anything else -> its docker tag (budget, jit, ...)
-TAG=${TAG:-$(case "$IMAGE" in observiq/bindplane-agent:*) echo stock ;; *) echo "${IMAGE##*:}" ;; esac)}
+IMAGE=${IMAGE:-ghcr.io/dynatrace/dynatrace-bindplane-otel-collector:1.0.0}
+# released image -> "stock"; anything else -> its docker tag (budget, jit, ...)
+if [ -z "${TAG:-}" ]; then
+  case "$IMAGE" in
+    ghcr.io/dynatrace/dynatrace-bindplane-otel-collector:*) TAG=stock ;;
+    *) TAG=${IMAGE##*:} ;;
+  esac
+fi
 CPUS=${CPUS:-2}
 OUT=results/$SCEN-$TAG
 mkdir -p "$OUT"
