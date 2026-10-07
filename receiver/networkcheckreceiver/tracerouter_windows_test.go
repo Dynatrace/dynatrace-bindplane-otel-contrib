@@ -85,6 +85,6 @@ func TestNativeTraceLoopback(t *testing.T) {
 }
 
 func TestNativeTraceRejectsNonIPv4(t *testing.T) {
-	_, err := newTracerouter(&TracerouteConfig{}, "", "").traceNative(context.Background(), "2001:db8::1")
+	_, _, err := newTracerouter(&TracerouteConfig{}, "", "").traceNative(context.Background(), "2001:db8::1")
 	require.ErrorContains(t, err, "requires an IPv4 destination")
 }
