@@ -459,3 +459,70 @@ func TestTrigger_SlotTimeoutWarns(t *testing.T) {
 	f.check(t, ping{"a.test", "192.0.2.1", 100})
 	require.Equal(t, 1, f.warns.FilterMessageSnippet("on_failure.timeout").Len())
 }
+
+// A host that recovers while its trace runs stays tracked until the trace
+// ends, then is dropped.
+func TestTrigger_HostRecoversWhileTraceInFlight(t *testing.T) {
+	f := newTriggerFixture(t, nil)
+	f.tracer.block = make(chan struct{})
+	require.NoError(t, f.trig.ConsumeMetrics(context.Background(), pingBatch(ping{"a.test", "192.0.2.1", 100})))
+	require.Eventually(t, func() bool { return len(f.tracer.traced()) == 1 }, 5*time.Second, time.Millisecond)
+
+	require.NoError(t, f.trig.ConsumeMetrics(context.Background(), pingBatch(ping{"a.test", "192.0.2.1", 0})))
+	f.trig.mu.Lock()
+	require.Contains(t, f.trig.hosts, "a.test", "kept while its trace is in flight")
+	f.trig.mu.Unlock()
+
+	close(f.tracer.block)
+	f.trig.wg.Wait()
+	f.trig.mu.Lock()
+	require.NotContains(t, f.trig.hosts, "a.test", "dropped once its trace ended")
+	f.trig.mu.Unlock()
+}
+
+// A trace still running at on_failure.timeout emits nothing and says so.
+func TestTrigger_TraceCutOffByTimeoutWarns(t *testing.T) {
+	f := newTriggerFixture(t, func(c *TracerouteConfig) { c.OnFailure.Timeout = 200 * time.Millisecond })
+	f.tracer.block = make(chan struct{}) // only the timeout ends the trace
+	f.check(t, ping{"a.test", "192.0.2.1", 100})
+	require.Len(t, f.tracer.traced(), 1)
+	require.Len(t, f.metrics.AllMetrics(), 1, "only the forwarded icmp batch")
+	require.Equal(t, 1, f.warns.FilterMessageSnippet("did not finish within on_failure.timeout").Len())
+}
+
+// A failed hand-off to the logs pipeline is a warning; the metrics still go.
+func TestTrigger_LogsHandOffErrorWarns(t *testing.T) {
+	f := newTriggerFixture(t, nil)
+	f.prober.setLogs(consumertest.NewErr(errors.New("boom")))
+	f.check(t, ping{"a.test", "192.0.2.1", 100})
+	_, traces := splitBatches(f.metrics.AllMetrics())
+	require.Len(t, traces, 1)
+	require.Equal(t, 1, f.warns.FilterMessage("sending triggered traceroute log").Len())
+}
+
+// A trace whose deadline has passed never runs, whether it finds the deadline
+// while waiting for a slot or right after taking a free one.
+func TestTrigger_ExpiredDeadlineNeverTraces(t *testing.T) {
+	f := newTriggerFixture(t, func(c *TracerouteConfig) { c.OnFailure.Timeout = -time.Second })
+	var pings []ping
+	for i := range 20 {
+		pings = append(pings, ping{fmt.Sprintf("h%d.test", i), fmt.Sprintf("192.0.2.%d", i), 100})
+	}
+	f.check(t, pings...)
+	require.Empty(t, f.tracer.traced())
+	require.Len(t, f.metrics.AllMetrics(), 1, "only the forwarded icmp batch")
+	require.Equal(t, 1, f.warns.FilterMessageSnippet("no trace slot").Len(), "rate-limited to one")
+}
+
+func TestTrigger_NoSlotWarningIsRateLimited(t *testing.T) {
+	f := newTriggerFixture(t, nil)
+	f.trig.warnNoSlot("a.test")
+	f.trig.warnNoSlot("b.test")
+	require.Equal(t, 1, f.warns.FilterMessageSnippet("no trace slot").Len(), "once a minute")
+
+	f.trig.mu.Lock()
+	f.trig.lastSlotWarn = time.Now().Add(-time.Minute)
+	f.trig.mu.Unlock()
+	f.trig.warnNoSlot("c.test")
+	require.Equal(t, 2, f.warns.FilterMessageSnippet("no trace slot").Len(), "and again after a minute")
+}

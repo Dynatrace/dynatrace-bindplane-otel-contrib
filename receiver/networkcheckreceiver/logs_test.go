@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/networkcheckreceiver/internal/metadata"
@@ -40,4 +41,47 @@ func TestTraceLogHopsRetriedCountsAnsweredHopsOnly(t *testing.T) {
 	v, ok := rec.Attributes().Get("traceroute.hops_retried")
 	require.True(t, ok)
 	require.EqualValues(t, 1, v.Int())
+}
+
+func TestTraceLogRecord(t *testing.T) {
+	emit := func(res targetResult) plog.Logs {
+		lb := metadata.NewLogsBuilder(receivertest.NewNopSettings(metadata.Type))
+		appendTraceLog(lb, metadata.NewResourceBuilder(metadata.DefaultResourceAttributesConfig()), res, metadata.AttributeTracerouteTriggerScheduled, time.Now())
+		return lb.Emit()
+	}
+	record := func(t *testing.T, tr TraceResult) plog.LogRecord {
+		t.Helper()
+		logs := emit(targetResult{target: &target{host: "h"}, startedAt: time.Now(), trace: tr})
+		require.Equal(t, 1, logs.LogRecordCount())
+		return logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+	}
+
+	t.Run("reached is INFO", func(t *testing.T) {
+		lr := record(t, TraceResult{Reached: true, Hops: []HopResult{{Index: 1, Address: "192.0.2.1", RTT: time.Millisecond, Probes: 1}}})
+		require.Equal(t, "INFO", lr.SeverityText())
+		require.Equal(t, plog.SeverityNumberInfo, lr.SeverityNumber())
+		_, ok := lr.Attributes().Get("traceroute.unreachable")
+		require.False(t, ok, "set only when a hop said unreachable")
+	})
+	t.Run("unreachable is WARN and flagged", func(t *testing.T) {
+		lr := record(t, TraceResult{Unreachable: true, Hops: []HopResult{{Index: 1, Address: "10.0.0.1", RTT: time.Millisecond, Probes: 1}}})
+		require.Equal(t, "WARN", lr.SeverityText())
+		require.Equal(t, plog.SeverityNumberWarn, lr.SeverityNumber())
+		v, ok := lr.Attributes().Get("traceroute.unreachable")
+		require.True(t, ok)
+		require.True(t, v.Bool())
+	})
+	t.Run("no hops", func(t *testing.T) {
+		lr := record(t, TraceResult{})
+		require.Equal(t, "WARN", lr.SeverityText())
+		n, _ := lr.Attributes().Get("traceroute.hop_count")
+		require.Zero(t, n.Int())
+		hops, ok := lr.Body().Map().Get("hops")
+		require.True(t, ok, "the hops list is present even when empty")
+		require.Zero(t, hops.Slice().Len())
+	})
+	t.Run("a trace that could not run has no record", func(t *testing.T) {
+		logs := emit(targetResult{target: &target{host: "h"}, err: errFake})
+		require.Zero(t, logs.LogRecordCount())
+	})
 }

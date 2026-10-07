@@ -225,3 +225,44 @@ http:
         Authorization: "Bearer not-in-the-url"
 `))
 }
+
+func TestUnmarshalNilConf(t *testing.T) {
+	c := &Config{}
+	require.NoError(t, c.Unmarshal(nil))
+	require.Equal(t, &Config{}, c)
+}
+
+func TestDecodeSectionErrors(t *testing.T) {
+	c := &Config{}
+	err := c.decodeSection(confmap.NewFromStringMap(map[string]any{"traceroute": "not a map"}), "traceroute", defaultTracerouteConfig(), nil)
+	require.Error(t, err)
+
+	err = c.decodeSection(confmap.NewFromStringMap(map[string]any{"traceroute": map[string]any{"max_hops": "many"}}), "traceroute", defaultTracerouteConfig(), nil)
+	require.ErrorContains(t, err, "traceroute: ")
+	require.ErrorContains(t, err, "max_hops")
+}
+
+func TestHTTPTargetsWithCredentialsShapes(t *testing.T) {
+	bad := func(http any) []int {
+		return httpTargetsWithCredentials(confmap.NewFromStringMap(map[string]any{"http": http}))
+	}
+	require.Nil(t, bad("not a map"))
+	require.Nil(t, bad(map[string]any{}), "no targets")
+	require.Nil(t, bad(map[string]any{"targets": "not a list"}))
+	require.Equal(t, []int{2, 3}, bad(map[string]any{"targets": []any{
+		"https://u:pw@example.test", // not a target; strict decoding rejects it
+		map[string]any{"endpoint": 42, "endpoints": []any{nil, "https://example.test/a"}},
+		map[string]any{"endpoint": "https://u:pw@example.test"},
+		map[string]any{"endpoints": []any{"https://example.test/a", "https://u@example.test/b", "https://u:pw@example.test/c"}},
+		map[string]any{"endpoint": "://not a url"},
+	}}), "each target with userinfo once, by index")
+}
+
+func TestValidateNegativeJitter(t *testing.T) {
+	c := defaultTracerouteConfig()
+	c.CollectionInterval = time.Minute
+	c.Targets = []TracerouteTarget{{Host: "example.com", DNSServer: "dns.example.test:5353"}}
+	require.NoError(t, c.Validate(), "a named DNS server with a port is valid")
+	c.Jitter = -time.Second
+	require.ErrorContains(t, c.Validate(), "jitter must be >= 0")
+}

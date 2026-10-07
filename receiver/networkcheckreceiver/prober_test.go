@@ -360,3 +360,29 @@ func TestProber_StartWarnsWhenWorstCaseExceedsBudget(t *testing.T) {
 	p.start()
 	require.Equal(t, 1, logs.FilterMessageSnippet("worst-case trace cycle exceeds").Len(), "once per prober")
 }
+
+func TestTraceLimit(t *testing.T) {
+	for _, tc := range []struct{ cfg, want int }{{0, defaultMaxConcurrentTraces}, {-1, defaultMaxConcurrentTraces}, {1, 1}, {7, 7}} {
+		cfg := &TracerouteConfig{MaxConcurrentTraces: tc.cfg}
+		require.Equal(t, tc.want, traceLimit(cfg), tc.cfg)
+		require.Equal(t, tc.want, cap(newSharedProber(cfg, zap.NewNop()).sem), "the slots follow the limit")
+	}
+}
+
+// Without a collection interval a cycle has no budget of its own: only the
+// caller's context and stop end it.
+func TestCycleContextWithoutInterval(t *testing.T) {
+	p := newSharedProber(&TracerouteConfig{}, zap.NewNop())
+	ctx, cancel := p.cycleContext(context.Background(), time.Now())
+	defer cancel()
+	_, hasDeadline := ctx.Deadline()
+	require.False(t, hasDeadline)
+	require.NoError(t, ctx.Err())
+
+	p.stop()
+	select {
+	case <-ctx.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("stop must end the cycle")
+	}
+}
