@@ -1,0 +1,64 @@
+default:
+all_set:
+  metrics:
+    traceroute.hop.latency:
+      enabled: true
+      attributes: ["traceroute.hop.index","traceroute.hop.address","traceroute.trigger","dns.server"]
+    traceroute.hop.status:
+      enabled: true
+      attributes: ["traceroute.hop.index","traceroute.hop.address","traceroute.trigger","dns.server"]
+    traceroute.hops:
+      enabled: true
+      attributes: ["traceroute.trigger","dns.server"]
+    traceroute.reached:
+      enabled: true
+      attributes: ["traceroute.trigger","dns.server"]
+  resource_attributes:
+    server.address:
+      enabled: true
+reaggregate_set:
+  metrics:
+    traceroute.hop.latency:
+      enabled: true
+      attributes: []
+    traceroute.hop.status:
+      enabled: true
+      attributes: []
+    traceroute.hops:
+      enabled: true
+      attributes: []
+    traceroute.reached:
+      enabled: true
+      attributes: []
+  resource_attributes:
+    server.address:
+      enabled: true
+none_set:
+  metrics:
+    traceroute.hop.latency:
+      enabled: false
+      attributes: ["traceroute.hop.index","traceroute.hop.address","traceroute.trigger","dns.server"]
+    traceroute.hop.status:
+      enabled: false
+      attributes: ["traceroute.hop.index","traceroute.hop.address","traceroute.trigger","dns.server"]
+    traceroute.hops:
+      enabled: false
+      attributes: ["traceroute.trigger","dns.server"]
+    traceroute.reached:
+      enabled: false
+      attributes: ["traceroute.trigger","dns.server"]
+  resource_attributes:
+    server.address:
+      enabled: false
+filter_set_include:
+  resource_attributes:
+    server.address:
+      enabled: true
+      metrics_include:
+        - regexp: ".*"
+filter_set_exclude:
+  resource_attributes:
+    server.address:
+      enabled: true
+      metrics_exclude:
+        - strict: "server.address-val"

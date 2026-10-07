@@ -1,0 +1,85 @@
+type: networkcheck
+
+status:
+  distributions: [Dynatrace-Bindplane]
+  class: receiver
+  stability:
+    alpha: [metrics, logs]
+  codeowners:
+    active: [dynatrace/team-dynatrace-bindplane-maintainers]
+
+# Only the traceroute metrics are defined here. The http, icmp, dns and tcp
+# sections run the upstream check receivers, which emit their own metrics.
+resource_attributes:
+  server.address:
+    type: string
+    description: The traced host, as configured, or as the icmp section names it for a triggered trace.
+    enabled: true
+
+attributes:
+  dns.server:
+    type: string
+    description: The target's dns_server as configured. Empty when the target uses the system resolver.
+  traceroute.hop.address:
+    type: string
+    description: The IP address of the hop, or * when the hop did not answer.
+  traceroute.hop.index:
+    type: int
+    description: The hop index, which is the TTL of its probes.
+  traceroute.trigger:
+    type: string
+    description: Why the trace ran. scheduled for the traceroute targets, ping_failure for a trace the icmp section triggered.
+    enum: [scheduled, ping_failure]
+
+metrics:
+  traceroute.hop.latency:
+    enabled: true
+    description: Round-trip time to a hop that answered. Not emitted for hops that did not answer.
+    unit: ms
+    stability: alpha
+    gauge:
+      value_type: double
+    attributes: [traceroute.hop.index, traceroute.hop.address, traceroute.trigger, dns.server]
+
+  traceroute.hop.status:
+    enabled: true
+    description: 1 if the hop answered one of its probes, 0 if it answered none. Averaged over time, the fraction of traces in which the hop answered.
+    unit: "1"
+    stability: alpha
+    gauge:
+      value_type: double
+    attributes: [traceroute.hop.index, traceroute.hop.address, traceroute.trigger, dns.server]
+
+  traceroute.hops:
+    enabled: true
+    description: Number of hops the trace probed. 0 when the trace could not run.
+    unit: "{hop}"
+    stability: alpha
+    gauge:
+      value_type: int
+    attributes: [traceroute.trigger, dns.server]
+
+  traceroute.reached:
+    enabled: true
+    description: 1 if the destination answered, 0 if it did not or the trace could not run.
+    unit: "1"
+    stability: alpha
+    gauge:
+      value_type: int
+    attributes: [traceroute.trigger, dns.server]
+
+# The lifecycle test starts and stops the receiver without sending a packet:
+# every section inherits initial_delay, which holds back the first check.
+tests:
+  config:
+    collection_interval: 1m
+    initial_delay: 10s
+    icmp:
+      targets:
+        - host: 127.0.0.1
+    tcp:
+      targets:
+        - endpoint: 127.0.0.1:9
+    traceroute:
+      targets:
+        - host: 127.0.0.1
