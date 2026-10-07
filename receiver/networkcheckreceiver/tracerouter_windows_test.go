@@ -23,6 +23,7 @@ import (
 	"net"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
@@ -82,6 +83,49 @@ func TestNativeTraceLoopback(t *testing.T) {
 	require.Equal(t, "127.0.0.1", res.Hops[0].Address)
 	require.False(t, res.Hops[0].TimedOut)
 	require.Positive(t, res.Hops[0].RTT)
+}
+
+// The walk is driven with crafted replies: a hop that answers with anything
+// but IP_SUCCESS or IP_TTL_EXPIRED_TRANSIT ends the path short of the
+// destination, and the trace reports that, as on the other platforms.
+func TestNativeTraceOutcome(t *testing.T) {
+	addr := func(ip string) uint32 { return binary.LittleEndian.Uint32(net.ParseIP(ip).To4()) }
+	const dest = "192.0.2.1"
+	transit := icmpEchoReply{Address: addr("10.0.0.1"), Status: ipTTLExpiredTransit, RoundTripTime: 1}
+	for _, tc := range []struct {
+		name        string
+		last        icmpEchoReply
+		reached     bool
+		unreachable bool
+	}{
+		{"destination answers", icmpEchoReply{Address: addr(dest), Status: ipSuccess, RoundTripTime: 2}, true, false},
+		// IP_DEST_HOST_UNREACHABLE from the second router.
+		{"router cannot forward", icmpEchoReply{Address: addr("10.0.0.2"), Status: 11003, RoundTripTime: 2}, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			orig := sendEcho
+			t.Cleanup(func() { sendEcho = orig })
+			replies := map[uint8]icmpEchoReply{1: transit, 2: tc.last}
+			sendEcho = func(_ uintptr, _ uint32, opts *ipOptionInformation, _, replyBuf []byte, _ int64) (uintptr, error) {
+				r, ok := replies[opts.TTL]
+				if !ok {
+					return 0, windows.Errno(ipReqTimedOut)
+				}
+				*(*icmpEchoReply)(unsafe.Pointer(&replyBuf[0])) = r
+				return 1, nil
+			}
+
+			tr := newTracerouter(&TracerouteConfig{MaxHops: 5, Timeout: time.Second, ProbesPerHop: 1}, dest, "")
+			res, err := tr.tracePath(context.Background(), "", dest)
+			require.NoError(t, err)
+			require.Equal(t, tc.reached, res.Reached)
+			require.Equal(t, tc.unreachable, res.Unreachable)
+			require.False(t, res.AbortedEarly)
+			require.Len(t, res.Hops, 2)
+			require.Equal(t, "10.0.0.1", res.Hops[0].Address)
+			require.Equal(t, 2*time.Millisecond, res.Hops[1].RTT)
+		})
+	}
 }
 
 func TestNativeTraceRejectsNonIPv4(t *testing.T) {

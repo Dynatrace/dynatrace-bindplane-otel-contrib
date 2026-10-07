@@ -159,12 +159,12 @@ icmp_check reports as a percentage (0-100), and the host as configured
   trace it triggers follow the same path even though the `icmp` section has
   no `dns_server` of its own. `dns_server` on a traceroute target applies to
   scheduled traces of that target.
+- At most one trace per host is in flight; a trace that is due while the
+  previous one runs is not started.
 - `batch_size` and `jitter` apply to scheduled traces only. The upstream
   children probe all their targets each cycle and have no spreading of their
   own; to keep sections from firing at the same instant, give each its own
   `initial_delay`.
-  system resolver when that is missing. At most one trace per host is in
-  flight; a trace that is due while the previous one runs is not started.
 - Triggered and scheduled traces share `max_concurrent_traces`. A triggered
   trace waits for a slot and, with the wait, is bounded by
   `on_failure.timeout`. A trace that does not finish in time emits nothing and

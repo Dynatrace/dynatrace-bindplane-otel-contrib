@@ -139,17 +139,7 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 			// #nosec G115 -- ttl <= maxHops() <= maxTTL (255), and min() keeps it there.
 			opts := ipOptionInformation{TTL: uint8(min(ttl, maxTTL))}
 			sent := time.Now()
-			// #nosec G103 -- the buffers are Go-owned and stay live for this synchronous call; replyBuf is oversized for the reply.
-			n, _, sendErr := procIcmpSendEcho.Call(
-				handle,
-				uintptr(destAddr),
-				uintptr(unsafe.Pointer(&payload[0])),
-				uintptr(len(payload)),
-				uintptr(unsafe.Pointer(&opts)),
-				uintptr(unsafe.Pointer(&replyBuf[0])),
-				uintptr(len(replyBuf)),
-				uintptr(waitMs),
-			)
+			n, sendErr := sendEcho(handle, destAddr, &opts, payload, replyBuf, waitMs)
 			elapsed := time.Since(sent)
 
 			var reply icmpEchoReply
@@ -191,7 +181,24 @@ func (t *tracerouter) traceNative(ctx context.Context, dest string) (hops []HopR
 		}
 	}
 
-	return hops, false, nil
+	return hops, unreachable, nil
+}
+
+// sendEcho issues one IcmpSendEcho call and returns its reply count and error.
+// A variable so tests can walk a path of crafted replies.
+var sendEcho = func(handle uintptr, destAddr uint32, opts *ipOptionInformation, payload, replyBuf []byte, waitMs int64) (uintptr, error) {
+	// #nosec G103 -- the buffers are Go-owned and stay live for this synchronous call; replyBuf is oversized for the reply.
+	n, _, err := procIcmpSendEcho.Call(
+		handle,
+		uintptr(destAddr),
+		uintptr(unsafe.Pointer(&payload[0])),
+		uintptr(len(payload)),
+		uintptr(unsafe.Pointer(opts)),
+		uintptr(unsafe.Pointer(&replyBuf[0])),
+		uintptr(len(replyBuf)),
+		uintptr(waitMs),
+	)
+	return n, err
 }
 
 // nativeHop interprets one IcmpSendEcho call, the probes-th sent for the hop at
