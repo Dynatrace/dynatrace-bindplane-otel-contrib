@@ -25,21 +25,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/icmp"
+	"golang.org/x/sys/unix"
 )
-
-// rawICMPAllowed reports whether this process may open a raw ICMP socket
-// (root or CAP_NET_RAW).
-func rawICMPAllowed() bool {
-	c, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
-	if err != nil {
-		return false
-	}
-	_ = c.Close()
-	return true
-}
 
 // TestLinuxUDPTraceNeedsNoPrivilege traces loopback, whose first hop is the
 // destination answering port unreachable. It runs as whatever user runs the
@@ -161,4 +151,52 @@ func TestLinuxUDPTraceInternet(t *testing.T) {
 	// Docker Desktop's NAT collapses the real path, so only the shape is
 	// asserted, not a hop count.
 	require.Positive(t, answered)
+}
+
+// recvErrCmsg builds the control message IP_RECVERR delivers: a struct
+// sock_extended_err followed by the offender's struct sockaddr_in.
+func recvErrCmsg(typ int32, origin, icmpType, icmpCode uint8, family uint16, offender net.IP) []byte {
+	data := make([]byte, 32)
+	data[4], data[5], data[6] = origin, icmpType, icmpCode
+	binary.NativeEndian.PutUint16(data[16:18], family)
+	copy(data[20:24], offender.To4())
+
+	b := make([]byte, unix.CmsgSpace(len(data)))
+	h := (*unix.Cmsghdr)(unsafe.Pointer(&b[0]))
+	h.Level, h.Type = unix.SOL_IP, typ
+	h.SetLen(unix.CmsgLen(len(data)))
+	copy(b[unix.CmsgLen(0):], data)
+	return b
+}
+
+func TestParseRecvErr(t *testing.T) {
+	dest, router := net.IPv4(192, 0, 2, 10), net.IPv4(10, 0, 0, 1)
+	icmpErr := func(typ, code uint8, from net.IP) []byte {
+		return recvErrCmsg(unix.IP_RECVERR, unix.SO_EE_ORIGIN_ICMP, typ, code, unix.AF_INET, from)
+	}
+	for _, tc := range []struct {
+		name                 string
+		oob                  []byte
+		from                 string // "" = not an ICMP error
+		reached, unreachable bool
+	}{
+		{"time exceeded", icmpErr(11, 0, router), "10.0.0.1", false, false},
+		{"port unreachable from the destination", icmpErr(3, 3, dest), "192.0.2.10", true, false},
+		{"port unreachable from a router", icmpErr(3, 3, router), "10.0.0.1", false, true},
+		{"host unreachable", icmpErr(3, 1, dest), "192.0.2.10", false, true},
+		{"other ICMP type", icmpErr(12, 0, router), "", false, false},
+		{"local error", recvErrCmsg(unix.IP_RECVERR, unix.SO_EE_ORIGIN_LOCAL, 0, 0, unix.AF_INET, router), "", false, false},
+		{"not IPv4", recvErrCmsg(unix.IP_RECVERR, unix.SO_EE_ORIGIN_ICMP, 11, 0, unix.AF_INET6, router), "", false, false},
+		{"another control message", recvErrCmsg(unix.IP_TTL, unix.SO_EE_ORIGIN_ICMP, 11, 0, unix.AF_INET, router), "", false, false},
+		{"truncated", icmpErr(11, 0, router)[:unix.CmsgLen(8)], "", false, false},
+		{"empty", nil, "", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			from, reached, unreachable, ok := parseRecvErr(tc.oob, dest)
+			require.Equal(t, tc.from != "", ok)
+			require.Equal(t, tc.from, from)
+			require.Equal(t, tc.reached, reached)
+			require.Equal(t, tc.unreachable, unreachable)
+		})
+	}
 }

@@ -308,6 +308,13 @@ func TestResolveIPv4(t *testing.T) {
 	})
 }
 
+func TestTraceMethodDefaultsToUDP(t *testing.T) {
+	// An IPv6 literal fails before any packet is sent, on every platform.
+	res, err := newTracerouter(&TracerouteConfig{}, "2001:db8::1", "").trace(context.Background())
+	require.ErrorContains(t, err, "IPv4 destinations only")
+	require.Equal(t, "udp", res.Method)
+}
+
 func TestMaxHopsAndHopTimeoutClamp(t *testing.T) {
 	for _, tc := range []struct{ cfg, want int }{{0, defaultMaxHops}, {-1, defaultMaxHops}, {12, 12}, {255, 255}, {256, maxTTL}, {10000, maxTTL}} {
 		require.Equal(t, tc.want, newTracerouter(&TracerouteConfig{MaxHops: tc.cfg}, "h", "").maxHops(), tc.cfg)
@@ -464,4 +471,92 @@ func TestWalkRouterUnreachableIsNotReached(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, res.Reached)
 	require.Len(t, res.Hops, 1, "the unreachable ends the walk")
+}
+
+// icmpBytes marshals an ICMP message as a raw IPv4 ICMP socket delivers it.
+func icmpBytes(t *testing.T, typ ipv4.ICMPType, code int, body icmp.MessageBody) []byte {
+	t.Helper()
+	b, err := (&icmp.Message{Type: typ, Code: code, Body: body}).Marshal(nil)
+	require.NoError(t, err)
+	return b
+}
+
+func TestClassifyReply(t *testing.T) {
+	dest, router := net.IPv4(192, 0, 2, 10), net.IPv4(10, 0, 0, 1)
+
+	// UDP probe 40000 -> 33434, and an echo with id 0x1234 seq 7.
+	udpKey := probeKey{dst: dest, udp: true, srcPort: 40000, dstPort: traceroutePort}
+	echoKey := probeKey{dst: dest, echoID: 0x1234, echoSeq: 7}
+	ourUDP := quotedProbe(t, dest, 17, []byte{0x9c, 0x40, 0x82, 0x9a, 0, 0, 0, 0})
+	foreignUDP := quotedProbe(t, dest, 17, []byte{0x9c, 0x41, 0x82, 0x9a, 0, 0, 0, 0})
+	ourEcho := quotedProbe(t, dest, 1, []byte{8, 0, 0, 0, 0x12, 0x34, 0, 7})
+
+	exceeded := func(quote []byte) []byte {
+		return icmpBytes(t, ipv4.ICMPTypeTimeExceeded, 0, &icmp.TimeExceeded{Data: quote})
+	}
+	unreach := func(code int, quote []byte) []byte {
+		return icmpBytes(t, ipv4.ICMPTypeDestinationUnreachable, code, &icmp.DstUnreach{Data: quote})
+	}
+	echo := func(typ ipv4.ICMPType, id, seq int) []byte {
+		return icmpBytes(t, typ, 0, &icmp.Echo{ID: id, Seq: seq, Data: probePayload})
+	}
+
+	for _, tc := range []struct {
+		name    string
+		b       []byte
+		peer    net.IP
+		k       probeKey
+		from    string // "" = not matched
+		reached bool
+		err     error
+	}{
+		{"time exceeded for our UDP probe", exceeded(ourUDP), router, udpKey, "10.0.0.1", false, nil},
+		{"time exceeded for our echo", exceeded(ourEcho), router, echoKey, "10.0.0.1", false, nil},
+		{"time exceeded for a foreign probe", exceeded(foreignUDP), router, udpKey, "", false, nil},
+		{"port unreachable from the destination", unreach(3, ourUDP), dest, udpKey, "192.0.2.10", true, nil},
+		{"port unreachable from another address", unreach(3, ourUDP), router, udpKey, "10.0.0.1", false, errUnreachable},
+		{"host unreachable from a router", unreach(1, ourUDP), router, udpKey, "10.0.0.1", false, errUnreachable},
+		{"administratively prohibited", unreach(13, ourUDP), router, udpKey, "10.0.0.1", false, errUnreachable},
+		{"port unreachable for an echo probe", unreach(3, ourEcho), dest, echoKey, "192.0.2.10", false, errUnreachable},
+		{"unreachable for a foreign probe", unreach(1, foreignUDP), router, udpKey, "", false, nil},
+		{"echo reply from the destination", echo(ipv4.ICMPTypeEchoReply, 0x1234, 7), dest, echoKey, "192.0.2.10", true, nil},
+		{"echo reply with another id", echo(ipv4.ICMPTypeEchoReply, 0x1235, 7), dest, echoKey, "", false, nil},
+		{"echo reply with another seq", echo(ipv4.ICMPTypeEchoReply, 0x1234, 6), dest, echoKey, "", false, nil},
+		{"echo reply from another peer", echo(ipv4.ICMPTypeEchoReply, 0x1234, 7), router, echoKey, "", false, nil},
+		{"echo reply while tracing with UDP", echo(ipv4.ICMPTypeEchoReply, 0x1234, 7), dest, udpKey, "", false, nil},
+		// A raw socket sees this host's own echo requests on loopback.
+		{"our own echo request", echo(ipv4.ICMPTypeEcho, 0x1234, 7), dest, echoKey, "", false, nil},
+		{"garbage", []byte{0xff}, router, udpKey, "", false, nil},
+		{"empty", nil, router, udpKey, "", false, nil},
+		{"truncated quote", exceeded(ourUDP[:ipv4.HeaderLen+3]), router, udpKey, "", false, nil},
+		{"truncated message", exceeded(ourUDP)[:6], router, udpKey, "", false, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				from             string
+				reached, matched bool
+				err              error
+			)
+			require.NotPanics(t, func() {
+				from, reached, matched, err = classifyReply(tc.b, &net.IPAddr{IP: tc.peer}, tc.k)
+			})
+			require.Equal(t, tc.from != "", matched)
+			require.Equal(t, tc.from, from)
+			require.Equal(t, tc.reached, reached)
+			require.ErrorIs(t, err, tc.err)
+		})
+	}
+}
+
+func TestHopsReachedDest(t *testing.T) {
+	const dest = "192.0.2.1"
+	silent := HopResult{Address: unansweredHopAddress, TimedOut: true}
+	router := HopResult{Address: "10.0.0.1"}
+	destHop := HopResult{Address: dest}
+
+	require.True(t, hopsReachedDest([]HopResult{router, destHop}, dest))
+	require.True(t, hopsReachedDest([]HopResult{silent, destHop}, dest), "a silent hop on the way does not matter")
+	require.False(t, hopsReachedDest([]HopResult{router, silent, silent}, dest), "the last answer came from a router")
+	require.False(t, hopsReachedDest([]HopResult{silent, silent}, dest))
+	require.False(t, hopsReachedDest(nil, dest))
 }
