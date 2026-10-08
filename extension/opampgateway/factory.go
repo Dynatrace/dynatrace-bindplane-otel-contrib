@@ -17,12 +17,23 @@ package opampgateway
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/gateway"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"
+)
+
+const (
+	// agentIDEnv is the environment variable consulted for the agent ID when
+	// it is neither configured nor present in the collector resource.
+	agentIDEnv = "OPAMP_AGENT_ID"
+	// serviceInstanceIDKey is the resource attribute the collector uses for
+	// its instance id (semconv service.instance.id).
+	serviceInstanceIDKey = "service.instance.id"
 )
 
 // NewFactory creates a new factory for the OpAMP gateway extension.
@@ -64,6 +75,7 @@ func createOpAMPGateway(ctx context.Context, cs extension.Settings, cfg componen
 		UpstreamConnections:  oCfg.Server.Connections,
 		OpAMPServer:          oCfg.Listener,
 		BuildInfo:            cs.BuildInfo,
+		AgentID:              resolveAgentID(oCfg.Server.AgentID, cs.TelemetrySettings),
 	}
 
 	gw := gateway.New(cs.Logger, settings, t)
@@ -71,4 +83,23 @@ func createOpAMPGateway(ctx context.Context, cs extension.Settings, cfg componen
 		gateway:           gw,
 		telemetrySettings: cs.TelemetrySettings,
 	}, nil
+}
+
+// resolveAgentID returns the agent ID to advertise on upstream connections. The
+// configured value wins, then the collector's service.instance.id resource
+// attribute, then the OPAMP_AGENT_ID environment variable. An empty string
+// means no agent ID is available.
+func resolveAgentID(configured string, ts component.TelemetrySettings) string {
+	if id := strings.TrimSpace(configured); id != "" {
+		return id
+	}
+	if v, ok := ts.Resource.Attributes().Get(serviceInstanceIDKey); ok {
+		if id := strings.TrimSpace(v.AsString()); id != "" {
+			return id
+		}
+	}
+	if id := strings.TrimSpace(os.Getenv(agentIDEnv)); id != "" {
+		return id
+	}
+	return ""
 }

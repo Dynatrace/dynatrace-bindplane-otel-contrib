@@ -65,3 +65,31 @@ func TestUpstreamConnectionHeader(t *testing.T) {
 		})
 	}
 }
+
+func TestUpstreamConnectionHeaderAgentID(t *testing.T) {
+	t.Run("without agent id", func(t *testing.T) {
+		c := newUpstreamConnection(*websocket.DefaultDialer, nil, upstreamConnectionSettings{}, "upstream-0", zap.NewNop())
+		h := c.header("upstream-0")
+		require.Equal(t, "upstream-0", h.Get("X-Opamp-Gateway-Connection-Id"))
+	})
+
+	t.Run("with agent id", func(t *testing.T) {
+		c := newUpstreamConnection(*websocket.DefaultDialer, nil, upstreamConnectionSettings{
+			agentID: "01HZ7X0C7S7ZQ6M4R2E7F9K3BA",
+		}, "upstream-2", zap.NewNop())
+		h := c.header("upstream-2")
+		require.Equal(t, "01HZ7X0C7S7ZQ6M4R2E7F9K3BA/upstream-2", h.Get("X-Opamp-Gateway-Connection-Id"))
+	})
+
+	t.Run("preserves configured headers", func(t *testing.T) {
+		c := newUpstreamConnection(*websocket.DefaultDialer, nil, upstreamConnectionSettings{
+			headers: http.Header{"Authorization": []string{"Secret-Key abc"}},
+			agentID: "agent-1",
+		}, "upstream-0", zap.NewNop())
+		h := c.header("upstream-0")
+		require.Equal(t, "Secret-Key abc", h.Get("Authorization"))
+		require.Equal(t, "agent-1/upstream-0", h.Get("X-Opamp-Gateway-Connection-Id"))
+		// the configured headers must not be mutated
+		require.Empty(t, c.settings.headers.Get("X-Opamp-Gateway-Connection-Id"))
+	})
+}

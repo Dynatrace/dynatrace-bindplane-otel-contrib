@@ -69,6 +69,7 @@ graph LR
 | `server.headers` | map | *(none)* | HTTP headers sent on upstream connections (e.g. `Authorization`). Setting `User-Agent` here overrides the default described below. |
 | `server.tls` | [TLS config](https://pkg.go.dev/go.opentelemetry.io/collector/config/configtls#ClientConfig) | *(none)* | TLS configuration for the upstream client connection. |
 | `server.connections` | int | `1` | Number of persistent WebSocket connections to maintain to the upstream server. |
+| `server.agent_id` | string | *(see below)* | ID of the collector hosting the gateway, sent upstream as the `<agent-id>/upstream-N` prefix of the `X-Opamp-Gateway-Connection-Id` header. When unset, the extension uses the collector's `service.instance.id` resource attribute, then the `OPAMP_AGENT_ID` environment variable. If none is available the header is just `upstream-N`. |
 | `listener.endpoint` | string | `"0.0.0.0:0"` | Address the downstream server listens on for agent connections. |
 | `listener.tls` | [TLS config](https://pkg.go.dev/go.opentelemetry.io/collector/config/configtls#ServerConfig) | *(none)* | TLS configuration for the downstream server. |
 

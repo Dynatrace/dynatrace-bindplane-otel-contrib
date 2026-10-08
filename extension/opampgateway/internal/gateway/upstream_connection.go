@@ -59,6 +59,9 @@ type upstreamConnectionSettings struct {
 	endpoint  string
 	headers   http.Header
 	userAgent string
+	// agentID is the ID of the collector hosting the gateway. When non-empty
+	// the connection identifies itself upstream as "<agentID>/<id>".
+	agentID string
 }
 
 func newUpstreamConnection(dialer websocket.Dialer, telemetry *metadata.TelemetryBuilder, settings upstreamConnectionSettings, id string, logger *zap.Logger) *upstreamConnection {
@@ -67,7 +70,7 @@ func newUpstreamConnection(dialer websocket.Dialer, telemetry *metadata.Telemetr
 		settings:  settings,
 		id:        id,
 		telemetry: telemetry,
-		logger:    logger.Named("upstream-connection").With(zap.String("id", id)),
+		logger:    logger.Named("upstream-connection").With(zap.String("id", id), zap.String("agent_id", settings.agentID)),
 		writeChan: make(chan *message),
 
 		// the error channel is buffered to prevent blocking the reader goroutine if it
@@ -349,12 +352,22 @@ func (c *upstreamConnection) tryConnectOnce(ctx context.Context, id string) (*we
 	return conn, nil
 }
 
+// connectionID returns the identifier sent upstream in the
+// X-Opamp-Gateway-Connection-Id header: "<agent-id>/<id>" when an agent ID is
+// known, otherwise just "<id>".
+func (c *upstreamConnection) connectionID(id string) string {
+	if c.settings.agentID == "" {
+		return id
+	}
+	return c.settings.agentID + "/" + id
+}
+
 func (c *upstreamConnection) header(id string) http.Header {
 	h := c.settings.headers.Clone()
 	if h == nil {
 		h = make(http.Header)
 	}
-	h.Set("X-Opamp-Gateway-Connection-Id", id)
+	h.Set("X-Opamp-Gateway-Connection-Id", c.connectionID(id))
 	// identify the gateway to the upstream server, leaving a configured
 	// User-Agent in place so it can be overridden.
 	if h.Get("User-Agent") == "" {
