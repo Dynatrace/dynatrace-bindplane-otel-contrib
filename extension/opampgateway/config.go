@@ -32,9 +32,8 @@ type ServerConfig struct {
 	// AgentID identifies the collector hosting the gateway. It is sent to the
 	// upstream server as a prefix of the X-Opamp-Gateway-Connection-Id header
 	// ("<agent-id>/upstream-N"). When empty, the extension falls back to the
-	// collector's service.instance.id resource attribute, then to the
-	// OPAMP_AGENT_ID environment variable. If none are set the header is just
-	// "upstream-N".
+	// collector's service.instance.id resource attribute. If neither is set
+	// the header is just "upstream-N".
 	AgentID string `mapstructure:"agent_id"`
 }
 

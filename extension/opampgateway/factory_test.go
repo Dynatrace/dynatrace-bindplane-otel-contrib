@@ -51,34 +51,24 @@ func TestCreateOpAMPGatewayInvalidUpstreamTLSConfig(t *testing.T) {
 
 func TestResolveAgentID(t *testing.T) {
 	t.Run("configured value wins", func(t *testing.T) {
-		t.Setenv(agentIDEnv, "from-env")
 		ts := extensiontest.NewNopSettings(typ).TelemetrySettings
 		ts.Resource.Attributes().PutStr(serviceInstanceIDKey, "from-resource")
 		require.Equal(t, "from-config", resolveAgentID(" from-config ", ts))
 	})
 
 	t.Run("falls back to service.instance.id", func(t *testing.T) {
-		t.Setenv(agentIDEnv, "from-env")
 		ts := extensiontest.NewNopSettings(typ).TelemetrySettings
 		ts.Resource.Attributes().PutStr(serviceInstanceIDKey, "from-resource")
 		require.Equal(t, "from-resource", resolveAgentID("", ts))
 	})
 
-	t.Run("falls back to OPAMP_AGENT_ID", func(t *testing.T) {
-		t.Setenv(agentIDEnv, "from-env")
-		ts := extensiontest.NewNopSettings(typ).TelemetrySettings
-		require.Equal(t, "from-env", resolveAgentID("", ts))
-	})
-
 	t.Run("ignores empty service.instance.id", func(t *testing.T) {
-		t.Setenv(agentIDEnv, "from-env")
 		ts := extensiontest.NewNopSettings(typ).TelemetrySettings
 		ts.Resource.Attributes().PutStr(serviceInstanceIDKey, "  ")
-		require.Equal(t, "from-env", resolveAgentID("", ts))
+		require.Equal(t, "", resolveAgentID("", ts))
 	})
 
 	t.Run("nothing available", func(t *testing.T) {
-		t.Setenv(agentIDEnv, "")
 		ts := extensiontest.NewNopSettings(typ).TelemetrySettings
 		require.Equal(t, "", resolveAgentID("", ts))
 	})
