@@ -137,14 +137,8 @@ type admission struct {
 	waiters      int
 	filled       chan struct{}
 	filledClosed bool
-	// Detection and wait parameters; package constants unless a test
-	// overrides them.
-	highThroughputMultiple  int
-	minBatchesPerSecond     int
-	fastWindowsToOnDemand   int
-	slowWindowsToContinuous int
-	fillWait                time.Duration
-	heartbeatInterval       time.Duration
+	// fillWait is the package constant unless a test shortens it.
+	fillWait time.Duration
 }
 
 // decision is what Add should do with a payload.
@@ -168,12 +162,7 @@ func (a *admission) init(interval time.Duration, budget int) {
 	a.windowNs.Store(monoNow())
 	a.used.Store(0)
 	a.collecting.Store(true)
-	a.highThroughputMultiple = highThroughputMultiple
-	a.minBatchesPerSecond = minBatchesPerSecond
-	a.fastWindowsToOnDemand = fastWindowsToOnDemand
-	a.slowWindowsToContinuous = slowWindowsToContinuous
 	a.fillWait = fillWait
-	a.heartbeatInterval = heartbeatInterval
 }
 
 // decide reports what Add should do with a payload of records items. Rejected
@@ -219,7 +208,7 @@ func (a *admission) decide(records int) decision {
 	// heartbeatInterval so the store stays a recent picture of the stream
 	// while nobody is asking, however slowly the pipeline batches.
 	last := a.lastHeartbeatNs.Load()
-	if now-last < int64(a.heartbeatInterval) {
+	if now-last < int64(heartbeatInterval) {
 		return reject
 	}
 	if a.lastHeartbeatNs.CompareAndSwap(last, now) {
@@ -243,8 +232,8 @@ func (a *admission) sampleWindow(batches, offered, durationNs int64) bool {
 		return false
 	}
 	seconds := float64(durationNs) / float64(time.Second)
-	fast := float64(offered)/seconds >= float64(a.highThroughputMultiple)*float64(a.budget) &&
-		float64(batches)/seconds >= float64(a.minBatchesPerSecond)
+	fast := float64(offered)/seconds >= float64(highThroughputMultiple)*float64(a.budget) &&
+		float64(batches)/seconds >= float64(minBatchesPerSecond)
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -254,7 +243,7 @@ func (a *admission) sampleWindow(batches, offered, durationNs int64) bool {
 			return false
 		}
 		a.slowWindows++
-		if a.slowWindows < a.slowWindowsToContinuous {
+		if a.slowWindows < slowWindowsToContinuous {
 			return false
 		}
 		a.leaveOnDemandLocked()
@@ -265,7 +254,7 @@ func (a *admission) sampleWindow(batches, offered, durationNs int64) bool {
 		return false
 	}
 	a.fastWindows++
-	if a.fastWindows < a.fastWindowsToOnDemand {
+	if a.fastWindows < fastWindowsToOnDemand {
 		return false
 	}
 	a.onDemand = true

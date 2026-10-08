@@ -56,7 +56,7 @@ func simulateFastWindow(buf *LogBuffer) {
 // high-throughput windows.
 func forceOnDemand(tb testing.TB, buf *LogBuffer) {
 	tb.Helper()
-	for i := 0; i < buf.admit.fastWindowsToOnDemand; i++ {
+	for i := 0; i < fastWindowsToOnDemand; i++ {
 		simulateFastWindow(buf)
 	}
 	buf.admit.mu.Lock()
@@ -164,7 +164,7 @@ func TestOnDemandHeartbeatKeepsStoreCurrent(t *testing.T) {
 	// batch per second refreshes the store on its first batch after the
 	// interval, not after some number of batches. The payload after it is
 	// not admitted.
-	buf.admit.lastHeartbeatNs.Store(monoNow() - int64(buf.admit.heartbeatInterval))
+	buf.admit.lastHeartbeatNs.Store(monoNow() - int64(heartbeatInterval))
 	buf.Add(logsN(1, "hb"))
 	require.Equal(t, before+1, buf.Len())
 	require.Contains(t, logBodiesNoRequest(buf), "hb-0")
@@ -181,12 +181,12 @@ func TestOnDemandReturnsToContinuousAfterSlowWindows(t *testing.T) {
 
 		// The pipeline settles to one 10-record batch per second: a tenth of
 		// the high-throughput record rate and of the batch rate.
-		for i := 1; i < buf.admit.slowWindowsToContinuous; i++ {
+		for i := 1; i < slowWindowsToContinuous; i++ {
 			simulateWindow(buf, 1, 10)
 			require.False(t, buf.admit.collecting.Load(), "still on-demand after %d slow windows", i)
 		}
 		simulateWindow(buf, 1, 10)
-		require.True(t, buf.admit.collecting.Load(), "continuous again after %d slow windows", buf.admit.slowWindowsToContinuous)
+		require.True(t, buf.admit.collecting.Load(), "continuous again after %d slow windows", slowWindowsToContinuous)
 		buf.admit.mu.Lock()
 		onDemand := buf.admit.onDemand
 		buf.admit.mu.Unlock()
@@ -209,7 +209,7 @@ func TestOnDemandReturnsToContinuousAfterSlowWindows(t *testing.T) {
 		simulateWindow(buf, 1, 10)
 		simulateFastWindow(buf)
 		require.False(t, buf.admit.collecting.Load())
-		for i := 1; i < buf.admit.slowWindowsToContinuous; i++ {
+		for i := 1; i < slowWindowsToContinuous; i++ {
 			simulateWindow(buf, 1, 10)
 			require.False(t, buf.admit.collecting.Load(), "streak restarted by the fast window")
 		}
