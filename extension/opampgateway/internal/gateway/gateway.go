@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -125,6 +126,13 @@ func (g *Gateway) HandleDownstreamMessage(_ context.Context, connection *downstr
 		return fmt.Errorf("cannot decode message from WebSocket: %w", err)
 	}
 
+	// A downstream gateway sends an OpampGatewayConnect message for each agent that connects
+	// to it. The gateway creates that message itself, so it has no instance_uid and must not
+	// go through the agent ID parsing below. Relay it to the upstream server instead.
+	if requestUID, ok := chainedConnectRequestUID(&message); ok {
+		return g.relayChainedConnect(connection, msg, requestUID)
+	}
+
 	agentID, err := parseAgentID(message.GetInstanceUid())
 	if err != nil {
 		return fmt.Errorf("cannot parse agent ID: %w", err)
@@ -193,6 +201,12 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 		return nil
 	}
 
+	// The result of a connect request that was relayed on behalf of a downstream gateway is
+	// not addressed to an agent. Route it to the gateway that sent the request by request UID.
+	if handled, err := g.relayChainedConnectResult(connection, message, &m); handled {
+		return err
+	}
+
 	agentID, err := parseAgentID(m.GetInstanceUid())
 	if err != nil {
 		return fmt.Errorf("invalid instance_uid (length=%d, fields=%v): %w",
@@ -208,21 +222,7 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 
 	// inject cached CustomCapabilities into the first message forwarded to each downstream
 	// agent.
-	if m.CustomCapabilities != nil {
-		conn.sentCustomCapabilities.Store(true)
-	} else {
-		if !conn.sentCustomCapabilities.Load() {
-			if caps := connection.getCustomCapabilities(); caps != nil {
-				m.CustomCapabilities = caps
-				if updated, err := encodeWSMessage(&m); err != nil {
-					g.logger.Error("failed to update message with CustomCapabilities", zap.Error(err))
-				} else {
-					message = newMessage(message.number, updated)
-					conn.sentCustomCapabilities.Store(true)
-				}
-			}
-		}
-	}
+	message = g.injectCustomCapabilities(connection, conn, &m, message)
 
 	// forward the message to the downstream connection
 	msg := fmt.Sprintf("%s <= %s", conn.id, connection.id)
@@ -233,6 +233,96 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 	g.telemetry.OpampgatewayMessages.Add(context.Background(), 1, directionDownstream)
 	g.telemetry.OpampgatewayMessagesBytes.Add(context.Background(), int64(len(message.data)), directionDownstream)
 	return nil
+}
+
+// relayChainedConnect relays an OpampGatewayConnect request from a downstream gateway to the
+// upstream server. The request is forwarded unchanged on the upstream connection assigned to
+// the downstream gateway, and the request UID is recorded so the result can be routed back.
+func (g *Gateway) relayChainedConnect(connection *downstreamConnection, msg *message, requestUID string) error {
+	if requestUID == "" {
+		return errors.New("cannot relay gateway connect request without a request_uid")
+	}
+
+	upstreamConnection := connection.upstreamConnection
+
+	// record the request before sending it so the result can never arrive before the request
+	// is known
+	g.server.chainedConnects.add(requestUID, connection)
+
+	logMsg := fmt.Sprintf("%s => %s", connection.id, upstreamConnection.id)
+	g.logger.Info(logMsg,
+		zap.String("request_uid", requestUID),
+		zap.String("type", OpampGatewayConnectType),
+		zap.Int("message.number", msg.number),
+		zap.Int("message.bytes", len(msg.data)),
+	)
+	if err := upstreamConnection.send(msg); err != nil {
+		g.server.chainedConnects.take(requestUID)
+		return fmt.Errorf("send upstream: %w", err)
+	}
+	g.telemetry.OpampgatewayMessages.Add(context.Background(), 1, directionUpstream)
+	g.telemetry.OpampgatewayMessagesBytes.Add(context.Background(), int64(len(msg.data)), directionUpstream)
+	return nil
+}
+
+// relayChainedConnectResult forwards an OpampGatewayConnectResult to the downstream gateway
+// that sent the matching request. It returns true if the message was the result of a relayed
+// request, in which case the returned error is the outcome of forwarding it.
+func (g *Gateway) relayChainedConnectResult(upstream *upstreamConnection, msg *message, m *protobufs.ServerToAgent) (bool, error) {
+	requestUID, ok := connectResultRequestUID(m.GetCustomMessage())
+	if !ok {
+		return false, nil
+	}
+	conn, ok := g.server.chainedConnects.take(requestUID)
+	if !ok {
+		return false, nil
+	}
+
+	// The result is usually the first message a downstream gateway receives on its connection,
+	// so it needs the upstream's CustomCapabilities like any other first message.
+	msg = g.injectCustomCapabilities(upstream, conn, m, msg)
+
+	logMsg := fmt.Sprintf("%s <= %s", conn.id, upstream.id)
+	g.logger.Info(logMsg,
+		zap.String("request_uid", requestUID),
+		zap.String("type", OpampGatewayConnectResultType),
+		zap.Int("message.number", msg.number),
+		zap.Int("message.bytes", len(msg.data)),
+	)
+	if err := conn.send(msg); err != nil {
+		return true, fmt.Errorf("send connect result to downstream gateway %s: %w", conn.id, err)
+	}
+	g.telemetry.OpampgatewayMessages.Add(context.Background(), 1, directionDownstream)
+	g.telemetry.OpampgatewayMessagesBytes.Add(context.Background(), int64(len(msg.data)), directionDownstream)
+	return true, nil
+}
+
+// injectCustomCapabilities makes sure the first message forwarded to a downstream connection
+// carries the CustomCapabilities of the upstream server. The opamp-go server only sends them
+// once per WebSocket connection, so they are cached on the upstream connection and shared
+// with each downstream connection here. It returns the message to forward, which is a new
+// message when the capabilities were added.
+func (g *Gateway) injectCustomCapabilities(upstream *upstreamConnection, downstream *downstreamConnection, m *protobufs.ServerToAgent, msg *message) *message {
+	if m.CustomCapabilities != nil {
+		downstream.sentCustomCapabilities.Store(true)
+		return msg
+	}
+	if downstream.sentCustomCapabilities.Load() {
+		return msg
+	}
+	caps := upstream.getCustomCapabilities()
+	if caps == nil {
+		return msg
+	}
+
+	m.CustomCapabilities = caps
+	updated, err := encodeWSMessage(m)
+	if err != nil {
+		g.logger.Error("failed to update message with CustomCapabilities", zap.Error(err))
+		return msg
+	}
+	downstream.sentCustomCapabilities.Store(true)
+	return newMessage(msg.number, updated)
 }
 
 // HandleUpstreamError handles an error from an upstream connection.

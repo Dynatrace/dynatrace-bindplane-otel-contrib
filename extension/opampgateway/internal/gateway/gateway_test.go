@@ -451,6 +451,10 @@ type testOpAMPServer struct {
 	// skipAuth when true causes the server to ignore auth requests (never respond)
 	skipAuth bool
 
+	// rejectConnects when true causes the server to answer connect requests with a
+	// rejection (403) instead of accepting them.
+	rejectConnects atomic.Bool
+
 	// customCapabilities, when non-nil, are included in auth responses.
 	// This mimics the real opamp-go server which sends CustomCapabilities
 	// on the first response per WebSocket connection.
@@ -610,6 +614,10 @@ func (s *testOpAMPServer) respondToConnect(conn *websocket.Conn, data []byte) er
 		RequestUID:     connectMsg.RequestUID,
 		Accept:         true,
 		HTTPStatusCode: http.StatusOK,
+	}
+	if s.rejectConnects.Load() {
+		result.Accept = false
+		result.HTTPStatusCode = http.StatusForbidden
 	}
 	resultData, err := json.Marshal(result)
 	if err != nil {
