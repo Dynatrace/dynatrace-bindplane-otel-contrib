@@ -29,6 +29,12 @@ type ServerConfig struct {
 	Headers     http.Header            `mapstructure:"headers"`
 	TLS         configtls.ClientConfig `mapstructure:"tls,omitempty"`
 	Connections int                    `mapstructure:"connections"`
+	// AgentID identifies the collector hosting the gateway. It is sent to the
+	// upstream server as a prefix of the X-Opamp-Gateway-Connection-Id header
+	// ("<agent-id>/upstream-N"). When empty, the extension falls back to the
+	// collector's service.instance.id resource attribute. If neither is set
+	// the header is just "upstream-N".
+	AgentID string `mapstructure:"agent_id"`
 }
 
 // Config holds the configuration for the OpAMP gateway extension.

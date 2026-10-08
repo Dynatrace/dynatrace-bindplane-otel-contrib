@@ -48,6 +48,7 @@ type client struct {
 	userAgent        string
 	upstreamEndpoint string
 	connectionCount  int
+	agentID          string
 
 	clientConnectionsWg     *sync.WaitGroup
 	clientConnectionsCancel context.CancelFunc
@@ -73,6 +74,7 @@ func newClient(settings Settings, telemetry *metadata.TelemetryBuilder, callback
 		userAgent:             version.UserAgent(settings.BuildInfo),
 		upstreamEndpoint:      settings.UpstreamOpAMPAddress,
 		connectionCount:       settings.UpstreamConnections,
+		agentID:               settings.AgentID,
 		clientConnectionsWg:   &sync.WaitGroup{},
 		telemetry:             telemetry,
 	}
@@ -102,6 +104,7 @@ func (c *client) startClientConnections(ctx context.Context) {
 			endpoint:  c.upstreamEndpoint,
 			headers:   c.headers,
 			userAgent: c.userAgent,
+			agentID:   c.agentID,
 		}, id, c.logger)
 
 		c.pool.add(clientConnection)

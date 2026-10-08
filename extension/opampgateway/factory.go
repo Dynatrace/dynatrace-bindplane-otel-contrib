@@ -17,6 +17,7 @@ package opampgateway
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/gateway"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
@@ -24,6 +25,10 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"
 )
+
+// serviceInstanceIDKey is the resource attribute the collector uses for its
+// instance id (semconv service.instance.id).
+const serviceInstanceIDKey = "service.instance.id"
 
 // NewFactory creates a new factory for the OpAMP gateway extension.
 func NewFactory() extension.Factory {
@@ -64,6 +69,7 @@ func createOpAMPGateway(ctx context.Context, cs extension.Settings, cfg componen
 		UpstreamConnections:  oCfg.Server.Connections,
 		OpAMPServer:          oCfg.Listener,
 		BuildInfo:            cs.BuildInfo,
+		AgentID:              resolveAgentID(oCfg.Server.AgentID, cs.TelemetrySettings),
 	}
 
 	gw := gateway.New(cs.Logger, settings, t)
@@ -71,4 +77,19 @@ func createOpAMPGateway(ctx context.Context, cs extension.Settings, cfg componen
 		gateway:           gw,
 		telemetrySettings: cs.TelemetrySettings,
 	}, nil
+}
+
+// resolveAgentID returns the agent ID to advertise on upstream connections. The
+// configured value wins, then the collector's service.instance.id resource
+// attribute. An empty string means no agent ID is available.
+func resolveAgentID(configured string, ts component.TelemetrySettings) string {
+	if id := strings.TrimSpace(configured); id != "" {
+		return id
+	}
+	if v, ok := ts.Resource.Attributes().Get(serviceInstanceIDKey); ok {
+		if id := strings.TrimSpace(v.AsString()); id != "" {
+			return id
+		}
+	}
+	return ""
 }
