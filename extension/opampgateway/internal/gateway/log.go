@@ -19,6 +19,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -26,6 +27,57 @@ import (
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
+
+// Log attribute keys follow the OpenTelemetry semantic conventions: lowercase, dot-separated
+// namespaces with underscores only inside a segment. Attributes that have a semantic convention
+// use its name. Everything specific to the extension lives under the opampgateway namespace,
+// matching the extension's metrics.
+const (
+	// semantic convention attributes
+	keyUserAgent          = "user_agent.original"
+	keyHTTPResponseStatus = "http.response.status_code"
+	keyURLFull            = "url.full"
+
+	// prefixes for addressFields. client is the downstream agent, server is either the upstream
+	// OpAMP server or the address this gateway listens on.
+	prefixClient = "client"
+	prefixServer = "server"
+
+	// extension-specific attributes
+	keyUpstreamConnectionID   = "opampgateway.upstream.connection.id"
+	keyUpstreamConnectionCnt  = "opampgateway.upstream.connection_count"
+	keyDownstreamConnectionID = "opampgateway.downstream.connection.id"
+	keyDownstreamConnectionCt = "opampgateway.downstream.connection_count"
+	keyAgentID                = "opampgateway.agent.id"
+	keyRequestUID             = "opampgateway.request.uid"
+	keyMessageNumber          = "opampgateway.message.number"
+	keyMessageSize            = "opampgateway.message.size"
+	keyMessageType            = "opampgateway.message.type"
+	keyMessageComponents      = "opampgateway.message.components"
+	keyMessageFlags           = "opampgateway.message.flags"
+	keyMessageSequenceNum     = "opampgateway.message.sequence_num"
+	keyCustomCapabilities     = "opampgateway.custom_capabilities"
+	keyConnectAttempt         = "opampgateway.connect.attempt"
+	keyConnectRetryIn         = "opampgateway.connect.retry_in"
+	keyReaderError            = "opampgateway.reader.error"
+	keyWriterError            = "opampgateway.writer.error"
+	keySuppressedCount        = "opampgateway.suppressed_count"
+)
+
+// addressFields returns the semantic convention attributes for a host:port address under the
+// given prefix, such as client.address and client.port. An address that cannot be split is
+// logged as the address alone.
+func addressFields(prefix string, hostPort string) []zap.Field {
+	host, port, err := net.SplitHostPort(hostPort)
+	if err != nil {
+		return []zap.Field{zap.String(prefix+".address", hostPort)}
+	}
+	fields := []zap.Field{zap.String(prefix+".address", host)}
+	if p, err := strconv.Atoi(port); err == nil {
+		fields = append(fields, zap.Int(prefix+".port", p))
+	}
+	return fields
+}
 
 var (
 	// errUpstreamConnectionClosed is returned by send when the upstream connection has shut

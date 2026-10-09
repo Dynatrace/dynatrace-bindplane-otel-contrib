@@ -130,7 +130,7 @@ func (s *server) Start(ctx context.Context, host component.Host, telemetrySettin
 		return fmt.Errorf("create listener: %w", err)
 	}
 	s.addr = ln.Addr()
-	s.logger.Info("server listening", zap.String("endpoint", s.addr.String()))
+	s.logger.Info("server listening", addressFields(prefixServer, s.addr.String())...)
 
 	s.httpServerServeWg = &sync.WaitGroup{}
 	s.httpServerServeWg.Add(1)
@@ -219,9 +219,9 @@ func (s *server) removeDownstreamConnection(conn *downstreamConnection) {
 func (s *server) closeDownstreamConnections(downstreamConnectionIDs []string) {
 	for _, downstreamConnectionID := range downstreamConnectionIDs {
 		if conn, ok := s.downstreamConnections.get(downstreamConnectionID); ok {
-			s.logger.Debug("closing downstream connection", zap.String("downstream_connection_id", downstreamConnectionID))
+			s.logger.Debug("closing downstream connection", zap.String(keyDownstreamConnectionID, downstreamConnectionID))
 			if err := conn.close(); err != nil {
-				s.logger.Error("failed to close downstream connection", zap.Error(err), zap.String("downstream_connection_id", downstreamConnectionID))
+				s.logger.Error("failed to close downstream connection", zap.Error(err), zap.String(keyDownstreamConnectionID, downstreamConnectionID))
 			}
 		}
 	}
@@ -273,7 +273,7 @@ func (s *server) handleRequest(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("accept OpAMP connection", zap.Error(err))
 		return
 	}
-	s.logger.Debug("accepted OpAMP connection", zap.String("remote_addr", conn.RemoteAddr().String()))
+	s.logger.Debug("accepted OpAMP connection", addressFields(prefixClient, conn.RemoteAddr().String())...)
 
 	s.telemetry.OpampgatewayConnections.Add(context.Background(), 1, directionDownstream)
 
@@ -289,7 +289,7 @@ func (s *server) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 		conn, ok := s.getDownstreamConnection(id)
 		if !ok {
-			s.logger.Error("downstream connection removed before it could be started", zap.String("downstream_connection_id", id))
+			s.logger.Error("downstream connection removed before it could be started", zap.String(keyDownstreamConnectionID, id))
 			return
 		}
 		conn.start(s.callbacks)
@@ -301,7 +301,11 @@ func (s *server) handleRequest(w http.ResponseWriter, r *http.Request) {
 // Returns true if the connection is accepted, along with the result containing status details.
 func (s *server) acceptOpAMPConnection(ctx context.Context, req *http.Request, upstreamConn *upstreamConnection, connectionID string) (bool, OpampGatewayConnectResult) {
 	sanitizedUA := strings.ReplaceAll(strings.ReplaceAll(req.UserAgent(), "\n", ""), "\r", "")
-	s.logger.Debug("connection request", zap.String("user-agent", sanitizedUA), zap.String("remote_addr", req.RemoteAddr), zap.String("downstream_connection_id", connectionID), zap.String("upstream_connection_id", upstreamConn.id))
+	s.logger.Debug("connection request", append(addressFields(prefixClient, req.RemoteAddr),
+		zap.String(keyUserAgent, sanitizedUA),
+		zap.String(keyDownstreamConnectionID, connectionID),
+		zap.String(keyUpstreamConnectionID, upstreamConn.id),
+	)...)
 
 	// Create a unique ID for this authentication request
 	requestUID := uuid.New().String()
@@ -360,12 +364,12 @@ func (s *server) acceptOpAMPConnection(ctx context.Context, req *http.Request, u
 			HTTPStatusCode: http.StatusInternalServerError,
 		}
 	}
-	s.logger.Debug("sent OpampGatewayConnect", zap.String("request_uid", requestUID))
+	s.logger.Debug("sent OpampGatewayConnect", zap.String(keyRequestUID, requestUID))
 
 	// Wait for the response
 	select {
 	case <-ctx.Done():
-		s.logger.Warn("authentication timed out", zap.String("downstream_connection_id", connectionID), zap.String("request_uid", requestUID))
+		s.logger.Warn("authentication timed out", zap.String(keyDownstreamConnectionID, connectionID), zap.String(keyRequestUID, requestUID))
 		return false, OpampGatewayConnectResult{
 			Accept:         false,
 			HTTPStatusCode: http.StatusGatewayTimeout,
@@ -375,7 +379,7 @@ func (s *server) acceptOpAMPConnection(ctx context.Context, req *http.Request, u
 		}
 	case resp := <-responseChan:
 		if resp.err != nil {
-			s.logger.Error("authentication error", zap.Error(resp.err), zap.String("downstream_connection_id", connectionID), zap.String("request_uid", requestUID))
+			s.logger.Error("authentication error", zap.Error(resp.err), zap.String(keyDownstreamConnectionID, connectionID), zap.String(keyRequestUID, requestUID))
 			return false, OpampGatewayConnectResult{
 				Accept:         false,
 				HTTPStatusCode: http.StatusInternalServerError,
@@ -383,16 +387,16 @@ func (s *server) acceptOpAMPConnection(ctx context.Context, req *http.Request, u
 		}
 		if resp.result.Accept {
 			s.logger.Debug("connection accepted",
-				zap.String("downstream_connection_id", connectionID),
-				zap.String("request_uid", requestUID))
+				zap.String(keyDownstreamConnectionID, connectionID),
+				zap.String(keyRequestUID, requestUID))
 		} else {
 			// a rejection usually means the agent is misconfigured, so it stays visible at the
 			// default log level
 			s.logger.Warn("connection rejected by upstream OpAMP server",
-				zap.Int("status_code", resp.result.HTTPStatusCode),
-				zap.String("user-agent", sanitizedUA),
-				zap.String("downstream_connection_id", connectionID),
-				zap.String("request_uid", requestUID))
+				zap.Int(keyHTTPResponseStatus, resp.result.HTTPStatusCode),
+				zap.String(keyUserAgent, sanitizedUA),
+				zap.String(keyDownstreamConnectionID, connectionID),
+				zap.String(keyRequestUID, requestUID))
 		}
 		return resp.result.Accept, resp.result
 	}
@@ -423,7 +427,7 @@ func (s *server) handleAuthResponse(customMsg *protobufs.CustomMessage) bool {
 	// Look up the pending auth request using RequestUid
 	responseChan, ok := s.pendingAuthRequests.getRequest(result.RequestUID)
 	if !ok {
-		s.logger.Debug("no pending auth request for RequestUid", zap.String("request_uid", result.RequestUID))
+		s.logger.Debug("no pending auth request for RequestUid", zap.String(keyRequestUID, result.RequestUID))
 		return false
 	}
 

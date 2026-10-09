@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"regexp"
 	"syscall"
 	"testing"
 	"time"
@@ -132,15 +133,45 @@ func entriesAtOrAbove(logs *observer.ObservedLogs, level zapcore.Level) []string
 	return out
 }
 
-// assertNoMessageContents fails if any observed entry carries a field that could hold the
-// raw bytes of an OpAMP message.
-func assertNoMessageContents(t *testing.T, logs *observer.ObservedLogs) {
+// semconvKey matches an attribute name in the OpenTelemetry semantic convention style:
+// lowercase, dot-separated segments with underscores only inside a segment.
+var semconvKey = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`)
+
+// assertLogAttributes fails if any observed entry carries a field that could hold the raw bytes
+// of an OpAMP message, or a field whose key does not follow the semantic convention style.
+func assertLogAttributes(t *testing.T, logs *observer.ObservedLogs) {
 	t.Helper()
 	for _, e := range logs.All() {
 		for _, f := range e.Context {
+			if f.Type == zapcore.SkipType {
+				// a nil error logged with zap.Error or zap.NamedError is a no-op field
+				continue
+			}
 			assert.NotContains(t, []string{"message_bytes", "message"}, f.Key, "entry %q logs message contents", e.Message)
+			assert.Regexp(t, semconvKey, f.Key, "entry %q has a key that does not follow the semantic conventions", e.Message)
 		}
 	}
+}
+
+func TestAddressFields(t *testing.T) {
+	t.Parallel()
+
+	fields := addressFields(prefixClient, "10.1.2.3:54321")
+	require.Len(t, fields, 2)
+	assert.Equal(t, "client.address", fields[0].Key)
+	assert.Equal(t, "10.1.2.3", fields[0].String)
+	assert.Equal(t, "client.port", fields[1].Key)
+	assert.EqualValues(t, 54321, fields[1].Integer)
+
+	fields = addressFields(prefixServer, "[::1]:4320")
+	require.Len(t, fields, 2)
+	assert.Equal(t, "::1", fields[0].String)
+	assert.EqualValues(t, 4320, fields[1].Integer)
+
+	fields = addressFields(prefixServer, "not-an-address")
+	require.Len(t, fields, 1)
+	assert.Equal(t, "server.address", fields[0].Key)
+	assert.Equal(t, "not-an-address", fields[0].String)
 }
 
 // TestGatewayLogVerbositySteadyState checks the acceptance criteria of BP-1111: at Info, a
@@ -191,7 +222,7 @@ func TestGatewayLogVerbositySteadyState(t *testing.T) {
 	assert.Equal(t, 1, logs.FilterMessage("connection accepted").Len())
 	assert.Equal(t, 1, logs.FilterMessage("downstream connection closed").Len())
 
-	assertNoMessageContents(t, logs)
+	assertLogAttributes(t, logs)
 }
 
 // TestGatewayLogVerbosityUpstreamLoss checks that losing and re-establishing an upstream
@@ -234,7 +265,7 @@ func TestGatewayLogVerbosityUpstreamLoss(t *testing.T) {
 	lost := logs.FilterMessage("upstream connection lost")
 	require.Equal(t, 1, lost.Len(), "the loss is reported exactly once")
 	assert.Equal(t, zapcore.WarnLevel, lost.All()[0].Level)
-	assert.EqualValues(t, 1, lost.All()[0].ContextMap()["downstream_count"])
+	assert.EqualValues(t, 1, lost.All()[0].ContextMap()[keyDownstreamConnectionCt])
 
 	assert.Equal(t, 1, logs.FilterMessage("connecting to upstream OpAMP server").Len())
 	assert.Equal(t, 1, logs.FilterMessage("connected to upstream OpAMP server").Len())
@@ -243,7 +274,7 @@ func TestGatewayLogVerbosityUpstreamLoss(t *testing.T) {
 	infoAndAbove := entriesAtOrAbove(logs, zapcore.InfoLevel)
 	assert.Len(t, infoAndAbove, 3, "only the loss and the reconnect are logged at Info or above: %v", infoAndAbove)
 
-	assertNoMessageContents(t, logs)
+	assertLogAttributes(t, logs)
 }
 
 // TestGatewayLogVerbosityAuthRejected checks that an agent rejected by the upstream server is
@@ -264,10 +295,10 @@ func TestGatewayLogVerbosityAuthRejected(t *testing.T) {
 	rejected := logs.FilterMessage("connection rejected by upstream OpAMP server")
 	require.Equal(t, 1, rejected.Len())
 	assert.Equal(t, zapcore.WarnLevel, rejected.All()[0].Level)
-	assert.EqualValues(t, http.StatusForbidden, rejected.All()[0].ContextMap()["status_code"])
+	assert.EqualValues(t, http.StatusForbidden, rejected.All()[0].ContextMap()[keyHTTPResponseStatus])
 
 	assert.Empty(t, entriesAtOrAbove(logs, zapcore.ErrorLevel))
-	assertNoMessageContents(t, logs)
+	assertLogAttributes(t, logs)
 }
 
 // TestGatewayLogVerbosityNoUpstream checks that agents connecting while no upstream connection
@@ -311,9 +342,9 @@ func TestGatewayLogVerbosityNoUpstream(t *testing.T) {
 	failed := logs.FilterMessageSnippet("upstream connection failed")
 	for _, e := range failed.All() {
 		if e.Level == zapcore.WarnLevel {
-			assert.EqualValues(t, 1, e.ContextMap()["attempt"], "only the first attempt is a Warn")
+			assert.EqualValues(t, 1, e.ContextMap()[keyConnectAttempt], "only the first attempt is a Warn")
 		}
-		assert.Contains(t, e.ContextMap(), "retry_in")
+		assert.Contains(t, e.ContextMap(), keyConnectRetryIn)
 	}
 
 	assert.Empty(t, entriesAtOrAbove(logs, zapcore.ErrorLevel))

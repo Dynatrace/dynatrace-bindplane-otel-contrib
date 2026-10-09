@@ -35,7 +35,7 @@ type readerCallbacks struct {
 }
 
 func newMessageReader(conn *websocket.Conn, id string, callbacks readerCallbacks, logger *zap.Logger) *messageReader {
-	return &messageReader{conn: conn, id: id, callbacks: callbacks, logger: logger.Named("message-reader").With(zap.String("id", id))}
+	return &messageReader{conn: conn, id: id, callbacks: callbacks, logger: logger.Named("message-reader")}
 }
 
 // loop will read messages from the connection and call the OnMessage callback for each
@@ -51,7 +51,7 @@ func (r *messageReader) loop(ctx context.Context, messageNumber int) error {
 		if err != nil {
 			if ctx.Err() != nil {
 				// context is done, so we return cleanly
-				r.logger.Debug("reader stopped", zap.NamedError("cause", ctx.Err()))
+				r.logger.Debug("reader stopped", zap.Error(ctx.Err()))
 				return nil
 			}
 			if isOrdinaryDisconnect(err) {

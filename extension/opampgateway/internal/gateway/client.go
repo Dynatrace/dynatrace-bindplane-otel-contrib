@@ -126,7 +126,7 @@ func (c *client) startClientConnections(ctx context.Context) {
 			defer func() {
 				c.upstreamConnections.remove(clientConnection.id)
 				c.pool.remove(clientConnection)
-				c.logger.Info("upstream connection shutdown", zap.String("id", clientConnection.id), zap.Int("downstream_count", clientConnection.downstreamCount()))
+				c.logger.Info("upstream connection shutdown", zap.String(keyUpstreamConnectionID, clientConnection.id), zap.Int(keyDownstreamConnectionCt, clientConnection.downstreamCount()))
 			}()
 
 			// start the connection
@@ -134,7 +134,7 @@ func (c *client) startClientConnections(ctx context.Context) {
 				OnMessage: c.callbacks.OnMessage,
 				OnError:   c.callbacks.OnError,
 				OnClose: func(ctx context.Context, connection *upstreamConnection) error {
-					c.logger.Debug("upstream connection closed", zap.String("id", connection.id), zap.Int("downstream_count", clientConnection.downstreamCount()))
+					c.logger.Debug("upstream connection closed", zap.String(keyUpstreamConnectionID, connection.id), zap.Int(keyDownstreamConnectionCt, clientConnection.downstreamCount()))
 					return c.callbacks.OnClose(ctx, connection)
 				},
 			})
@@ -157,17 +157,17 @@ func (c *client) assignedUpstreamConnection(downstreamConnectionID string) (*ups
 	conn, exists := c.connectionAssignments.assignedUpstreamConnection(downstreamConnectionID)
 	if !exists {
 		fields := []zap.Field{
-			zap.String("downstream_connection_id", downstreamConnectionID),
-			zap.Int("connection_count", c.pool.size()),
+			zap.String(keyDownstreamConnectionID, downstreamConnectionID),
+			zap.Int(keyUpstreamConnectionCnt, c.pool.size()),
 		}
 		if ok, suppressed := c.noUpstreamLog.allow(time.Now()); ok {
-			c.logger.Warn("no upstream connection available", append(fields, zap.Int("suppressed", suppressed))...)
+			c.logger.Warn("no upstream connection available", append(fields, zap.Int(keySuppressedCount, suppressed))...)
 		} else {
 			c.logger.Debug("no upstream connection available", fields...)
 		}
 		return nil, fmt.Errorf("no upstream connection available for downstream connection %s: %w", downstreamConnectionID, ErrNoUpstreamConnectionsAvailable)
 	}
-	c.logger.Debug("assigned upstream connection", zap.String("downstream_connection_id", downstreamConnectionID), zap.String("upstream_connection_id", conn.id))
+	c.logger.Debug("assigned upstream connection", zap.String(keyDownstreamConnectionID, downstreamConnectionID), zap.String(keyUpstreamConnectionID, conn.id))
 	return conn, nil
 }
 

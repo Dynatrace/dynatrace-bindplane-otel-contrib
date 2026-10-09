@@ -67,7 +67,7 @@ func newUpstreamConnection(dialer websocket.Dialer, telemetry *metadata.Telemetr
 		settings:  settings,
 		id:        id,
 		telemetry: telemetry,
-		logger:    logger.Named("upstream-connection").With(zap.String("id", id)),
+		logger:    logger.Named("upstream-connection").With(zap.String(keyUpstreamConnectionID, id)),
 		writeChan: make(chan *message),
 
 		// the error channel is buffered to prevent blocking the reader goroutine if it
@@ -233,9 +233,9 @@ func (c *upstreamConnection) startWriter(ctx context.Context, callbacks Connecti
 		// writer. The retries that follow are logged by ensureConnected. During shutdown the
 		// close is expected and only logged at Debug.
 		fields := []zap.Field{
-			zap.Int("downstream_count", c.downstreamCount()),
-			zap.NamedError("reader_error", readerErr),
-			zap.NamedError("writer_error", writerErr),
+			zap.Int(keyDownstreamConnectionCt, c.downstreamCount()),
+			zap.NamedError(keyReaderError, readerErr),
+			zap.NamedError(keyWriterError, writerErr),
 		}
 		if ctx.Err() != nil {
 			c.logger.Debug("upstream connection closed", fields...)
@@ -314,7 +314,7 @@ func (c *upstreamConnection) ensureConnected(ctx context.Context, id string) (*w
 	// Make ticker run forever.
 	infiniteBackoff.MaxElapsedTime = 0
 
-	c.logger.Info("connecting to upstream OpAMP server", zap.String("upstream_endpoint", c.settings.endpoint))
+	c.logger.Info("connecting to upstream OpAMP server", zap.String(keyURLFull, c.settings.endpoint))
 
 	interval := time.Duration(0)
 	attempt := 0
@@ -335,8 +335,8 @@ func (c *upstreamConnection) ensureConnected(ctx context.Context, id string) (*w
 					}
 					fields := []zap.Field{
 						zap.Error(err),
-						zap.Int("attempt", attempt),
-						zap.Duration("retry_in", interval),
+						zap.Int(keyConnectAttempt, attempt),
+						zap.Duration(keyConnectRetryIn, interval),
 					}
 					if attempt == 1 {
 						c.logger.Warn("upstream connection failed, retrying", fields...)
@@ -368,7 +368,7 @@ func (c *upstreamConnection) tryConnectOnce(ctx context.Context, id string) (*we
 		}
 		return nil, err
 	}
-	c.logger.Info("connected to upstream OpAMP server", zap.String("upstream_remote_addr", conn.RemoteAddr().String()))
+	c.logger.Info("connected to upstream OpAMP server", addressFields(prefixServer, conn.RemoteAddr().String())...)
 
 	// Successfully connected.
 	return conn, nil
