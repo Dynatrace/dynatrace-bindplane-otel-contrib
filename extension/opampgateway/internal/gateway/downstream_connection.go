@@ -59,7 +59,7 @@ func newDownstreamConnection(ctx context.Context, conn *websocket.Conn, telemetr
 		upstreamConnection: upstreamConnection,
 		id:                 id,
 		telemetry:          telemetry,
-		logger:             logger.Named("downstream-connection").With(zap.String("id", id)),
+		logger:             logger.Named("downstream-connection").With(zap.String(keyDownstreamConnectionID, id)),
 		writeChan:          make(chan *message),
 		ctx:                connCtx,
 		cancel:             cancel,
