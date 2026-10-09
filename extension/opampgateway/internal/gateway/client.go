@@ -19,12 +19,18 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/version"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
+
+// noUpstreamLogInterval is how often the lack of an available upstream connection is logged at
+// Warn. Every agent that connects while the upstream is unreachable hits this condition, so it
+// is rate limited to keep an outage from flooding the log.
+const noUpstreamLogInterval = time.Minute
 
 // UpstreamConnectionAssigner assigns and unassigns upstream connections for downstream connections.
 type UpstreamConnectionAssigner interface {
@@ -52,6 +58,8 @@ type client struct {
 	clientConnectionsWg     *sync.WaitGroup
 	clientConnectionsCancel context.CancelFunc
 
+	noUpstreamLog *logLimiter
+
 	telemetry *metadata.TelemetryBuilder
 }
 
@@ -74,6 +82,7 @@ func newClient(settings Settings, telemetry *metadata.TelemetryBuilder, callback
 		upstreamEndpoint:      settings.UpstreamOpAMPAddress,
 		connectionCount:       settings.UpstreamConnections,
 		clientConnectionsWg:   &sync.WaitGroup{},
+		noUpstreamLog:         newLogLimiter(noUpstreamLogInterval),
 		telemetry:             telemetry,
 	}
 }
@@ -125,7 +134,7 @@ func (c *client) startClientConnections(ctx context.Context) {
 				OnMessage: c.callbacks.OnMessage,
 				OnError:   c.callbacks.OnError,
 				OnClose: func(ctx context.Context, connection *upstreamConnection) error {
-					c.logger.Info("upstream connection closed", zap.String("id", connection.id), zap.Int("downstream_count", clientConnection.downstreamCount()))
+					c.logger.Debug("upstream connection closed", zap.String("id", connection.id), zap.Int("downstream_count", clientConnection.downstreamCount()))
 					return c.callbacks.OnClose(ctx, connection)
 				},
 			})
@@ -147,10 +156,18 @@ func (c *client) Stop(_ context.Context) {
 func (c *client) assignedUpstreamConnection(downstreamConnectionID string) (*upstreamConnection, error) {
 	conn, exists := c.connectionAssignments.assignedUpstreamConnection(downstreamConnectionID)
 	if !exists {
-		c.logger.Info("no upstream connection available", zap.String("downstream_connection_id", downstreamConnectionID), zap.Int("connection_count", c.pool.size()))
+		fields := []zap.Field{
+			zap.String("downstream_connection_id", downstreamConnectionID),
+			zap.Int("connection_count", c.pool.size()),
+		}
+		if ok, suppressed := c.noUpstreamLog.allow(time.Now()); ok {
+			c.logger.Warn("no upstream connection available", append(fields, zap.Int("suppressed", suppressed))...)
+		} else {
+			c.logger.Debug("no upstream connection available", fields...)
+		}
 		return nil, fmt.Errorf("no upstream connection available for downstream connection %s: %w", downstreamConnectionID, ErrNoUpstreamConnectionsAvailable)
 	}
-	c.logger.Info("assigned upstream connection", zap.String("downstream_connection_id", downstreamConnectionID), zap.String("upstream_connection_id", conn.id))
+	c.logger.Debug("assigned upstream connection", zap.String("downstream_connection_id", downstreamConnectionID), zap.String("upstream_connection_id", conn.id))
 	return conn, nil
 }
 

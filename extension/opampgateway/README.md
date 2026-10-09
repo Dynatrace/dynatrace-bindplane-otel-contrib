@@ -173,3 +173,41 @@ attribute (`upstream` or `downstream`):
 | `opampgateway.messages` | Sum (int, monotonic) | `{messages}` | Total messages forwarded. |
 | `opampgateway.messages.bytes` | Sum (int, monotonic) | `B` | Total bytes forwarded. |
 | `opampgateway.messages.latency` | Histogram (int) | `ms` | Time spent in the gateway before forwarding a message. |
+
+## Logging
+
+At the collector's default `info` log level the gateway is quiet in steady
+state. Message traffic is never logged at `info`, and an agent connecting or
+disconnecting produces no `info` lines. Use the metrics above to observe
+message and connection volume. The lines to expect at `info` and above are:
+
+| Event | Level |
+|-------|-------|
+| Server listening for agent connections | `info` |
+| Connecting to, and connected to, the upstream OpAMP server | `info` |
+| Upstream connection lost, with the error that ended it. Logged once per loss, not per retry. | `warn` |
+| Upstream connection attempt failed. Logged for the first attempt only; retries are logged at `debug` with the backoff interval. | `warn` |
+| No upstream connection available for a connecting agent. Logged at most once a minute with a count of the suppressed occurrences. | `warn` |
+| Agent rejected by the upstream OpAMP server, or its authentication timed out | `warn` |
+| Client stopped and each upstream connection shut down | `info` |
+| Errors other than ordinary disconnects | `error` |
+
+Ordinary disconnects, such as a WebSocket close frame, a closed socket, an EOF
+or a cancelled context, are expected whenever an agent or the upstream server
+goes away and are logged at `debug` rather than `error`.
+
+To troubleshoot a connection, raise the collector log level:
+
+```yaml
+service:
+  telemetry:
+    logs:
+      level: debug
+```
+
+At `debug` the gateway additionally logs each connection request and its
+authentication result, the assignment of agents to upstream connections, every
+message forwarded in each direction with its size and the components it
+carries, the close of each connection, and each reconnect attempt with its
+backoff interval. Message contents are never logged at any level, because they
+can contain agent descriptions and configuration.
