@@ -16,7 +16,6 @@ package gateway
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -91,9 +90,9 @@ func (c *downstreamConnection) start(callbacks ConnectionCallbacks[*downstreamCo
 	}()
 
 	// block while writing messages to the connection. a connection close will unblock the writer.
+	// errors are reported through OnError, which decides how to log them.
 	err := c.startWriter(ctx)
 	if err != nil {
-		c.logger.Error("error in connection writer", zap.Error(err))
 		callbacks.OnError(ctx, c, err)
 	}
 
@@ -107,7 +106,6 @@ func (c *downstreamConnection) start(callbacks ConnectionCallbacks[*downstreamCo
 	// check for errors from the reader
 	select {
 	case err := <-c.readerErrorChan:
-		c.logger.Error("error in connection reader", zap.Error(err))
 		callbacks.OnError(ctx, c, err)
 	default:
 	}
@@ -122,17 +120,16 @@ func (c *downstreamConnection) start(callbacks ConnectionCallbacks[*downstreamCo
 // send will send a message to the connection by putting it on the write channel. the
 // writer goroutine will handle sending the message to the connection.
 func (c *downstreamConnection) send(message *message) error {
-	c.logger.Debug("sending message", zap.String("message", string(message.data)))
 	select {
 	case c.writeChan <- message:
 	case <-c.writerDone:
-		return errors.New("downstream connection closed")
+		return errDownstreamConnectionClosed
 	}
 	return nil
 }
 
 func (c *downstreamConnection) close() error {
-	c.logger.Info("downstream connection closing")
+	c.logger.Debug("downstream connection closing")
 	if c.cancel != nil {
 		c.cancel()
 	}
@@ -154,7 +151,8 @@ func (c *downstreamConnection) startReader(ctx context.Context, callbacks Connec
 		},
 	}, c.logger)
 
-	reader.loop(ctx, 0)
+	// the reader reports errors through OnError, so the returned error is not needed here
+	_ = reader.loop(ctx, 0)
 }
 
 // --------------------------------------------------------------------------------------
@@ -166,20 +164,21 @@ func (c *downstreamConnection) startWriter(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			c.logger.Info("writer context done")
+			c.logger.Debug("writer context done")
 			// Send a WebSocket close frame to notify the peer before closing the TCP connection.
 			closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
 			_ = c.conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(5*time.Second))
 			err := c.conn.Close()
 			if err != nil {
-				// log the error but return nil to avoid propagating the error to the caller
-				c.logger.Error("error closing connection", zap.Error(err))
+				// the connection is usually already closed by the agent at this point, so this
+				// is not reported as an error
+				c.logger.Debug("error closing connection", zap.Error(err))
 			}
 			return nil
 		case message, ok := <-c.writeChan:
 			if !ok {
 				// the write channel is closed, so we return
-				c.logger.Info("write channel closed")
+				c.logger.Debug("write channel closed")
 				return nil
 			}
 			err := writeWSMessage(c.conn, message.data)

@@ -219,12 +219,10 @@ func (s *server) removeDownstreamConnection(conn *downstreamConnection) {
 func (s *server) closeDownstreamConnections(downstreamConnectionIDs []string) {
 	for _, downstreamConnectionID := range downstreamConnectionIDs {
 		if conn, ok := s.downstreamConnections.get(downstreamConnectionID); ok {
-			s.logger.Info("closing downstream connection", zap.String("downstream_connection_id", downstreamConnectionID))
-			err := conn.close()
-			if err != nil {
+			s.logger.Debug("closing downstream connection", zap.String("downstream_connection_id", downstreamConnectionID))
+			if err := conn.close(); err != nil {
 				s.logger.Error("failed to close downstream connection", zap.Error(err), zap.String("downstream_connection_id", downstreamConnectionID))
 			}
-			s.logger.Info("closed downstream connection", zap.String("downstream_connection_id", downstreamConnectionID))
 		}
 	}
 }
@@ -248,7 +246,6 @@ func (s *server) handleRequest(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	s.logger.Info("assigned upstream connection", zap.String("downstream_connection_id", id), zap.String("upstream_connection_id", upstreamConnection.id))
 
 	// Authenticate the connection via the upstream OpAMP server
 	ctx, cancel := context.WithTimeout(r.Context(), s.authTimeout)
@@ -304,7 +301,7 @@ func (s *server) handleRequest(w http.ResponseWriter, r *http.Request) {
 // Returns true if the connection is accepted, along with the result containing status details.
 func (s *server) acceptOpAMPConnection(ctx context.Context, req *http.Request, upstreamConn *upstreamConnection, connectionID string) (bool, OpampGatewayConnectResult) {
 	sanitizedUA := strings.ReplaceAll(strings.ReplaceAll(req.UserAgent(), "\n", ""), "\r", "")
-	s.logger.Info("connection request", zap.String("user-agent", sanitizedUA), zap.String("remote_addr", req.RemoteAddr), zap.String("downstream_connection_id", connectionID), zap.String("upstream_connection_id", upstreamConn.id))
+	s.logger.Debug("connection request", zap.String("user-agent", sanitizedUA), zap.String("remote_addr", req.RemoteAddr), zap.String("downstream_connection_id", connectionID), zap.String("upstream_connection_id", upstreamConn.id))
 
 	// Create a unique ID for this authentication request
 	requestUID := uuid.New().String()
@@ -368,7 +365,7 @@ func (s *server) acceptOpAMPConnection(ctx context.Context, req *http.Request, u
 	// Wait for the response
 	select {
 	case <-ctx.Done():
-		s.logger.Warn("authentication timed out", zap.String("request_uid", requestUID))
+		s.logger.Warn("authentication timed out", zap.String("downstream_connection_id", connectionID), zap.String("request_uid", requestUID))
 		return false, OpampGatewayConnectResult{
 			Accept:         false,
 			HTTPStatusCode: http.StatusGatewayTimeout,
@@ -378,16 +375,25 @@ func (s *server) acceptOpAMPConnection(ctx context.Context, req *http.Request, u
 		}
 	case resp := <-responseChan:
 		if resp.err != nil {
-			s.logger.Error("authentication error", zap.Error(resp.err), zap.String("request_uid", requestUID))
+			s.logger.Error("authentication error", zap.Error(resp.err), zap.String("downstream_connection_id", connectionID), zap.String("request_uid", requestUID))
 			return false, OpampGatewayConnectResult{
 				Accept:         false,
 				HTTPStatusCode: http.StatusInternalServerError,
 			}
 		}
-		s.logger.Info("authentication result",
-			zap.Bool("accepted", resp.result.Accept),
-			zap.Int("status_code", resp.result.HTTPStatusCode),
-			zap.String("request_uid", requestUID))
+		if resp.result.Accept {
+			s.logger.Debug("connection accepted",
+				zap.String("downstream_connection_id", connectionID),
+				zap.String("request_uid", requestUID))
+		} else {
+			// a rejection usually means the agent is misconfigured, so it stays visible at the
+			// default log level
+			s.logger.Warn("connection rejected by upstream OpAMP server",
+				zap.Int("status_code", resp.result.HTTPStatusCode),
+				zap.String("user-agent", sanitizedUA),
+				zap.String("downstream_connection_id", connectionID),
+				zap.String("request_uid", requestUID))
+		}
 		return resp.result.Accept, resp.result
 	}
 }

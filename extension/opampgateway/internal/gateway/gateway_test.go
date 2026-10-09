@@ -50,6 +50,7 @@ import (
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/protobuf/proto"
 )
@@ -325,6 +326,13 @@ type gatewayTestHarness struct {
 
 func newGatewayTestHarness(t *testing.T, upstreamConnections int) *gatewayTestHarness {
 	t.Helper()
+	return newGatewayTestHarnessWithLogger(t, upstreamConnections, zaptest.NewLogger(t))
+}
+
+// newGatewayTestHarnessWithLogger is newGatewayTestHarness with a caller-supplied logger, so
+// tests can observe what the gateway logs.
+func newGatewayTestHarnessWithLogger(t *testing.T, upstreamConnections int, logger *zap.Logger) *gatewayTestHarness {
+	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -347,8 +355,6 @@ func newGatewayTestHarness(t *testing.T, upstreamConnections int) *gatewayTestHa
 		OpAMPServer:         confighttp.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: "127.0.0.1:0", Transport: confignet.TransportTypeTCP}},
 		BuildInfo:           testBuildInfo,
 	}
-
-	logger := zaptest.NewLogger(t)
 
 	gw := New(logger, settings, telemetry)
 
