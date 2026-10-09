@@ -209,16 +209,4 @@ At `debug` the gateway additionally logs each connection request and its
 authentication result, the assignment of agents to upstream connections, every
 message forwarded in each direction with its size and the components it
 carries, the close of each connection, and each reconnect attempt with its
-backoff interval. Message contents are never logged at any level, because they
-can contain agent descriptions and configuration.
-
-Log attributes follow the [OpenTelemetry semantic conventions][semconv]. Where
-a convention exists it is used as is, such as `client.address` and
-`client.port` for the agent, `server.address` and `server.port` for the
-upstream OpAMP server or the gateway's listener, `user_agent.original`,
-`url.full` and `http.response.status_code`. Everything specific to the
-extension is under the `opampgateway.` namespace, matching its metrics, for
-example `opampgateway.agent.id`, `opampgateway.downstream.connection.id`,
-`opampgateway.upstream.connection.id` and `opampgateway.message.size`.
-
-[semconv]: https://opentelemetry.io/docs/specs/semconv/general/naming/
+backoff interval.
