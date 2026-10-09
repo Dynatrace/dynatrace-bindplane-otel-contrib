@@ -16,9 +16,7 @@ package gateway
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net"
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -37,14 +35,14 @@ type readerCallbacks struct {
 }
 
 func newMessageReader(conn *websocket.Conn, id string, callbacks readerCallbacks, logger *zap.Logger) *messageReader {
-	return &messageReader{conn: conn, id: id, callbacks: callbacks, logger: logger.Named("message-reader").With(zap.String("id", id))}
+	return &messageReader{conn: conn, id: id, callbacks: callbacks, logger: logger.Named("message-reader")}
 }
 
 // loop will read messages from the connection and call the OnMessage callback for each
-// message. It will call OnError if an error occurs and then return. If the connection is
-// closed, it will not call OnError, but will stop reading and return. It will stop
-// reading when the context is done.
-func (r *messageReader) loop(ctx context.Context, messageNumber int) {
+// message. It returns the error that stopped it, or nil when the context is done. Ordinary
+// disconnects are expected whenever the peer goes away, so they are logged at Debug and OnError
+// is not called. Any other error is reported through OnError before returning.
+func (r *messageReader) loop(ctx context.Context, messageNumber int) error {
 	// loop until the connection is closed
 	for {
 		// try to read the message. ReadMessage will block until a message is received or the
@@ -53,24 +51,22 @@ func (r *messageReader) loop(ctx context.Context, messageNumber int) {
 		if err != nil {
 			if ctx.Err() != nil {
 				// context is done, so we return cleanly
-				r.logger.Info("context done")
-				return
+				r.logger.Debug("reader stopped", zap.Error(ctx.Err()))
+				return nil
 			}
-			if errors.Is(err, net.ErrClosed) || websocket.IsUnexpectedCloseError(err) {
-				// unexpected close is expected to happen when the connection is closed
-				r.logger.Info("closed")
-				return
+			if isOrdinaryDisconnect(err) {
+				r.logger.Debug("connection closed", zap.Error(err))
+				return err
 			}
-			r.logger.Error("read message", zap.Error(err))
 			r.callbacks.OnError(ctx, fmt.Errorf("read message: %w", err))
-			return
+			return err
 		}
 
 		// handle the message using the callback
 		message := newMessage(messageNumber, messageBytes)
 		if err := r.callbacks.OnMessage(ctx, messageType, message); err != nil {
 			r.callbacks.OnError(ctx, fmt.Errorf("handle message: %w", err))
-			return
+			return err
 		}
 		messageNumber++
 	}

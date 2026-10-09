@@ -77,11 +77,17 @@ func New(logger *zap.Logger, settings Settings, t *metadata.TelemetryBuilder) *G
 			// errors are logged and swallowed so that a single bad message
 			// cannot tear down the connection and disconnect every agent.
 			if err := g.HandleUpstreamMessage(ctx, conn, messageType, msg); err != nil {
-				g.logger.Warn("upstream message handling failed",
+				fields := []zap.Field{
 					zap.Error(err),
-					zap.String("upstream_connection_id", conn.id),
-					zap.Int("message_number", msg.number),
-				)
+					zap.String(keyUpstreamConnectionID, conn.id),
+					zap.Int(keyMessageNumber, msg.number),
+				}
+				if isOrdinaryDisconnect(err) {
+					// the downstream agent went away while the message was in flight
+					g.logger.Debug("upstream message dropped", fields...)
+				} else {
+					g.logger.Warn("upstream message handling failed", fields...)
+				}
 			}
 			return nil
 		},
@@ -113,11 +119,8 @@ func (g *Gateway) Shutdown(ctx context.Context) error {
 
 // HandleDownstreamMessage handles message sent from a downstream connection to the server.
 func (g *Gateway) HandleDownstreamMessage(_ context.Context, connection *downstreamConnection, messageType int, msg *message) error {
-	g.logger.Info("HandleDownstreamMessage", zap.String("downstream_connection_id", connection.id), zap.Int("message_number", msg.number), zap.Int("message_type", messageType))
 	if messageType != websocket.BinaryMessage {
-		err := fmt.Errorf("unexpected message type: %v, must be binary message", messageType)
-		g.logger.Error("Cannot process a message from WebSocket", zap.Error(err), zap.Int("message_number", msg.number), zap.Int("message_type", messageType), zap.String("message_bytes", string(msg.data)))
-		return err
+		return fmt.Errorf("unexpected message type: %v, must be binary message", messageType)
 	}
 
 	message := protobufs.AgentToServer{}
@@ -156,14 +159,15 @@ func (g *Gateway) HandleDownstreamMessage(_ context.Context, connection *downstr
 	return nil
 }
 
-// HandleDownstreamError handles an error from a downstream connection.
-func (g *Gateway) HandleDownstreamError(_ context.Context, _ *downstreamConnection, err error) {
-	g.logger.Error("HandleDownstreamError", zap.Error(err))
+// HandleDownstreamError handles an error from a downstream connection. Ordinary disconnects
+// are logged at Debug, anything else at Error.
+func (g *Gateway) HandleDownstreamError(_ context.Context, connection *downstreamConnection, err error) {
+	logConnectionError(g.logger, "downstream connection error", err, zap.String(keyDownstreamConnectionID, connection.id))
 }
 
 // HandleDownstreamClose handles the closing of a downstream connection.
 func (g *Gateway) HandleDownstreamClose(_ context.Context, connection *downstreamConnection) error {
-	g.logger.Info("HandleDownstreamClose", zap.String("downstream_connection_id", connection.id))
+	g.logger.Debug("downstream connection closed", zap.String(keyDownstreamConnectionID, connection.id))
 	g.client.unassignUpstreamConnection(connection.id)
 	g.server.removeDownstreamConnection(connection)
 	return nil
@@ -176,7 +180,6 @@ func (g *Gateway) HandleDownstreamClose(_ context.Context, connection *downstrea
 // a downstream connection. Errors are non-fatal — the caller is responsible
 // for logging and discarding them to protect the shared upstream connection.
 func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamConnection, messageType int, message *message) error {
-	g.logger.Debug("HandleUpstreamMessage", zap.String("upstream_connection_id", connection.id), zap.Int("message_number", message.number), zap.Int("message_type", messageType), zap.String("message_bytes", string(message.data)))
 	if messageType != websocket.BinaryMessage {
 		return fmt.Errorf("unexpected message type: %v, must be binary message", messageType)
 	}
@@ -191,13 +194,13 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 	// which typically arrives as part of the auth response. We cache them so
 	// they can be injected into messages forwarded to downstream agents.
 	if caps := m.GetCustomCapabilities(); caps != nil {
-		g.logger.Info("caching CustomCapabilities from upstream", zap.Strings("capabilities", caps.GetCapabilities()))
+		g.logger.Debug("caching CustomCapabilities from upstream", zap.Strings(keyCustomCapabilities, caps.GetCapabilities()))
 		connection.setCustomCapabilities(caps)
 	}
 
 	// Check if this is an authentication response
 	if g.server.handleAuthResponse(m.GetCustomMessage()) {
-		g.logger.Debug("handled auth response", zap.Int("message_number", message.number))
+		g.logger.Debug("handled auth response", zap.Int(keyMessageNumber, message.number))
 		return nil
 	}
 
@@ -216,7 +219,12 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 	// find the downstream connection from the server
 	conn, ok := g.server.getAgentConnection(agentID)
 	if !ok {
-		// downstream connection no longer exists. just ignore the message for now.
+		// downstream connection no longer exists, so there is nowhere to forward the message
+		g.logger.Debug("dropping message for disconnected agent",
+			zap.String(keyAgentID, agentID),
+			zap.String(keyUpstreamConnectionID, connection.id),
+			zap.Int(keyMessageNumber, message.number),
+		)
 		return nil
 	}
 
@@ -250,11 +258,11 @@ func (g *Gateway) relayChainedConnect(connection *downstreamConnection, msg *mes
 	g.server.chainedConnects.add(requestUID, connection)
 
 	logMsg := fmt.Sprintf("%s => %s", connection.id, upstreamConnection.id)
-	g.logger.Info(logMsg,
-		zap.String("request_uid", requestUID),
-		zap.String("type", OpampGatewayConnectType),
-		zap.Int("message.number", msg.number),
-		zap.Int("message.bytes", len(msg.data)),
+	g.logger.Debug(logMsg,
+		zap.String(keyRequestUID, requestUID),
+		zap.String(keyMessageType, OpampGatewayConnectType),
+		zap.Int(keyMessageNumber, msg.number),
+		zap.Int(keyMessageSize, len(msg.data)),
 	)
 	if err := upstreamConnection.send(msg); err != nil {
 		g.server.chainedConnects.take(requestUID)
@@ -283,11 +291,11 @@ func (g *Gateway) relayChainedConnectResult(upstream *upstreamConnection, msg *m
 	msg = g.injectCustomCapabilities(upstream, conn, m, msg)
 
 	logMsg := fmt.Sprintf("%s <= %s", conn.id, upstream.id)
-	g.logger.Info(logMsg,
-		zap.String("request_uid", requestUID),
-		zap.String("type", OpampGatewayConnectResultType),
-		zap.Int("message.number", msg.number),
-		zap.Int("message.bytes", len(msg.data)),
+	g.logger.Debug(logMsg,
+		zap.String(keyRequestUID, requestUID),
+		zap.String(keyMessageType, OpampGatewayConnectResultType),
+		zap.Int(keyMessageNumber, msg.number),
+		zap.Int(keyMessageSize, len(msg.data)),
 	)
 	if err := conn.send(msg); err != nil {
 		return true, fmt.Errorf("send connect result to downstream gateway %s: %w", conn.id, err)
@@ -325,16 +333,21 @@ func (g *Gateway) injectCustomCapabilities(upstream *upstreamConnection, downstr
 	return newMessage(msg.number, updated)
 }
 
-// HandleUpstreamError handles an error from an upstream connection.
-func (g *Gateway) HandleUpstreamError(_ context.Context, _ *upstreamConnection, err error) {
-	g.logger.Error("HandleUpstreamError", zap.Error(err))
+// HandleUpstreamError handles an error from an upstream connection. Ordinary disconnects are
+// logged at Debug, anything else at Error. The loss of the connection itself is reported by
+// the connection once it has been detected.
+func (g *Gateway) HandleUpstreamError(_ context.Context, connection *upstreamConnection, err error) {
+	logConnectionError(g.logger, "upstream connection error", err, zap.String(keyUpstreamConnectionID, connection.id))
 }
 
 // HandleUpstreamClose handles the closing of an upstream connection.
 func (g *Gateway) HandleUpstreamClose(_ context.Context, connection *upstreamConnection) error {
-	g.logger.Info("HandleUpstreamClose", zap.String("upstream_connection_id", connection.id))
 	// close all downstream connections associated with this upstream connection
 	downstreamConnectionIDs := g.client.connectionAssignments.removeDownstreamConnectionIDs(connection.id)
+	g.logger.Debug("closing downstream connections of closed upstream connection",
+		zap.String(keyUpstreamConnectionID, connection.id),
+		zap.Int(keyDownstreamConnectionCt, len(downstreamConnectionIDs)),
+	)
 	g.server.closeDownstreamConnections(downstreamConnectionIDs)
 	return nil
 }
@@ -342,24 +355,36 @@ func (g *Gateway) HandleUpstreamClose(_ context.Context, connection *upstreamCon
 // --------------------------------------------------------------------------------------
 // logging helpers
 
+// Forwarded messages are only logged at Debug. Steady-state visibility into message traffic
+// comes from the opampgateway.messages metrics instead. The level is checked before the
+// component list is built so that nothing is allocated per message when Debug is disabled.
+
 func logDownstreamMessage(logger *zap.Logger, msg string, agentID string, messageNumber int, messageBytes int, message *protobufs.ServerToAgent) {
-	logger.Info(msg,
-		zap.String("agent.id", agentID),
-		zap.Int("message.number", messageNumber),
-		zap.Int("message.bytes", messageBytes),
-		zap.Strings("components", downstreamMessageComponents(message)),
-		zap.Uint64("flags", message.Flags),
+	ce := logger.Check(zap.DebugLevel, msg)
+	if ce == nil {
+		return
+	}
+	ce.Write(
+		zap.String(keyAgentID, agentID),
+		zap.Int(keyMessageNumber, messageNumber),
+		zap.Int(keyMessageSize, messageBytes),
+		zap.Strings(keyMessageComponents, downstreamMessageComponents(message)),
+		zap.Uint64(keyMessageFlags, message.Flags),
 	)
 }
 
 func logUpstreamMessage(logger *zap.Logger, msg string, agentID string, messageNumber int, messageBytes int, message *protobufs.AgentToServer) {
-	logger.Info(msg,
-		zap.String("agent.id", agentID),
-		zap.Int("message.number", messageNumber),
-		zap.Int("message.bytes", messageBytes),
-		zap.Strings("components", upstreamMessageComponents(message)),
-		zap.Uint64("sequenceNum", message.SequenceNum),
-		zap.Uint64("flags", message.Flags),
+	ce := logger.Check(zap.DebugLevel, msg)
+	if ce == nil {
+		return
+	}
+	ce.Write(
+		zap.String(keyAgentID, agentID),
+		zap.Int(keyMessageNumber, messageNumber),
+		zap.Int(keyMessageSize, messageBytes),
+		zap.Strings(keyMessageComponents, upstreamMessageComponents(message)),
+		zap.Uint64(keyMessageSequenceNum, message.SequenceNum),
+		zap.Uint64(keyMessageFlags, message.Flags),
 	)
 }
 
