@@ -51,6 +51,10 @@ type downstreamConnection struct {
 	// only sent once per WebSocket connection by the opamp-go server, so we need to
 	// manually share them with each downstream agent.
 	sentCustomCapabilities atomic.Bool
+
+	// chainedGateway is true when the connection comes from another gateway, which is known
+	// once it relays a connect request. Such a connection carries many agents.
+	chainedGateway atomic.Bool
 }
 
 func newDownstreamConnection(ctx context.Context, conn *websocket.Conn, telemetry *metadata.TelemetryBuilder, upstreamConnection *upstreamConnection, id string, logger *zap.Logger) *downstreamConnection {

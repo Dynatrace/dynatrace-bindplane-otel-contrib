@@ -162,6 +162,25 @@ reject decision for every agent, no matter how many gateways are in between.
 
 Messages that carry an `instance_uid` are routed by agent ID as usual.
 
+## Agent Sessions
+
+The upstream connection carries many agents, so the OpAMP server cannot see one
+agent connect or disconnect. The gateway reports these events so that the
+server can keep one accurate session for each agent behind the gateway:
+
+- When the connection of an agent closes, the gateway sends an `AgentToServer`
+  message with `agent_disconnect` set for that agent. An agent that never sent
+  a message is not reported.
+- When the server sends `agent_identification` with a new instance UID, the
+  gateway routes the new UID to the same agent connection at once.
+- Every upstream connection sends the header
+  `X-Opamp-Gateway-Capabilities: disconnectAgent`. The server can then send a
+  `disconnectAgent` custom message (capability: `com.bindplane.opamp-gateway`,
+  JSON fields `instance_uid` and `retry_after_seconds`) to close the connection
+  of one agent, for example an agent with a duplicate agent ID. The other
+  agents on the upstream connection are not affected. When the agent is behind
+  a chained gateway, the gateway passes the request on to that gateway.
+
 ## Telemetry
 
 The extension emits the following metrics, all tagged with a `direction`
