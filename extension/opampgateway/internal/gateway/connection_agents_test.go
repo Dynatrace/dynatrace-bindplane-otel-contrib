@@ -65,3 +65,12 @@ func TestConnectionAgentsFollowsRenameChains(t *testing.T) {
 	require.True(t, a.seen("x"))
 	require.True(t, a.seen("y"))
 }
+
+func TestConnectionAgentsDiscardReportsNothing(t *testing.T) {
+	a := newConnectionAgents()
+	require.True(t, a.seen("x"))
+	a.discard()
+
+	require.False(t, a.seen("x"), "a message read after the discard does not make the agent active")
+	require.Empty(t, a.close())
+}
