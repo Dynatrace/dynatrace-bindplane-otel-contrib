@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/windowseventtracereceiver
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/stretchr/testify v1.12.1

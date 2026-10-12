@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/logtypedetectionprocessor
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7

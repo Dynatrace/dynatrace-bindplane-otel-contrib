@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/samplingprocessor
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.0.0

@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/opampexporter
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/golang/snappy v1.0.0

@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.161.0

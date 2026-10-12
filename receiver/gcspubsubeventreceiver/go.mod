@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver
 
-go 1.26.4
+go 1.26.9
 
 require (
 	cloud.google.com/go/pubsub v1.51.1

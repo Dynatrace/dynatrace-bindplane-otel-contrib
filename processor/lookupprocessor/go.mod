@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/lookupprocessor
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/alicebob/miniredis/v2 v2.39.0

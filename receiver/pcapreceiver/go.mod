@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/pcapreceiver
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/gopacket/gopacket v1.7.2
