@@ -58,6 +58,14 @@ type downstreamConnection struct {
 	// of the connection. The agents are reported only on that socket: when the socket is
 	// replaced, the server has already ended their sessions.
 	upstreamGeneration atomic.Uint64
+
+	// chainedGateway is true when the connection comes from another gateway, which is known
+	// once it relays a connect request. Such a connection carries many agents.
+	chainedGateway atomic.Bool
+
+	// disconnectAgentSupported is true when the peer advertised the disconnectAgent
+	// capability. Only a chained gateway does; an older one does not.
+	disconnectAgentSupported atomic.Bool
 }
 
 func newDownstreamConnection(ctx context.Context, conn *websocket.Conn, telemetry *metadata.TelemetryBuilder, upstreamConnection *upstreamConnection, id string, logger *zap.Logger) *downstreamConnection {
