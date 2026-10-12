@@ -6,7 +6,7 @@ require (
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.0.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.0.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo v1.0.0
-	github.com/goccy/go-json v0.10.6
+	github.com/goccy/go-json v0.11.2
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/google/uuid v1.6.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.161.0

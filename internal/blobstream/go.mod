@@ -9,7 +9,7 @@ require (
 	github.com/klauspost/compress v1.20.1
 	github.com/linkedin/goavro/v2 v2.15.0
 	github.com/nwaples/rardecode/v2 v2.4.1
-	github.com/pierrec/lz4/v4 v4.1.30
+	github.com/pierrec/lz4/v4 v4.1.33
 	github.com/sorairolake/lzip-go v0.3.8
 	github.com/stretchr/testify v1.12.1
 	github.com/ulikunitz/xz v0.5.17
