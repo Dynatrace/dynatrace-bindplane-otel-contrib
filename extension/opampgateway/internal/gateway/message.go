@@ -24,6 +24,10 @@ type message struct {
 	// done is an optional channel signaled when the message has been written to
 	// the WebSocket connection. A nil channel means fire-and-forget.
 	done chan error
+
+	// generation, when not zero, is the upstream socket that the message must be written
+	// to. The upstream writer drops the message when that socket has been replaced.
+	generation uint64
 }
 
 // newMessage creates a new message from the data received

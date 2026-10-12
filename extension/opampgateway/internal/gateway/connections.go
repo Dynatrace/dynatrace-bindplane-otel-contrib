@@ -69,6 +69,30 @@ func (c *connections[T]) removeByValue(expected T) {
 	}
 }
 
+// removeIfValue removes the entry for the key when its value matches expected.
+func (c *connections[T]) removeIfValue(connectionID string, expected T) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	if conn, ok := c.byConnectionID[connectionID]; ok && any(conn) == any(expected) {
+		delete(c.byConnectionID, connectionID)
+	}
+}
+
+// find returns a value that matches the function.
+func (c *connections[T]) find(match func(T) bool) (T, bool) {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
+	for _, conn := range c.byConnectionID {
+		if match(conn) {
+			return conn, true
+		}
+	}
+	var zero T
+	return zero, false
+}
+
 func (c *connections[T]) size() int {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
