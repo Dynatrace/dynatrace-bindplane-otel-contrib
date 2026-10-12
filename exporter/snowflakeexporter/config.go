@@ -124,8 +124,9 @@ func (c *Config) buildSnowflakeDSN() error {
 
 func buildDefaultSFConfig() *gosnowflake.Config {
 	return &gosnowflake.Config{
-		Account:  "default-account",
-		User:     "default-user",
-		Password: "default-password",
+		Account:      "default-account",
+		User:         "default-user",
+		Password:     "default-password",
+		OCSPFailOpen: gosnowflake.OCSPFailOpenTrue,
 	}
 }
