@@ -50,6 +50,14 @@ type downstreamConnection struct {
 	// only sent once per WebSocket connection by the opamp-go server, so we need to
 	// manually share them with each downstream agent.
 	sentCustomCapabilities atomic.Bool
+
+	// agents tracks the agents on the connection, to report them upstream when it closes.
+	agents *connectionAgents
+
+	// upstreamGeneration is the upstream socket generation that carried the last message
+	// of the connection. The agents are reported only on that socket: when the socket is
+	// replaced, the server has already ended their sessions.
+	upstreamGeneration atomic.Uint64
 }
 
 func newDownstreamConnection(ctx context.Context, conn *websocket.Conn, telemetry *metadata.TelemetryBuilder, upstreamConnection *upstreamConnection, id string, logger *zap.Logger) *downstreamConnection {
@@ -63,6 +71,7 @@ func newDownstreamConnection(ctx context.Context, conn *websocket.Conn, telemetr
 		writeChan:          make(chan *message),
 		ctx:                connCtx,
 		cancel:             cancel,
+		agents:             newConnectionAgents(),
 
 		// the error channel is buffered to prevent blocking the reader goroutine if it
 		// encounters an error. it will return immediately after reporting the error and the

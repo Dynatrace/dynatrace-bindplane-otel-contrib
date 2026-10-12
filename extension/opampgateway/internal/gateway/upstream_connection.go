@@ -47,6 +47,10 @@ type upstreamConnection struct {
 
 	connected atomic.Bool
 
+	// generation counts the WebSocket connections to the upstream server. It changes each
+	// time the connection is made again.
+	generation atomic.Uint64
+
 	// customCapabilities caches the CustomCapabilities received from the
 	// upstream server. The opamp-go server only sends CustomCapabilities
 	// once per WebSocket connection (on the first response), so the gateway
@@ -95,6 +99,12 @@ func (c *upstreamConnection) decrementDownstreamCount() {
 
 func (c *upstreamConnection) isConnected() bool {
 	return c.connected.Load()
+}
+
+// currentGeneration returns the generation of the WebSocket connection, and false when the
+// gateway is not connected to the upstream server.
+func (c *upstreamConnection) currentGeneration() (uint64, bool) {
+	return c.generation.Load(), c.isConnected()
 }
 func (c *upstreamConnection) setConnected(connected bool) {
 	c.connected.Store(connected)
@@ -258,10 +268,15 @@ func (c *upstreamConnection) startWriter(ctx context.Context, callbacks Connecti
 // the next message to write and returns the next message to write and an error if one
 // occurs.
 func (c *upstreamConnection) writerLoop(ctx context.Context, conn *websocket.Conn, nextMessage *message) (*message, error) {
+	generation := c.generation.Add(1)
 	c.setConnected(true)
 	defer c.setConnected(false)
 
 	// attempt to write the next message if one is pending
+	if nextMessage != nil && nextMessage.generation != 0 && nextMessage.generation != generation {
+		nextMessage.complete(errUpstreamSocketReplaced)
+		nextMessage = nil
+	}
 	if nextMessage != nil {
 		err := writeWSMessage(conn, nextMessage.data)
 		nextMessage.complete(err)
@@ -292,6 +307,10 @@ func (c *upstreamConnection) writerLoop(ctx context.Context, conn *websocket.Con
 				// the write channel is closed, so we return
 				c.logger.Debug("write channel closed")
 				return message, nil
+			}
+			if message.generation != 0 && message.generation != generation {
+				message.complete(errUpstreamSocketReplaced)
+				continue
 			}
 			err := writeWSMessage(conn, message.data)
 			message.complete(err)
