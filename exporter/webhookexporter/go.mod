@@ -3,8 +3,8 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/webhookexp
 go 1.26.9
 
 require (
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/exporterutils v1.0.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.0.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/exporterutils v1.1.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.1.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.68.0
 	go.opentelemetry.io/collector/component/componenttest v0.162.0

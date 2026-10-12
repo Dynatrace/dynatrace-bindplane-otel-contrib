@@ -3,7 +3,7 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/throughpu
 go 1.26.9
 
 require (
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements v1.0.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/measurements v1.1.0
 	github.com/golang/snappy v1.0.0
 	github.com/open-telemetry/opamp-go v0.24.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampcustommessages v0.162.0
