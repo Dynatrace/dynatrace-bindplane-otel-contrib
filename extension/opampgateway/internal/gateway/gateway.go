@@ -153,6 +153,12 @@ func (g *Gateway) HandleDownstreamMessage(_ context.Context, connection *downstr
 	}
 	g.telemetry.OpampgatewayMessages.Add(context.Background(), 1, directionUpstream)
 	g.telemetry.OpampgatewayMessagesBytes.Add(context.Background(), int64(len(msg.data)), directionUpstream)
+
+	// The agent said it is leaving (directly, or through a chained gateway). Stop routing
+	// to it, so the close of its connection does not report it a second time.
+	if message.GetAgentDisconnect() != nil {
+		g.server.agentConnections.remove(agentID)
+	}
 	return nil
 }
 
@@ -164,9 +170,43 @@ func (g *Gateway) HandleDownstreamError(_ context.Context, _ *downstreamConnecti
 // HandleDownstreamClose handles the closing of a downstream connection.
 func (g *Gateway) HandleDownstreamClose(_ context.Context, connection *downstreamConnection) error {
 	g.logger.Info("HandleDownstreamClose", zap.String("downstream_connection_id", connection.id))
+	agentIDs := g.server.agentConnections.keysByValue(connection)
 	g.client.unassignUpstreamConnection(connection.id)
 	g.server.removeDownstreamConnection(connection)
+	g.sendAgentDisconnects(connection.upstreamConnection, agentIDs)
 	return nil
+}
+
+// sendAgentDisconnects tells the upstream server that the agents left. The upstream
+// connection is shared, so the server cannot see when one agent behind the gateway
+// disconnects; without this message it keeps the agent connected until the upstream
+// connection closes.
+func (g *Gateway) sendAgentDisconnects(upstream *upstreamConnection, agentIDs []string) {
+	if upstream == nil {
+		return
+	}
+	for _, agentID := range agentIDs {
+		raw, err := rawAgentID(agentID)
+		if err != nil {
+			g.logger.Warn("cannot report agent disconnect", zap.String("agent.id", agentID), zap.Error(err))
+			continue
+		}
+		data, err := encodeWSMessage(&protobufs.AgentToServer{
+			InstanceUid:     raw,
+			AgentDisconnect: &protobufs.AgentDisconnect{},
+		})
+		if err != nil {
+			g.logger.Warn("cannot encode agent disconnect", zap.String("agent.id", agentID), zap.Error(err))
+			continue
+		}
+		if err := upstream.send(newMessage(0, data)); err != nil {
+			g.logger.Warn("cannot send agent disconnect", zap.String("agent.id", agentID), zap.Error(err))
+			continue
+		}
+		g.logger.Info("reported agent disconnect", zap.String("agent.id", agentID), zap.String("upstream_connection_id", upstream.id))
+		g.telemetry.OpampgatewayMessages.Add(context.Background(), 1, directionUpstream)
+		g.telemetry.OpampgatewayMessagesBytes.Add(context.Background(), int64(len(data)), directionUpstream)
+	}
 }
 
 // --------------------------------------------------------------------------------------
@@ -223,6 +263,16 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 	// inject cached CustomCapabilities into the first message forwarded to each downstream
 	// agent.
 	message = g.injectCustomCapabilities(connection, conn, &m, message)
+
+	// The server gave the agent a new instance UID. Route the new UID to the same
+	// connection now, so messages for it arrive before the agent sends one, and stop
+	// routing the old UID.
+	if newUID := m.GetAgentIdentification().GetNewInstanceUid(); len(newUID) > 0 {
+		if newAgentID, err := parseAgentID(newUID); err == nil {
+			g.server.setAgentConnection(newAgentID, conn)
+			g.server.agentConnections.remove(agentID)
+		}
+	}
 
 	// forward the message to the downstream connection
 	msg := fmt.Sprintf("%s <= %s", conn.id, connection.id)
