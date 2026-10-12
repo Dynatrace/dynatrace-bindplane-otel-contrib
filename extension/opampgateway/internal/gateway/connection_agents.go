@@ -148,6 +148,16 @@ func (a *connectionAgents) has(agentID string) bool {
 	return ok && !a.closed
 }
 
+// discard marks the connection closed without agents to report, for a connection that the
+// server asked to close: the server already ended the sessions.
+func (a *connectionAgents) discard() {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
+	a.closed = true
+	clear(a.active)
+}
+
 // close marks the connection closed and returns the agents to report.
 func (a *connectionAgents) close() []agentID {
 	a.mtx.Lock()

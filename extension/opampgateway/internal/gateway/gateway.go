@@ -26,6 +26,7 @@ import (
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"github.com/gorilla/websocket"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -314,6 +315,12 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 		return err
 	}
 
+	// A request to disconnect one agent is addressed to the gateway, not to an agent.
+	if customMsg := m.GetCustomMessage(); customMsg.GetCapability() == OpampGatewayCapability &&
+		customMsg.GetType() == OpampGatewayDisconnectAgentType {
+		return g.disconnectAgent(connection, message, customMsg)
+	}
+
 	agentID, err := parseAgentID(m.GetInstanceUid())
 	if err != nil {
 		return fmt.Errorf("invalid instance_uid (length=%d, fields=%v): %w",
@@ -351,6 +358,63 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 	return nil
 }
 
+// disconnectAgent closes the connection of the agent named in a disconnectAgent request.
+// When the agent is behind a chained gateway, the connection carries other agents too, so
+// the request goes on to that gateway instead.
+func (g *Gateway) disconnectAgent(upstream *upstreamConnection, msg *message, customMsg *protobufs.CustomMessage) error {
+	var request OpampGatewayDisconnectAgent
+	if err := jsoniter.Unmarshal(customMsg.GetData(), &request); err != nil {
+		return fmt.Errorf("decode disconnectAgent request: %w", err)
+	}
+	agentID, err := parseAgentID(request.InstanceUID)
+	if err != nil {
+		return fmt.Errorf("disconnectAgent request: %w", err)
+	}
+
+	// The server sends the request on the upstream connection of the session it ended.
+	conn, ok := g.server.getAgentConnection(upstream, agentID)
+	if !ok {
+		return nil
+	}
+
+	if conn.chainedGateway.Load() {
+		if !conn.disconnectAgentSupported.Load() {
+			g.logger.Warn("cannot close an agent behind a chained gateway that does not support disconnectAgent",
+				zap.String(keyAgentID, agentID),
+				zap.String(keyDownstreamConnectionID, conn.id))
+			return nil
+		}
+		g.logger.Debug("forwarding disconnectAgent to a chained gateway",
+			zap.String(keyAgentID, agentID),
+			zap.String(keyDownstreamConnectionID, conn.id),
+			zap.String(keyUpstreamConnectionID, upstream.id))
+		// The chained gateway closes the agent and does not report it, because the server
+		// already ended the session. Stop routing to the agent here too, so that the close
+		// of the chained connection does not report it later.
+		if newAgentID, ok := conn.agents.left(agentID); ok {
+			g.server.removeAgentConnection(newAgentID, conn)
+		}
+		g.server.removeAgentConnection(agentID, conn)
+		if err := conn.send(msg); err != nil {
+			return fmt.Errorf("forward disconnectAgent to %s: %w", conn.id, err)
+		}
+		return nil
+	}
+
+	g.logger.Info("closing the connection of an agent at the request of the server",
+		zap.String(keyAgentID, agentID),
+		zap.String(keyDownstreamConnectionID, conn.id),
+		zap.Int("retry_after_seconds", request.RetryAfterSeconds))
+	// The server already ended the session, so the close does not report the agent, also
+	// when a message of the agent is read after this point.
+	conn.agents.discard()
+	g.server.removeAgentConnection(agentID, conn)
+	if err := conn.close(); err != nil {
+		return fmt.Errorf("close downstream connection %s: %w", conn.id, err)
+	}
+	return nil
+}
+
 // relayChainedConnect relays an OpampGatewayConnect request from a downstream gateway to the
 // upstream server. The request is forwarded unchanged on the upstream connection assigned to
 // the downstream gateway, and the request UID is recorded so the result can be routed back.
@@ -360,6 +424,8 @@ func (g *Gateway) relayChainedConnect(connection *downstreamConnection, msg *mes
 	}
 
 	upstreamConnection := connection.upstreamConnection
+
+	connection.chainedGateway.Store(true)
 
 	// record the request before sending it so the result can never arrive before the request
 	// is known

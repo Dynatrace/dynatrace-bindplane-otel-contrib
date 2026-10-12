@@ -282,6 +282,7 @@ func (s *server) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	// create the downstream connection
 	c := newDownstreamConnection(s.shutdownCtx, conn, s.telemetry, upstreamConnection, id, s.logger)
+	c.disconnectAgentSupported.Store(hasGatewayCapability(r.Header, OpampGatewayDisconnectAgentType))
 	s.addDownstreamConnection(id, c)
 
 	// start the connection in a goroutine to prevent blocking the handler
