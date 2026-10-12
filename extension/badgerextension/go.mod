@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/badgerextension
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/dgraph-io/badger/v4 v4.9.6

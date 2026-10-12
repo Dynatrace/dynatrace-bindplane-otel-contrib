@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/azureblobexporter
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.1

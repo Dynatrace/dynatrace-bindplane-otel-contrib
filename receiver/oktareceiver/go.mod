@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/oktareceiver
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/okta/okta-sdk-golang/v6 v6.1.7
