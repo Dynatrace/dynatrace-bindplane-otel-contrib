@@ -19,6 +19,7 @@ require (
 	go.opentelemetry.io/collector/confmap v1.67.0
 	go.opentelemetry.io/collector/extension v1.67.0
 	go.opentelemetry.io/collector/extension/extensiontest v0.161.0
+	go.opentelemetry.io/collector/pdata v1.67.0
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/metric v1.46.0
 	go.opentelemetry.io/otel/sdk/metric v1.46.0
@@ -59,7 +60,6 @@ require (
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.161.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.67.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.161.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.67.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.46.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

@@ -29,22 +29,33 @@ func TestUpstreamConnectionHeader(t *testing.T) {
 	testCases := []struct {
 		name            string
 		headers         http.Header
+		gatewayID       string
 		expectUserAgent string
+		expectID        string
 	}{
 		{
 			name:            "no configured headers",
 			headers:         nil,
 			expectUserAgent: userAgent,
+			expectID:        "upstream-0",
+		},
+		{
+			name:            "gateway ID prefixes the connection ID",
+			gatewayID:       "01J9GATEWAY",
+			expectUserAgent: userAgent,
+			expectID:        "01J9GATEWAY/upstream-0",
 		},
 		{
 			name:            "unrelated configured header",
 			headers:         http.Header{"Authorization": []string{"Secret-Key secret"}},
 			expectUserAgent: userAgent,
+			expectID:        "upstream-0",
 		},
 		{
 			name:            "configured User-Agent takes precedence",
 			headers:         http.Header{"User-Agent": []string{"custom/1.0.0"}},
 			expectUserAgent: "custom/1.0.0",
+			expectID:        "upstream-0",
 		},
 	}
 
@@ -54,10 +65,11 @@ func TestUpstreamConnectionHeader(t *testing.T) {
 				endpoint:  "ws://localhost:4320/v1/opamp",
 				headers:   tc.headers,
 				userAgent: userAgent,
+				gatewayID: tc.gatewayID,
 			}, "upstream-0", zap.NewNop())
 
 			h := c.header("upstream-0")
-			require.Equal(t, "upstream-0", h.Get("X-Opamp-Gateway-Connection-Id"))
+			require.Equal(t, tc.expectID, h.Get("X-Opamp-Gateway-Connection-Id"))
 			require.Equal(t, tc.expectUserAgent, h.Get("User-Agent"))
 
 			// the configured headers must not be modified

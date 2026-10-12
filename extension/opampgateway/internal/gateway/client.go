@@ -46,6 +46,7 @@ type client struct {
 
 	headers          http.Header
 	userAgent        string
+	gatewayID        string
 	upstreamEndpoint string
 	connectionCount  int
 
@@ -71,6 +72,7 @@ func newClient(settings Settings, telemetry *metadata.TelemetryBuilder, callback
 		callbacks:             callbacks,
 		headers:               settings.Headers,
 		userAgent:             version.UserAgent(settings.BuildInfo),
+		gatewayID:             settings.GatewayID,
 		upstreamEndpoint:      settings.UpstreamOpAMPAddress,
 		connectionCount:       settings.UpstreamConnections,
 		clientConnectionsWg:   &sync.WaitGroup{},
@@ -102,6 +104,7 @@ func (c *client) startClientConnections(ctx context.Context) {
 			endpoint:  c.upstreamEndpoint,
 			headers:   c.headers,
 			userAgent: c.userAgent,
+			gatewayID: c.gatewayID,
 		}, id, c.logger)
 
 		c.pool.add(clientConnection)

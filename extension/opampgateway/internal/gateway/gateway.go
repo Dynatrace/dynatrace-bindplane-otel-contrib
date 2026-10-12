@@ -52,6 +52,8 @@ type Settings struct {
 	OpAMPServer          confighttp.ServerConfig
 	AuthTimeout          time.Duration
 	BuildInfo            component.BuildInfo
+	// GatewayID prefixes the X-Opamp-Gateway-Connection-Id header. It can be empty.
+	GatewayID string
 }
 
 // Gateway is the core OpAMP gateway implementation that manages upstream and downstream
