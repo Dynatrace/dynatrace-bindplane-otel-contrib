@@ -48,3 +48,28 @@ func TestCreateOpAMPGatewayInvalidUpstreamTLSConfig(t *testing.T) {
 	_, err := factory.Create(context.Background(), extensiontest.NewNopSettings(typ), cfg)
 	require.ErrorContains(t, err, "load upstream TLS config")
 }
+
+func TestResolveAgentID(t *testing.T) {
+	t.Run("configured value wins", func(t *testing.T) {
+		ts := extensiontest.NewNopSettings(typ).TelemetrySettings
+		ts.Resource.Attributes().PutStr(serviceInstanceIDKey, "from-resource")
+		require.Equal(t, "from-config", resolveAgentID(" from-config ", ts))
+	})
+
+	t.Run("falls back to service.instance.id", func(t *testing.T) {
+		ts := extensiontest.NewNopSettings(typ).TelemetrySettings
+		ts.Resource.Attributes().PutStr(serviceInstanceIDKey, "from-resource")
+		require.Equal(t, "from-resource", resolveAgentID("", ts))
+	})
+
+	t.Run("ignores empty service.instance.id", func(t *testing.T) {
+		ts := extensiontest.NewNopSettings(typ).TelemetrySettings
+		ts.Resource.Attributes().PutStr(serviceInstanceIDKey, "  ")
+		require.Equal(t, "", resolveAgentID("", ts))
+	})
+
+	t.Run("nothing available", func(t *testing.T) {
+		ts := extensiontest.NewNopSettings(typ).TelemetrySettings
+		require.Equal(t, "", resolveAgentID("", ts))
+	})
+}

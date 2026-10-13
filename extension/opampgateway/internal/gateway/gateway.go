@@ -51,6 +51,9 @@ type Settings struct {
 	OpAMPServer          confighttp.ServerConfig
 	AuthTimeout          time.Duration
 	BuildInfo            component.BuildInfo
+	// AgentID identifies the collector hosting the gateway. When non-empty it
+	// prefixes the X-Opamp-Gateway-Connection-Id header sent upstream.
+	AgentID string
 }
 
 // Gateway is the core OpAMP gateway implementation that manages upstream and downstream
