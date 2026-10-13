@@ -69,6 +69,20 @@ func (c *connections[T]) removeByValue(expected T) {
 	}
 }
 
+// keysByValue returns the keys of all entries whose value matches expected.
+func (c *connections[T]) keysByValue(expected T) []string {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
+	var keys []string
+	for id, conn := range c.byConnectionID {
+		if any(conn) == any(expected) {
+			keys = append(keys, id)
+		}
+	}
+	return keys
+}
+
 func (c *connections[T]) size() int {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
