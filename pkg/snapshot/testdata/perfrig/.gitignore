@@ -1,0 +1,4 @@
+# Local build inputs and run output; see README.md.
+collector_bin
+results/
+telemetrygen/telemetrygen
