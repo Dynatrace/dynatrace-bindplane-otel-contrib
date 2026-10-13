@@ -33,6 +33,7 @@ processor/metricextractprocessor/README.md
 processor/spancountprocessor/README.md
 exporter/googlecloudexporter/README.md
 exporter/googlemanagedprometheusexporter/README.md
+receiver/networkcheckreceiver/README.md
 EOF
 
 for doc in $DOC_FILES
