@@ -23,11 +23,11 @@ import (
 	"time"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/metricstatsprocessor/internal/stats"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/xpdata/xhash"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
@@ -340,7 +340,7 @@ func canAddMetricToStats(m pmetric.Metric) bool {
 
 // mapKey returns a unique key for the provided map.
 func mapKey(dimension pcommon.Map) uint64 {
-	b := pdatautil.MapHash(dimension)
+	b := xhash.MapHash(dimension)
 	// Since the hash is 128 bits, and we want a 64 bit hash,
 	// we'll condense by XORing the lower and upper 64 bits.
 	upper := binary.BigEndian.Uint64(b[:8])

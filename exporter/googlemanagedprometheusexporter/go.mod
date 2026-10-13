@@ -3,14 +3,14 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/googlemana
 go 1.26.9
 
 require (
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version v1.0.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlemanagedprometheusexporter v0.161.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version v1.1.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlemanagedprometheusexporter v0.162.0
 	github.com/stretchr/testify v1.12.1
-	go.opentelemetry.io/collector/component v1.67.0
-	go.opentelemetry.io/collector/consumer v1.67.0
-	go.opentelemetry.io/collector/exporter v1.67.0
-	go.opentelemetry.io/collector/exporter/exportertest v0.161.0
-	go.opentelemetry.io/collector/pdata v1.67.0
+	go.opentelemetry.io/collector/component v1.68.0
+	go.opentelemetry.io/collector/consumer v1.68.0
+	go.opentelemetry.io/collector/exporter v1.68.0
+	go.opentelemetry.io/collector/exporter/exportertest v0.162.0
+	go.opentelemetry.io/collector/pdata v1.68.0
 	go.uber.org/zap v1.28.0
 	google.golang.org/api v0.300.0
 )
@@ -28,10 +28,10 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/collector v0.61.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/collector/googlemanagedprometheus v0.61.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.37.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.61.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/collector v0.62.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/collector/googlemanagedprometheus v0.62.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.38.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.62.0 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/aws/aws-sdk-go-v2 v1.43.0 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.31 // indirect
@@ -96,28 +96,28 @@ require (
 	github.com/tidwall/tinylru v1.2.1 // indirect
 	github.com/tidwall/wal v1.2.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/client v1.67.0 // indirect
-	go.opentelemetry.io/collector/component/componenttest v0.161.0 // indirect
-	go.opentelemetry.io/collector/config/configoptional v1.67.0 // indirect
-	go.opentelemetry.io/collector/config/configretry v1.67.0 // indirect
-	go.opentelemetry.io/collector/confmap v1.67.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumererror v0.161.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumertest v0.161.0 // indirect
-	go.opentelemetry.io/collector/consumer/xconsumer v0.161.0 // indirect
-	go.opentelemetry.io/collector/exporter/exporterhelper v0.161.0 // indirect
-	go.opentelemetry.io/collector/exporter/xexporter v0.161.0 // indirect
-	go.opentelemetry.io/collector/extension v1.67.0 // indirect
-	go.opentelemetry.io/collector/extension/extensionauth v1.67.0 // indirect
-	go.opentelemetry.io/collector/extension/xextension v0.161.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.67.0 // indirect
-	go.opentelemetry.io/collector/internal/componentalias v0.161.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.161.0 // indirect
-	go.opentelemetry.io/collector/pdata/xpdata v0.161.0 // indirect
-	go.opentelemetry.io/collector/pipeline v1.67.0 // indirect
-	go.opentelemetry.io/collector/pipeline/xpipeline v0.161.0 // indirect
-	go.opentelemetry.io/collector/receiver v1.67.0 // indirect
-	go.opentelemetry.io/collector/receiver/receivertest v0.161.0 // indirect
-	go.opentelemetry.io/collector/receiver/xreceiver v0.161.0 // indirect
+	go.opentelemetry.io/collector/client v1.68.0 // indirect
+	go.opentelemetry.io/collector/component/componenttest v0.162.0 // indirect
+	go.opentelemetry.io/collector/config/configoptional v1.68.0 // indirect
+	go.opentelemetry.io/collector/config/configretry v1.68.0 // indirect
+	go.opentelemetry.io/collector/confmap v1.68.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumererror v0.162.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumertest v0.162.0 // indirect
+	go.opentelemetry.io/collector/consumer/xconsumer v0.162.0 // indirect
+	go.opentelemetry.io/collector/exporter/exporterhelper v0.162.0 // indirect
+	go.opentelemetry.io/collector/exporter/xexporter v0.162.0 // indirect
+	go.opentelemetry.io/collector/extension v1.68.0 // indirect
+	go.opentelemetry.io/collector/extension/extensionauth v1.68.0 // indirect
+	go.opentelemetry.io/collector/extension/xextension v0.162.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.68.0 // indirect
+	go.opentelemetry.io/collector/internal/componentalias v0.162.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.162.0 // indirect
+	go.opentelemetry.io/collector/pdata/xpdata v0.162.0 // indirect
+	go.opentelemetry.io/collector/pipeline v1.68.0 // indirect
+	go.opentelemetry.io/collector/pipeline/xpipeline v0.162.0 // indirect
+	go.opentelemetry.io/collector/receiver v1.68.0 // indirect
+	go.opentelemetry.io/collector/receiver/receivertest v0.162.0 // indirect
+	go.opentelemetry.io/collector/receiver/xreceiver v0.162.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 // indirect
 	go.opentelemetry.io/otel v1.46.0 // indirect
