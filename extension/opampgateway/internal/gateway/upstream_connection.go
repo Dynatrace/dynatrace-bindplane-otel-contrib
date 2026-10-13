@@ -355,6 +355,7 @@ func (c *upstreamConnection) header(id string) http.Header {
 		h = make(http.Header)
 	}
 	h.Set("X-Opamp-Gateway-Connection-Id", id)
+	h.Set(gatewayCapabilitiesHeader, OpampGatewayDisconnectAgentType)
 	// identify the gateway to the upstream server, leaving a configured
 	// User-Agent in place so it can be overridden.
 	if h.Get("User-Agent") == "" {

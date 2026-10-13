@@ -59,4 +59,23 @@ const (
 	// OpampGatewayConnectResultType is sent as a response to the connect message. It will
 	// either allow or deny the agent connection.
 	OpampGatewayConnectResultType = "connectResult"
+
+	// OpampGatewayDisconnectAgentType is sent by the server to make the gateway close the
+	// connection of one downstream agent, for example an agent with a duplicate agent ID.
+	// The gateway advertises support in the X-Opamp-Gateway-Capabilities header.
+	OpampGatewayDisconnectAgentType = "disconnectAgent"
+
+	// gatewayCapabilitiesHeader lists the optional gateway features the server can use.
+	gatewayCapabilitiesHeader = "X-Opamp-Gateway-Capabilities"
 )
+
+// OpampGatewayDisconnectAgent asks the gateway to close the connection of one downstream
+// agent.
+type OpampGatewayDisconnectAgent struct {
+	// InstanceUID is the instance UID of the agent, as in AgentToServer.instance_uid.
+	InstanceUID []byte `json:"instance_uid"`
+
+	// RetryAfterSeconds is how long the server rejects reconnects of the agent. The server
+	// enforces it; the gateway only passes the value on to a chained gateway.
+	RetryAfterSeconds int `json:"retry_after_seconds"`
+}

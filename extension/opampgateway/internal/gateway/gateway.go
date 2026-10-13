@@ -26,6 +26,7 @@ import (
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"github.com/gorilla/websocket"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -247,6 +248,12 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 		return err
 	}
 
+	// A request to disconnect one agent is addressed to the gateway, not to an agent.
+	if customMsg := m.GetCustomMessage(); customMsg.GetCapability() == OpampGatewayCapability &&
+		customMsg.GetType() == OpampGatewayDisconnectAgentType {
+		return g.disconnectAgent(connection, message, customMsg)
+	}
+
 	agentID, err := parseAgentID(m.GetInstanceUid())
 	if err != nil {
 		return fmt.Errorf("invalid instance_uid (length=%d, fields=%v): %w",
@@ -285,6 +292,48 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 	return nil
 }
 
+// disconnectAgent closes the connection of the agent named in a disconnectAgent request.
+// When the agent is behind a chained gateway, the connection carries other agents too, so
+// the request goes on to that gateway instead.
+func (g *Gateway) disconnectAgent(upstream *upstreamConnection, msg *message, customMsg *protobufs.CustomMessage) error {
+	var request OpampGatewayDisconnectAgent
+	if err := jsoniter.Unmarshal(customMsg.GetData(), &request); err != nil {
+		return fmt.Errorf("decode disconnectAgent request: %w", err)
+	}
+	agentID, err := parseAgentID(request.InstanceUID)
+	if err != nil {
+		return fmt.Errorf("disconnectAgent request: %w", err)
+	}
+
+	conn, ok := g.server.getAgentConnection(agentID)
+	if !ok {
+		return nil
+	}
+
+	if conn.chainedGateway.Load() {
+		g.logger.Info("forwarding disconnectAgent to a chained gateway",
+			zap.String("agent.id", agentID),
+			zap.String("downstream_connection_id", conn.id),
+			zap.String("upstream_connection_id", upstream.id))
+		if err := conn.send(msg); err != nil {
+			return fmt.Errorf("forward disconnectAgent to %s: %w", conn.id, err)
+		}
+		return nil
+	}
+
+	g.logger.Info("closing the connection of an agent at the request of the server",
+		zap.String("agent.id", agentID),
+		zap.String("downstream_connection_id", conn.id),
+		zap.Int("retry_after_seconds", request.RetryAfterSeconds))
+	// The route goes now, so the close does not report the agent as leaving: the server
+	// already ended its session.
+	g.server.agentConnections.remove(agentID)
+	if err := conn.close(); err != nil {
+		return fmt.Errorf("close downstream connection %s: %w", conn.id, err)
+	}
+	return nil
+}
+
 // relayChainedConnect relays an OpampGatewayConnect request from a downstream gateway to the
 // upstream server. The request is forwarded unchanged on the upstream connection assigned to
 // the downstream gateway, and the request UID is recorded so the result can be routed back.
@@ -294,6 +343,8 @@ func (g *Gateway) relayChainedConnect(connection *downstreamConnection, msg *mes
 	}
 
 	upstreamConnection := connection.upstreamConnection
+
+	connection.chainedGateway.Store(true)
 
 	// record the request before sending it so the result can never arrive before the request
 	// is known
