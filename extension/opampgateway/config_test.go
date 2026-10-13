@@ -73,6 +73,19 @@ func TestConfigValidate(t *testing.T) {
 		require.ErrorContains(t, err, "opamp_client connections must be at least 1")
 	})
 
+	t.Run("valid gateway ID", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Server.GatewayID = "01J9GATEWAY"
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("gateway ID with a slash", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Server.GatewayID = "gateway/1"
+		err := cfg.Validate()
+		require.ErrorContains(t, err, "opamp_client gateway_id must not contain '/'")
+	})
+
 	t.Run("empty server endpoint", func(t *testing.T) {
 		cfg := validConfig()
 		cfg.Listener.NetAddr.Endpoint = ""

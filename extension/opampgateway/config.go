@@ -18,6 +18,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtls"
@@ -29,6 +30,10 @@ type ServerConfig struct {
 	Headers     http.Header            `mapstructure:"headers"`
 	TLS         configtls.ClientConfig `mapstructure:"tls,omitempty"`
 	Connections int                    `mapstructure:"connections"`
+	// GatewayID identifies this gateway to the upstream server. It prefixes the
+	// X-Opamp-Gateway-Connection-Id header as "<gateway_id>/<connection id>". When it is
+	// empty, the gateway uses the service.instance.id of the collector.
+	GatewayID string `mapstructure:"gateway_id"`
 }
 
 // Config holds the configuration for the OpAMP gateway extension.
@@ -52,6 +57,10 @@ func (c *Config) Validate() error {
 
 	if c.Server.Connections < 1 {
 		return errors.New("opamp_client connections must be at least 1")
+	}
+
+	if strings.Contains(c.Server.GatewayID, "/") {
+		return errors.New("opamp_client gateway_id must not contain '/'")
 	}
 
 	if c.Listener.NetAddr.Endpoint == "" {

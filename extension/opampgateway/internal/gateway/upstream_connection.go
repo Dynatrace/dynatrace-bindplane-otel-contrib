@@ -59,6 +59,8 @@ type upstreamConnectionSettings struct {
 	endpoint  string
 	headers   http.Header
 	userAgent string
+	// gatewayID prefixes the connection ID in the X-Opamp-Gateway-Connection-Id header.
+	gatewayID string
 }
 
 func newUpstreamConnection(dialer websocket.Dialer, telemetry *metadata.TelemetryBuilder, settings upstreamConnectionSettings, id string, logger *zap.Logger) *upstreamConnection {
@@ -353,6 +355,9 @@ func (c *upstreamConnection) header(id string) http.Header {
 	h := c.settings.headers.Clone()
 	if h == nil {
 		h = make(http.Header)
+	}
+	if c.settings.gatewayID != "" {
+		id = c.settings.gatewayID + "/" + id
 	}
 	h.Set("X-Opamp-Gateway-Connection-Id", id)
 	h.Set(gatewayCapabilitiesHeader, OpampGatewayDisconnectAgentType)

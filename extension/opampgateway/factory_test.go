@@ -22,7 +22,9 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensiontest"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 // TestCreateOpAMPGatewayInvalidUpstreamTLSConfig verifies that an invalid
@@ -47,4 +49,28 @@ func TestCreateOpAMPGatewayInvalidUpstreamTLSConfig(t *testing.T) {
 	factory := NewFactory()
 	_, err := factory.Create(context.Background(), extensiontest.NewNopSettings(typ), cfg)
 	require.ErrorContains(t, err, "load upstream TLS config")
+}
+
+func TestGatewayID(t *testing.T) {
+	withInstanceID := func(id string) extension.Settings {
+		settings := extensiontest.NewNopSettings(typ)
+		settings.Resource = pcommon.NewResource()
+		if id != "" {
+			settings.Resource.Attributes().PutStr("service.instance.id", id)
+		}
+		return settings
+	}
+
+	t.Run("configured gateway ID", func(t *testing.T) {
+		cfg := &Config{Server: ServerConfig{GatewayID: "01J9GATEWAY"}}
+		require.Equal(t, "01J9GATEWAY", gatewayID(cfg, withInstanceID("instance-1")))
+	})
+
+	t.Run("service instance ID when not configured", func(t *testing.T) {
+		require.Equal(t, "instance-1", gatewayID(&Config{}, withInstanceID("instance-1")))
+	})
+
+	t.Run("empty when neither is set", func(t *testing.T) {
+		require.Empty(t, gatewayID(&Config{}, withInstanceID("")))
+	})
 }

@@ -62,6 +62,7 @@ func createOpAMPGateway(ctx context.Context, cs extension.Settings, cfg componen
 		Headers:              oCfg.Server.Headers,
 		TLSConfig:            tlsConfig,
 		UpstreamConnections:  oCfg.Server.Connections,
+		GatewayID:            gatewayID(oCfg, cs),
 		OpAMPServer:          oCfg.Listener,
 		BuildInfo:            cs.BuildInfo,
 	}
@@ -71,4 +72,15 @@ func createOpAMPGateway(ctx context.Context, cs extension.Settings, cfg componen
 		gateway:           gw,
 		telemetrySettings: cs.TelemetrySettings,
 	}, nil
+}
+
+// gatewayID returns the configured gateway ID, or the service.instance.id of the collector.
+func gatewayID(cfg *Config, cs extension.Settings) string {
+	if cfg.Server.GatewayID != "" {
+		return cfg.Server.GatewayID
+	}
+	if id, ok := cs.Resource.Attributes().Get("service.instance.id"); ok {
+		return id.AsString()
+	}
+	return ""
 }
