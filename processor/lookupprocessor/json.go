@@ -46,7 +46,12 @@ func parseJSONIndex(contents []byte) (index, error) {
 	if err := dec.Decode(&raw); err != nil {
 		return nil, fmt.Errorf("parse json: %w", err)
 	}
-	if dec.More() {
+	if raw == nil { // top-level null decodes without error
+		return nil, fmt.Errorf("parse json: top level must be an object, got null")
+	}
+	// Decoder.More reports false before a closing '}' or ']', so check the rest
+	// of the input directly: only JSON whitespace may follow the object.
+	if len(bytes.Trim(contents[dec.InputOffset():], " \t\r\n")) > 0 {
 		return nil, fmt.Errorf("parse json: unexpected trailing data after top-level object")
 	}
 
