@@ -132,6 +132,24 @@ func TestValidate(t *testing.T) {
 			cfg:  Config{CSV: "csv", Context: "resource.attributes", Field: "field"},
 		},
 		{
+			name: "valid json",
+			cfg:  Config{JSON: "lookup.json", Context: "body", Field: "field"},
+		},
+		{
+			name: "valid json with explicit source_type",
+			cfg:  Config{JSON: "lookup.json", Context: "body", Field: "field", SourceType: "json"},
+		},
+		{
+			name: "json source_type mismatch",
+			cfg:  Config{CSV: "csv", Context: "body", Field: "field", SourceType: "json"},
+			err:  errSourceTypeMismatch,
+		},
+		{
+			name: "multiple sources csv and json",
+			cfg:  Config{CSV: "csv", JSON: "lookup.json", Context: "body", Field: "field"},
+			err:  errMultipleSources,
+		},
+		{
 			name: "valid redis",
 			cfg: Config{
 				Context: "attributes",
