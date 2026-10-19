@@ -93,7 +93,11 @@ func TestJSONParseErrors(t *testing.T) {
 		{"entry is an array", `{"k": [1, 2]}`},
 		{"top level not an object", `[1, 2, 3]`},
 		{"top level scalar", `"hello"`},
+		{"top level null", `null`},
 		{"trailing data", `{"a": {}} {"b": {}}`},
+		{"trailing close brace", `{"a": {}}}`},
+		{"trailing close bracket", `{"a": {}}]`},
+		{"trailing non-JSON whitespace", "{\"a\": {}}\f"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := parseJSONIndex([]byte(tc.in))
@@ -110,6 +114,12 @@ func TestCoerceJSONValue(t *testing.T) {
 	// A channel cannot be JSON-encoded; the coercer must drop it rather than panic.
 	_, keep = coerceJSONValue(make(chan int))
 	require.False(t, keep)
+}
+
+func TestJSONTrailingWhitespaceIsAllowed(t *testing.T) {
+	idx, err := parseJSONIndex([]byte("{\"a\": {\"x\": \"1\"}}\n\t \r\n"))
+	require.NoError(t, err)
+	require.Equal(t, "1", idx["a"]["x"])
 }
 
 func TestJSONEmptyObjectLoadsWithNoKeys(t *testing.T) {
