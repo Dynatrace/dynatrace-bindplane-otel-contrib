@@ -9,15 +9,15 @@ lookup and adding the resulting fields to the configured `context`.
 - Traces
 
 ## How It Works
-1. The processor loads a lookup source. Exactly one of `csv`, `redis`, or `api`
-   must be configured.
+1. The processor loads a lookup source. Exactly one of `csv`, `json`, `redis`,
+   or `api` must be configured.
 2. When telemetry is received, the processor checks if the configured `field`
    exists in the configured `context`.
 3. If the field exists and the lookup source returns a match, all other key/value
    pairs from the matching row are added to the `context` of the telemetry.
 4. For a `redis` or `api` lookup, an optional cache (enabled by default with a
-   5-minute TTL) stores recent results. A CSV file is already held in memory, so
-   it is looked up directly and the cache does not apply. The cache backend is
+   5-minute TTL) stores recent results. A `csv` or `json` file is already held in
+   memory, so it is looked up directly and the cache does not apply. The cache backend is
    either an OpenTelemetry storage extension (e.g. `file_storage`,
    `redis_storage`) for persistence across restarts, or a per-instance in-memory
    map when no `storage` is configured.
@@ -42,13 +42,14 @@ lookup and adding the resulting fields to the configured `context`.
 | ---            | ---             | ---     | --- |
 | context        | string          | ` `     | Telemetry context to read/write. One of `attributes`, `body`, `resource.attributes`. |
 | field          | string          | ` `     | Field in `context` whose value is used as the lookup key. |
-| source_type    | string          | ` `     | Optional. One of `csv`, `redis`, `api`. When unset, the lookup source is inferred from the source block. |
-| reload_interval | duration       | `60s`   | How often the lookup source is re-checked for changes. An unchanged CSV is skipped without re-reading it. A negative value is rejected. |
-| cache_enabled  | bool            | `true`  | Enable TTL caching of lookup results. Not used with a CSV file. |
-| cache_ttl      | duration        | `5m`    | Cache entry lifetime. Not used with a CSV file. |
-| cache_max_entries | int          | `100000` | Maximum entries held by the in-memory cache. On overflow, expired entries are evicted first, then arbitrary entries. Ignored when `storage` is set, and not used with a CSV file. |
-| storage        | component.ID    | `nil`   | Storage extension to back the cache (e.g. `file_storage`). When unset, the cache is in-memory and discarded on restart. Not used with a CSV file. |
+| source_type    | string          | ` `     | Optional. One of `csv`, `json`, `redis`, `api`. When unset, the lookup source is inferred from the source block. |
+| reload_interval | duration       | `60s`   | How often the lookup source is re-checked for changes. An unchanged file is skipped without re-reading it. A negative value is rejected. |
+| cache_enabled  | bool            | `true`  | Enable TTL caching of lookup results. Not used with a `csv` or `json` file. |
+| cache_ttl      | duration        | `5m`    | Cache entry lifetime. Not used with a `csv` or `json` file. |
+| cache_max_entries | int          | `100000` | Maximum entries held by the in-memory cache. On overflow, expired entries are evicted first, then arbitrary entries. Ignored when `storage` is set, and not used with a `csv` or `json` file. |
+| storage        | component.ID    | `nil`   | Storage extension to back the cache (e.g. `file_storage`). When unset, the cache is in-memory and discarded on restart. Not used with a `csv` or `json` file. |
 | csv            | string          | ` `     | Path to CSV file. See [CSV Lookup Source](#csv-lookup-source). |
+| json           | string          | ` `     | Path to JSON file. See [JSON Lookup Source](#json-lookup-source). |
 | redis          | object          | `nil`   | Redis config. See [Redis Lookup Source](#redis-lookup-source). |
 | api            | object          | `nil`   | API config. See [API Lookup Source](#api-lookup-source). |
 
@@ -65,6 +66,32 @@ The cache settings (`cache_enabled`, `cache_ttl`, `cache_max_entries`, `storage`
 do not apply to a CSV file. The CSV index is already held in memory, so lookups
 never go through the cache. Setting any of them alongside `csv` logs a warning at
 startup, and will become a configuration error in a future release.
+
+### JSON Lookup Source
+| Field | Type   | Default | Description |
+| ---   | ---    | ---     | --- |
+| json  | string | ` `     | Filesystem path to a JSON file. Re-checked on the `reload_interval` cadence (default one minute), and re-read only when it has changed. |
+
+The file is a JSON object whose keys are lookup keys and whose values are objects
+of attributes to add. Unlike a CSV's fixed columns, each key may carry a different
+set of fields, so only the fields present for the matched key are added to the
+configured `context`. The top-level `field` setting supplies the lookup key; it is
+not a column name.
+
+All attribute values are added as strings: a number keeps its exact source text, a
+bool becomes `true`/`false`, a nested object or array is added as compact JSON, and
+a `null` field is omitted. An entry whose value is not an object is a load error.
+
+```json
+{
+  "0.0.0.0": {"env": "prod", "region": "us-west"},
+  "1.1.1.1": {"env": "dev"}
+}
+```
+
+The cache settings do not apply to a JSON file, for the same reason as CSV: the
+index is already held in memory. Setting any of them alongside `json` logs a
+warning at startup, and will become a configuration error in a future release.
 
 ### Redis Lookup Source
 | Field          | Type     | Default | Description |
@@ -146,6 +173,34 @@ service:
 ip,host,region,env
 0.0.0.0,host-1,us-west,prod
 1.1.1.1,host-2,us-east,dev
+```
+
+### Example: JSON
+```yaml
+receivers:
+    otlp:
+        protocols:
+            grpc:
+processors:
+    lookup:
+        json: ./example.json
+        context: body
+        field: ip
+exporters:
+    debug:
+service:
+    pipelines:
+        logs:
+            receivers: [otlp]
+            processors: [lookup]
+            exporters: [debug]
+```
+
+```json
+{
+  "0.0.0.0": {"host": "host-1", "region": "us-west", "env": "prod"},
+  "1.1.1.1": {"host": "host-2", "env": "dev"}
+}
 ```
 
 ### Example: Redis (with shared storage cache)
