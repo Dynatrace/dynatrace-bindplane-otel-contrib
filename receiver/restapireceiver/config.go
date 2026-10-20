@@ -260,9 +260,14 @@ type Config struct {
 
 	// EndTimeValue configures what value to send for the end time parameter.
 	// Supported values:
-	//   - "now" (default): the current time at each request
+	//   - "now" (default): the current time
+	//   - "now - <duration>": the current time minus a Go duration (e.g.,
+	//     "now - 30s", "now-1m30s"), for APIs that index late-arriving events
 	//   - A fixed timestamp string in the configured timestamp_format or RFC3339
 	//   - For epoch formats, a numeric string (e.g., "1704067200")
+	//
+	// The value is resolved at the start of every poll cycle and shared by all
+	// pages in that cycle. It is never restored from a checkpoint.
 	EndTimeValue string `mapstructure:"end_time_value"`
 
 	// TimestampFormat is the format for the start/end time query parameters.
@@ -782,17 +787,18 @@ func (c *Config) Validate() error {
 	}
 
 	// Validate start_time_value format if provided
-	if err := c.validateTimestampValue(c.StartTimeValue, "start_time_value"); err != nil {
+	if err := c.validateTimestampValue(c.StartTimeValue, "start_time_value", false); err != nil {
 		return err
 	}
 
-	// Validate end_time_value format if provided (and not "now")
-	if err := c.validateTimestampValue(c.EndTimeValue, "end_time_value"); err != nil {
+	// Validate end_time_value format if provided; it alone may trail "now"
+	if err := c.validateTimestampValue(c.EndTimeValue, "end_time_value", true); err != nil {
 		return err
 	}
 
-	// Validate start_time is before end_time
-	if c.StartTimeValue != "" && c.StartTimeValue != "now" && c.EndTimeValue != "" && c.EndTimeValue != "now" {
+	// Validate start_time is before end_time. Only two fixed values can be
+	// compared here; a value relative to the current time is checked per poll.
+	if c.StartTimeValue != "" && !isRelativeToNow(c.StartTimeValue) && c.EndTimeValue != "" && !isRelativeToNow(c.EndTimeValue) {
 		startTime, err := c.parseConfigTimestamp(c.StartTimeValue)
 		if err == nil {
 			endTime, err := c.parseConfigTimestamp(c.EndTimeValue)
@@ -839,8 +845,19 @@ func (c *Config) Validate() error {
 
 // validateTimestampValue validates that a timestamp value string can be parsed
 // using the configured timestamp_format. Returns nil if the value is empty or "now".
-func (c *Config) validateTimestampValue(value, fieldName string) error {
-	if value == "" || value == "now" {
+// allowLag permits the "now - <duration>" form.
+func (c *Config) validateTimestampValue(value, fieldName string, allowLag bool) error {
+	if value == "" {
+		return nil
+	}
+
+	if lag, ok, err := parseRelativeNow(value); ok {
+		if err != nil {
+			return fmt.Errorf("%s %q is invalid: %w", fieldName, value, err)
+		}
+		if lag > 0 && !allowLag {
+			return fmt.Errorf("%s %q is invalid: \"now - <duration>\" is only supported for end_time_value", fieldName, value)
+		}
 		return nil
 	}
 
@@ -864,6 +881,44 @@ func (c *Config) validateTimestampValue(value, fieldName string) error {
 	}
 
 	return nil
+}
+
+// parseRelativeNow parses a time-bound value relative to the current time:
+// "now", or "now - <duration>" with a positive Go duration (spaces optional).
+// ok reports whether value starts with "now" at all, so a malformed relative
+// value is reported as such rather than as an unparseable timestamp. lag is the
+// amount to subtract from the current time, zero for plain "now".
+func parseRelativeNow(value string) (lag time.Duration, ok bool, err error) {
+	rest, found := strings.CutPrefix(value, "now")
+	if !found {
+		return 0, false, nil
+	}
+
+	rest = strings.TrimSpace(rest)
+	if rest == "" {
+		return 0, true, nil
+	}
+
+	durationText, found := strings.CutPrefix(rest, "-")
+	if !found {
+		return 0, true, fmt.Errorf("must be \"now\" or \"now - <duration>\" (e.g., \"now - 30s\")")
+	}
+
+	lag, err = time.ParseDuration(strings.TrimSpace(durationText))
+	if err != nil {
+		return 0, true, fmt.Errorf("duration must be a Go duration such as 30s or 1m30s: %w", err)
+	}
+	if lag <= 0 {
+		return 0, true, fmt.Errorf("duration must be greater than 0")
+	}
+
+	return lag, true, nil
+}
+
+// isRelativeToNow reports whether value is a valid "now" or "now - <duration>".
+func isRelativeToNow(value string) bool {
+	_, ok, err := parseRelativeNow(value)
+	return ok && err == nil
 }
 
 // isValidJSONNumber reports whether s can be emitted as a bare JSON number.

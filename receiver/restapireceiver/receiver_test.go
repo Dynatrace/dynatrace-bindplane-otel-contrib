@@ -90,9 +90,9 @@ func TestInitializePagination_CheckpointWithZeroTimestamp_PrefersConfig(t *testi
 	expectedTime, _ := time.Parse(time.RFC3339, "2026-03-31T12:00:00Z")
 	require.Equal(t, expectedTime, b.paginationState.CurrentTimestamp,
 		"zero checkpoint timestamp should be replaced by configured start_time_value")
-	// Other checkpoint fields should be preserved
-	require.Equal(t, 100, b.paginationState.PageSize,
-		"non-timestamp checkpoint fields should be preserved")
+	// Page size is a throughput knob, not progress, so the configured value wins.
+	require.Equal(t, 50, b.paginationState.PageSize,
+		"configured page size should replace the checkpoint value")
 }
 
 func TestInitializePagination_CheckpointWithValidTimestamp_PreservesCheckpoint(t *testing.T) {
@@ -1862,6 +1862,53 @@ func TestReconcileCheckpointWithConfig_AppliesConfiguredPageSize(t *testing.T) {
 	}
 }
 
+func TestReconcileCheckpointWithConfig_AppliesConfiguredTimestampPageSize(t *testing.T) {
+	testCases := []struct {
+		name       string
+		configured int
+		checkpoint int
+		expected   int
+	}{
+		{name: "raised page size takes effect", configured: 500, checkpoint: 100, expected: 500},
+		{name: "lowered page size takes effect", configured: 50, checkpoint: 100, expected: 50},
+		{name: "unset falls back to the default", configured: 0, checkpoint: 250, expected: 100},
+		{name: "checkpoint without a page size", configured: 200, checkpoint: 0, expected: 200},
+	}
+
+	checkpointTimestamp := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{
+				URL:                "https://api.example.com/data",
+				StartTimeParamName: "since",
+				Pagination: PaginationConfig{
+					Mode: paginationModeTimestamp,
+					Timestamp: TimestampPagination{
+						TimestampFieldName: "ts",
+						PageSize:           tc.configured,
+					},
+				},
+			}
+			b := &baseReceiver{
+				cfg:    cfg,
+				logger: zap.NewNop(),
+				paginationState: &paginationState{
+					PageSize:          tc.checkpoint,
+					CurrentTimestamp:  checkpointTimestamp,
+					TimestampFromData: true,
+				},
+			}
+
+			b.reconcileCheckpointWithConfig()
+
+			require.Equal(t, tc.expected, b.paginationState.PageSize)
+			// Polling progress survives reconciliation.
+			require.Equal(t, checkpointTimestamp, b.paginationState.CurrentTimestamp)
+			require.True(t, b.paginationState.TimestampFromData)
+		})
+	}
+}
+
 func TestConfigFingerprint_PageSizeExcluded(t *testing.T) {
 	cfg := &Config{
 		URL: "https://api.example.com/data",
@@ -2756,4 +2803,198 @@ func TestConvertJSONToLogs_DroppedOriginalsFallBack(t *testing.T) {
 		require.Equal(t, pcommon.ValueTypeMap, records.At(i).Body().Type())
 		require.Zero(t, records.At(i).Attributes().Len())
 	}
+}
+
+// newEndTimeTestReceiver builds a logs receiver for a timestamp-paginated API
+// that takes since/until as epoch milliseconds.
+func newEndTimeTestReceiver(t *testing.T, url, startValue, endValue string) *restAPILogsReceiver {
+	t.Helper()
+	cfg := &Config{
+		URL:                url,
+		AuthMode:           authModeNone,
+		StartTimeParamName: "since",
+		StartTimeValue:     startValue,
+		EndTimeParamName:   "until",
+		EndTimeValue:       endValue,
+		TimestampFormat:    epochMilliseconds,
+		Pagination: PaginationConfig{
+			Mode: paginationModeTimestamp,
+			Timestamp: TimestampPagination{
+				TimestampFieldName: "ts",
+				PageSize:           100,
+			},
+		},
+		MinPollInterval:   10 * time.Second,
+		MaxPollInterval:   5 * time.Minute,
+		BackoffMultiplier: 2.0,
+	}
+	require.NoError(t, cfg.Validate())
+
+	r, err := newRESTAPILogsReceiver(receivertest.NewNopSettings(metadata.Type), cfg, new(consumertest.LogsSink))
+	require.NoError(t, err)
+	require.NoError(t, r.initializeClient(context.Background(), componenttest.NewNopHost()))
+	r.storageClient = newMemStorageClient()
+	return r
+}
+
+// newWindowServer serves one record just inside each requested [since, until)
+// window, and nothing for an empty window, recording every until it was sent.
+func newWindowServer(t *testing.T, untils *[]int64, mu *sync.Mutex) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		since, err := strconv.ParseInt(r.URL.Query().Get("since"), 10, 64)
+		require.NoError(t, err)
+		until, err := strconv.ParseInt(r.URL.Query().Get("until"), 10, 64)
+		require.NoError(t, err)
+
+		mu.Lock()
+		*untils = append(*untils, until)
+		mu.Unlock()
+
+		records := []map[string]any{}
+		if since < until {
+			records = append(records, map[string]any{"ts": strconv.FormatInt(until-1, 10)})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(records))
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestPoll_RelativeEndTimeAdvancesEveryCycle(t *testing.T) {
+	// Regression for BP-653: the end bound was resolved once at startup, so the
+	// data-driven start caught up to it and collection stopped.
+	var mu sync.Mutex
+	var untils []int64
+	server := newWindowServer(t, &untils, &mu)
+
+	start := strconv.FormatInt(time.Now().Add(-time.Hour).UnixMilli(), 10)
+	r := newEndTimeTestReceiver(t, server.URL, start, "now - 1s")
+	r.initializePagination()
+
+	ctx := context.Background()
+	first, err := r.poll(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, first.recordCount)
+
+	time.Sleep(20 * time.Millisecond)
+
+	second, err := r.poll(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, second.recordCount, "the second cycle must still collect records past the first end bound")
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, untils, 2)
+	require.Greater(t, untils[1], untils[0], "the end bound must be re-resolved every poll cycle")
+
+	lagged := time.Now().Add(-time.Second).UnixMilli()
+	require.LessOrEqual(t, untils[1], lagged, "the end bound must trail now by the configured lag")
+}
+
+func TestPoll_EndTimeNotRestoredFromCheckpoint(t *testing.T) {
+	var mu sync.Mutex
+	var untils []int64
+	server := newWindowServer(t, &untils, &mu)
+
+	start := strconv.FormatInt(time.Now().Add(-time.Hour).UnixMilli(), 10)
+	r := newEndTimeTestReceiver(t, server.URL, start, "now")
+
+	// A checkpoint written by an older version carried the end bound resolved at
+	// its startup. Loading it must not bring that frozen value back.
+	stale := strconv.FormatInt(time.Now().Add(-2*time.Hour).UnixMilli(), 10)
+	ctx := context.Background()
+	raw := []byte(`{"config_fingerprint":"` + configFingerprint(r.cfg) + `",` +
+		`"pagination_state":{"current_timestamp":"` + time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano) + `",` +
+		`"resolved_end_time":"` + stale + `"}}`)
+	require.NoError(t, r.storageClient.Set(ctx, checkpointStorageKey, raw))
+	r.loadCheckpoint(ctx)
+	r.initializePagination()
+
+	_, err := r.poll(ctx)
+	require.NoError(t, err)
+
+	mu.Lock()
+	require.Len(t, untils, 1)
+	require.Greater(t, untils[0], time.Now().Add(-time.Minute).UnixMilli(), "the first request must use a freshly resolved end bound")
+	mu.Unlock()
+
+	saved, err := r.storageClient.Get(ctx, checkpointStorageKey)
+	require.NoError(t, err)
+	require.NotContains(t, string(saved), "resolved_end_time")
+}
+
+func TestPoll_SkipsCycleWhenStartReachesEnd(t *testing.T) {
+	var requests atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer server.Close()
+
+	// Starting at "now" with an hour of lag, the window stays empty for an hour.
+	r := newEndTimeTestReceiver(t, server.URL, "now", "now - 1h")
+	r.initializePagination()
+	startBefore := r.paginationState.CurrentTimestamp
+
+	result, err := r.poll(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 0, result.recordCount)
+	require.Zero(t, requests.Load(), "a cycle whose start has reached the end must not call the API")
+	require.Equal(t, startBefore, r.paginationState.CurrentTimestamp, "skipping a cycle must not move the start")
+}
+
+func TestPoll_FixedEndTimeUnchangedAcrossCycles(t *testing.T) {
+	// The API has nothing new, so the start stays put and every cycle is sent.
+	var mu sync.Mutex
+	var untils []int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		until, err := strconv.ParseInt(r.URL.Query().Get("until"), 10, 64)
+		require.NoError(t, err)
+		mu.Lock()
+		untils = append(untils, until)
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer server.Close()
+
+	start := strconv.FormatInt(time.Now().Add(-time.Hour).UnixMilli(), 10)
+	fixedEnd := strconv.FormatInt(time.Now().Add(time.Hour).UnixMilli(), 10)
+	r := newEndTimeTestReceiver(t, server.URL, start, fixedEnd)
+	r.initializePagination()
+
+	ctx := context.Background()
+	for range 2 {
+		_, err := r.poll(ctx)
+		require.NoError(t, err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, untils, 2)
+	for _, until := range untils {
+		require.Equal(t, fixedEnd, strconv.FormatInt(until, 10))
+	}
+}
+
+func TestConfigFingerprint_EndTimeLagExcluded(t *testing.T) {
+	cfg := &Config{
+		URL:          "https://api.example.com/data",
+		Pagination:   PaginationConfig{Mode: paginationModeTimestamp},
+		EndTimeValue: "now",
+	}
+	now := configFingerprint(cfg)
+
+	// Tuning the lag keeps the checkpoint.
+	for _, lagged := range []string{"now-30s", "now - 5m"} {
+		cfg.EndTimeValue = lagged
+		require.Equal(t, now, configFingerprint(cfg), lagged)
+	}
+
+	// A fixed end is still query-defining.
+	cfg.EndTimeValue = "2025-06-01T00:00:00Z"
+	require.NotEqual(t, now, configFingerprint(cfg))
 }

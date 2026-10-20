@@ -164,7 +164,9 @@ func (b *baseReceiver) reconcileCheckpointWithConfig() {
 		}
 	}
 
-	if b.cfg.Pagination.Mode == paginationModePageSize {
+	// Timestamp pagination's page size is the same kind of knob, and it also
+	// decides when a page counts as full, so a stale value would misjudge hasMore.
+	if b.cfg.Pagination.Mode == paginationModePageSize || b.cfg.Pagination.Mode == paginationModeTimestamp {
 		configuredPageSize := newPaginationState(b.cfg).PageSize
 		if b.paginationState.PageSize != configuredPageSize {
 			b.logger.Info("applying configured page size over the value in the stored checkpoint",
@@ -255,6 +257,8 @@ func (b *baseReceiver) adjustPollInterval(result pollResult) {
 // is no longer valid because it tracks pagination state for a different query.
 //
 // Included: URL, pagination mode, start_time_value, end_time_value, starting_offset, starting_page.
+// end_time_value is hashed with any "now - <duration>" lag normalized to "now"
+// (see fingerprintEndTimeValue).
 // These are the fields where a change means "I want different data" and the checkpoint is stale.
 //
 // Excluded (changing these does NOT invalidate the checkpoint):
@@ -278,7 +282,7 @@ func configFingerprint(cfg *Config) string {
 	h.Write([]byte{0})
 	h.Write([]byte(cfg.StartTimeValue))
 	h.Write([]byte{0})
-	h.Write([]byte(cfg.EndTimeValue))
+	h.Write([]byte(fingerprintEndTimeValue(cfg.EndTimeValue)))
 	h.Write([]byte{0})
 	h.Write([]byte(fmt.Sprintf("%d", cfg.Pagination.OffsetLimit.StartingOffset)))
 	h.Write([]byte{0})
@@ -297,6 +301,18 @@ func configFingerprint(cfg *Config) string {
 	}
 
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// fingerprintEndTimeValue hashes every "now - <duration>" end as "now". The lag
+// only shifts when records become eligible, not which records the query
+// covers, and the data-driven start keeps its place, so tuning it must not
+// discard the checkpoint. "now" and "" pass through so existing fingerprints
+// are unchanged.
+func fingerprintEndTimeValue(value string) string {
+	if lag, ok, err := parseRelativeNow(value); ok && err == nil && lag > 0 {
+		return "now"
+	}
+	return value
 }
 
 // loadCheckpoint loads the checkpoint from storage and validates it against the current config.
@@ -625,6 +641,16 @@ func (b *baseReceiver) poll(ctx context.Context) (pollResult, error) {
 	defer b.mu.Unlock()
 
 	result := pollResult{}
+
+	// Resolve the end bound once for the whole cycle, so every page shares it.
+	refreshEndTime(b.cfg, b.paginationState)
+
+	if timestampWindowEmpty(b.cfg, b.paginationState) {
+		b.logger.Debug("skipping poll cycle: start time has reached the end time",
+			zap.Time("current_timestamp", b.paginationState.CurrentTimestamp),
+			zap.String("end_time", b.paginationState.ResolvedEndTime))
+		return result, nil
+	}
 
 	// Build the initial request from the current pagination state
 	req, err := b.buildAPIRequest()
