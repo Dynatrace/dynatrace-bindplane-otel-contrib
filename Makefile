@@ -157,7 +157,7 @@ _build-setup:
 		'/^replaces:/{print; while ((getline line < rf) > 0) print line; next} {print}' \
 		"$(COLLECTOR_ABS)/manifests/dynatrace-bindplane-otel-collector/manifest.yaml" > $(LOCAL_MANIFEST)
 	@# The source manifest's collector-internal replaces use paths relative to the
-	@# collector repo (e.g. "=> ../internal/..."). Once copied into $(OUTDIR), ocb
+	@# collector repo (e.g. "=> ../extension/..."). Once copied into $(OUTDIR), ocb
 	@# would resolve them against $(OUTDIR), so rewrite them to absolute collector paths.
 	@# Also rewrite the manifest's contrib module paths to this repo's renamed module
 	@# prefix so the local-directory replaces above actually apply; otherwise go
@@ -225,7 +225,8 @@ _build-collector:
 		exit 1; \
 	fi
 	$(OCB) --config $(LOCAL_MANIFEST) --skip-compilation
-	cp $(COLLECTOR_ABS)/internal/extension/opampconnectionextension/cmd/main/main.go $(OUTDIR)/main.go
+	@# Entry point path mirrors AGENT_MAIN in the collector Makefile.
+	cp $(COLLECTOR_ABS)/extension/opampconnectionextension/cmd/main/main.go $(OUTDIR)/main.go
 	# Drop ocb's run/runInteractive helpers — our main.go owns startup.
 	rm -f $(OUTDIR)/main_others.go $(OUTDIR)/main_windows.go
 	cd $(OUTDIR) && go mod tidy
