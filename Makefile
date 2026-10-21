@@ -370,6 +370,7 @@ gosec:
 			./exporter/chronicleexporter) EXCLUDES="-exclude-dir=internal/metadata -exclude-dir=protos/api" ;; \
 			./exporter/googlecloudstorageexporter) EXCLUDES="-exclude-dir=internal/metadata" ;; \
 			./exporter/awssecuritylakeexporter) EXCLUDES="-exclude-dir=internal/metadata" ;; \
+			./exporter/exabeamexporter) EXCLUDES="-exclude-dir=internal/metadata" ;; \
 			./processor/logtypedetectionprocessor) EXCLUDES="-exclude-dir=internal/metadata" ;; \
 			./receiver/azureblobpollingreceiver) EXCLUDES="-exclude-dir=internal/metadata" ;; \
 			./receiver/awss3eventreceiver) EXCLUDES="-exclude-dir=internal/metadata" ;; \
