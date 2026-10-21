@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobrehydrationreceiver
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob v1.1.0

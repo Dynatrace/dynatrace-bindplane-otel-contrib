@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.162.0

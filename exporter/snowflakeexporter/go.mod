@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/snowflakeexporter
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2

@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/bodgit/sevenzip v1.6.5

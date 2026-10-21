@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/telemetrygeneratorreceiver
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/observiq/blitz v0.20.1

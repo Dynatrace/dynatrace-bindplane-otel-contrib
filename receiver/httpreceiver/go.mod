@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/httpreceiver
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.162.0

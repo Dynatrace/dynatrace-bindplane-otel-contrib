@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version
 
-go 1.26.9
+go 1.26.10
 
 require github.com/stretchr/testify v1.12.1
 

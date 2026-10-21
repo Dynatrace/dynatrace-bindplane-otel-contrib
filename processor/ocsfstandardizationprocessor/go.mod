@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/ocsfstandardizationprocessor
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.1.0
@@ -9,7 +9,6 @@ require (
 	go.opentelemetry.io/collector/component/componenttest v0.162.0
 	go.opentelemetry.io/collector/confmap v1.68.0
 	go.opentelemetry.io/collector/consumer v1.68.0
-	go.opentelemetry.io/collector/consumer/consumertest v0.162.0
 	go.opentelemetry.io/collector/pdata v1.68.0
 	go.opentelemetry.io/collector/processor v1.68.0
 	go.opentelemetry.io/collector/processor/processorhelper v0.162.0
@@ -60,6 +59,7 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/client v1.68.0 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.162.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumertest v0.162.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.162.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.162.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.162.0 // indirect
