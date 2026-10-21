@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/awss3eventreceiver
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/aws/aws-lambda-go v1.55.1

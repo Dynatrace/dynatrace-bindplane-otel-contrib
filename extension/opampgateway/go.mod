@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0

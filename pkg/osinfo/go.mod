@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/shirou/gopsutil/v3 v3.24.5

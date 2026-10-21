@@ -1,6 +1,6 @@
 module github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/pebbleextension
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/cockroachdb/pebble v1.1.5
