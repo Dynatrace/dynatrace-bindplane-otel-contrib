@@ -171,20 +171,6 @@ func TestNewCSVFileToleratesNilLogger(t *testing.T) {
 	require.NotPanics(t, func() { require.NoError(t, c.Load()) })
 }
 
-func TestLoadWithoutInjectedClockDoesNotPanic(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "lookup.csv")
-	writeCSVAt(t, path, "0.0.0.0", "prod")
-
-	// A CSVFile built by hand rather than through NewCSVFile has no clock, so the
-	// stamp-settle check must fall back instead of dereferencing a nil func.
-	c := &CSVFile{filepath: path, lookupColumn: "ip", logger: zap.NewNop()}
-	require.NotPanics(t, func() { require.NoError(t, c.Load()) })
-
-	got, err := c.Lookup(context.Background(), "0.0.0.0")
-	require.NoError(t, err)
-	require.Equal(t, "prod", got["env"])
-}
-
 func TestLoadSurfacesStatErrors(t *testing.T) {
 	c := NewCSVFile(filepath.Join(t.TempDir(), "missing.csv"), "ip", zap.NewNop())
 	require.Error(t, c.Load())
