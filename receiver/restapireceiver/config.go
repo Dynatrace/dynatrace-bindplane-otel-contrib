@@ -251,7 +251,10 @@ type Config struct {
 	// StartTimeValue is the initial value for the start time parameter.
 	// Accepts a timestamp in the configured timestamp_format or RFC3339 (e.g., "2025-01-01T00:00:00Z").
 	// For epoch formats, accepts a numeric string (e.g., "1704067200").
-	// Use "now" to send the current time.
+	// Use "now" to send the current time, resolved when the receiver first starts
+	// without a checkpoint. Outside timestamp pagination the resolved start is
+	// kept in the checkpoint and reused after a restart, so a stored offset or
+	// page number still refers to the same query.
 	StartTimeValue string `mapstructure:"start_time_value"`
 
 	// EndTimeParamName is the query parameter name for the end time (e.g., "until", "to", "end_time").
@@ -797,7 +800,8 @@ func (c *Config) Validate() error {
 	}
 
 	// Validate start_time is before end_time. Only two fixed values can be
-	// compared here; a value relative to the current time is checked per poll.
+	// compared here; a value relative to the current time is checked per poll
+	// (see timeWindowEmpty).
 	if c.StartTimeValue != "" && !isRelativeToNow(c.StartTimeValue) && c.EndTimeValue != "" && !isRelativeToNow(c.EndTimeValue) {
 		startTime, err := c.parseConfigTimestamp(c.StartTimeValue)
 		if err == nil {
@@ -894,12 +898,14 @@ func parseRelativeNow(value string) (lag time.Duration, ok bool, err error) {
 		return 0, false, nil
 	}
 
-	rest = strings.TrimSpace(rest)
 	if rest == "" {
 		return 0, true, nil
 	}
 
-	durationText, found := strings.CutPrefix(rest, "-")
+	// Anything after a bare "now" must be the lag; "now " is rejected rather
+	// than accepted, since the start-time code matches "now" exactly and would
+	// otherwise send the padded string verbatim.
+	durationText, found := strings.CutPrefix(strings.TrimSpace(rest), "-")
 	if !found {
 		return 0, true, fmt.Errorf("must be \"now\" or \"now - <duration>\" (e.g., \"now - 30s\")")
 	}

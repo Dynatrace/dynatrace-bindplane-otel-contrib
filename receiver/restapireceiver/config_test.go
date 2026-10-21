@@ -2099,6 +2099,7 @@ func TestParseRelativeNow(t *testing.T) {
 		{value: "now - 1m30s", lag: 90 * time.Second, ok: true},
 		{value: "now -2h", lag: 2 * time.Hour, ok: true},
 		{value: "now+30s", ok: true, wantErr: `must be "now" or "now - <duration>"`},
+		{value: "now ", ok: true, wantErr: `must be "now" or "now - <duration>"`},
 		{value: "now - abc", ok: true, wantErr: "duration must be a Go duration"},
 		{value: "now - 30", ok: true, wantErr: "duration must be a Go duration"},
 		{value: "now-0s", ok: true, wantErr: "duration must be greater than 0"},

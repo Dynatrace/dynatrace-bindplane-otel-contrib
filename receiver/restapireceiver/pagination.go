@@ -110,16 +110,17 @@ type paginationState struct {
 	TimestampFromData bool      `json:"timestamp_from_data,omitempty"` // true if CurrentTimestamp was set from response data (vs initial config)
 
 	// Resolved time-bound values. The start is resolved once, when the state is
-	// created.
+	// created, and is checkpointed on purpose: outside timestamp pagination the
+	// stored offset or page is a position within the query that start defines,
+	// so re-resolving "now" after a restart would shift the query under it and
+	// skip records.
 	ResolvedStartTime string `json:"resolved_start_time,omitempty"`
 
 	// The end is re-resolved by refreshEndTime at the start of every poll cycle,
 	// so all pages within a cycle share one value while a "now"-based end keeps
 	// moving between cycles. It is deliberately kept out of the checkpoint: a
 	// restored end would freeze "now" at whenever it was last saved.
-	// ResolvedEndAt is the same bound as a time, zero when it can't be parsed.
-	ResolvedEndTime string    `json:"-"`
-	ResolvedEndAt   time.Time `json:"-"`
+	ResolvedEndTime string `json:"-"`
 
 	// Metadata
 	TotalRecords int `json:"total_records,omitempty"`
@@ -222,14 +223,12 @@ func refreshEndTime(cfg *Config, state *paginationState) {
 
 	// Validation has already rejected a malformed relative value.
 	if lag, ok, _ := parseRelativeNow(endValue); ok {
-		state.ResolvedEndAt = time.Now().UTC().Add(-lag)
-		state.ResolvedEndTime = formatTimeBound(state.ResolvedEndAt, cfg.TimestampFormat)
+		state.ResolvedEndTime = formatTimeBound(time.Now().UTC().Add(-lag), cfg.TimestampFormat)
 		return
 	}
 
 	// Fixed value — already validated, sent as written.
 	state.ResolvedEndTime = endValue
-	state.ResolvedEndAt, _ = cfg.parseConfigTimestamp(endValue)
 }
 
 // buildPaginationParams builds query parameters for pagination based on the current state.
@@ -282,8 +281,8 @@ func buildPaginationParams(cfg *Config, state *paginationState) url.Values {
 		}
 	}
 
-	// End time is always applied as a static value regardless of pagination mode.
-	// Uses the value resolved once in newPaginationState so all pages share the same time.
+	// End time is applied the same way regardless of pagination mode. Uses the
+	// value refreshEndTime resolved for this poll cycle, so all its pages share it.
 	if cfg.EndTimeParamName != "" && state.ResolvedEndTime != "" {
 		params.Set(cfg.EndTimeParamName, state.ResolvedEndTime)
 	}
@@ -697,35 +696,38 @@ func requestStartTime(cfg *Config, state *paginationState) string {
 		return state.ResolvedStartTime
 	}
 
-	timestampForRequest := timestampModeStart(cfg, state)
-	if timestampForRequest.IsZero() {
+	if state.CurrentTimestamp.IsZero() {
 		return ""
+	}
+
+	timestampForRequest := state.CurrentTimestamp
+	if state.PagesFetched > 0 || state.TimestampFromData {
+		timestampForRequest = timestampForRequest.Add(timestampResolution(cfg.TimestampFormat))
 	}
 	return formatTimeBound(timestampForRequest, cfg.TimestampFormat)
 }
 
-// timestampModeStart returns the start bound timestamp pagination will send on
-// the next request, or the zero time when there is none.
-func timestampModeStart(cfg *Config, state *paginationState) time.Time {
-	if state.CurrentTimestamp.IsZero() {
-		return time.Time{}
-	}
-	if state.PagesFetched > 0 || state.TimestampFromData {
-		return state.CurrentTimestamp.Add(timestampResolution(cfg.TimestampFormat))
-	}
-	return state.CurrentTimestamp
-}
-
-// timestampWindowEmpty reports whether timestamp pagination has caught up to
-// the end bound resolved for this cycle, so a request would ask for a range
-// that ends at or before it starts. Records are not lost by skipping: the start
-// stays put and the next cycle's end has moved on, when the end is "now"-based.
-func timestampWindowEmpty(cfg *Config, state *paginationState) bool {
-	if cfg.Pagination.Mode != paginationModeTimestamp || state.ResolvedEndAt.IsZero() {
+// timeWindowEmpty reports whether the next request's start bound has reached
+// the end bound resolved for this cycle, so it would ask for a range that ends
+// at or before it starts. The bounds are compared as they will be sent, after
+// formatting to the configured timestamp_format, so a window that only exists
+// below the format's precision counts as empty. Records are not lost by
+// skipping: the start stays put and, when the end is "now"-based, the next
+// cycle's end has moved on.
+func timeWindowEmpty(cfg *Config, state *paginationState) bool {
+	startValue := requestStartTime(cfg, state)
+	if startValue == "" || state.ResolvedEndTime == "" {
 		return false
 	}
-	start := timestampModeStart(cfg, state)
-	return !start.IsZero() && !start.Before(state.ResolvedEndAt)
+	start, err := cfg.parseConfigTimestamp(startValue)
+	if err != nil {
+		return false
+	}
+	end, err := cfg.parseConfigTimestamp(state.ResolvedEndTime)
+	if err != nil {
+		return false
+	}
+	return !start.Before(end)
 }
 
 // requestBodyData is the value set a request_body template renders against.

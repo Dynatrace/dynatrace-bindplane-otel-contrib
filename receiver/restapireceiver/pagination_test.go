@@ -2356,21 +2356,23 @@ func TestRefreshEndTime(t *testing.T) {
 		cfg := &Config{EndTimeParamName: "until", EndTimeValue: "now - 30s", TimestampFormat: epochSeconds}
 		state := &paginationState{}
 
-		before := time.Now().Add(-30 * time.Second)
+		before := time.Now().Add(-30 * time.Second).Unix()
 		refreshEndTime(cfg, state)
-		after := time.Now().Add(-30 * time.Second)
+		after := time.Now().Add(-30 * time.Second).Unix()
 
-		require.False(t, state.ResolvedEndAt.Before(before))
-		require.False(t, state.ResolvedEndAt.After(after))
-		require.Equal(t, strconv.FormatInt(state.ResolvedEndAt.Unix(), 10), state.ResolvedEndTime)
+		end, err := strconv.ParseInt(state.ResolvedEndTime, 10, 64)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, end, before)
+		require.LessOrEqual(t, end, after)
 	})
 
 	t.Run("end param alone defaults to now", func(t *testing.T) {
 		cfg := &Config{EndTimeParamName: "until"}
 		state := &paginationState{}
 		refreshEndTime(cfg, state)
-		require.WithinDuration(t, time.Now(), state.ResolvedEndAt, time.Second)
-		require.Equal(t, state.ResolvedEndAt.Format(time.RFC3339), state.ResolvedEndTime)
+		end, err := time.Parse(time.RFC3339, state.ResolvedEndTime)
+		require.NoError(t, err)
+		require.WithinDuration(t, time.Now(), end, 2*time.Second)
 	})
 
 	t.Run("fixed end is sent as written", func(t *testing.T) {
@@ -2378,29 +2380,31 @@ func TestRefreshEndTime(t *testing.T) {
 		state := &paginationState{}
 		refreshEndTime(cfg, state)
 		require.Equal(t, "2025-06-01T00:00:00Z", state.ResolvedEndTime)
-		require.Equal(t, time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC), state.ResolvedEndAt.UTC())
 	})
 
 	t.Run("no end configured", func(t *testing.T) {
 		state := &paginationState{}
 		refreshEndTime(&Config{}, state)
 		require.Empty(t, state.ResolvedEndTime)
-		require.True(t, state.ResolvedEndAt.IsZero())
 	})
 
 	t.Run("each call re-resolves", func(t *testing.T) {
 		cfg := &Config{EndTimeValue: "now", TimestampFormat: epochNanoseconds}
 		state := &paginationState{}
 		refreshEndTime(cfg, state)
-		first := state.ResolvedEndAt
+		first, err := strconv.ParseInt(state.ResolvedEndTime, 10, 64)
+		require.NoError(t, err)
 		time.Sleep(time.Millisecond)
 		refreshEndTime(cfg, state)
-		require.True(t, state.ResolvedEndAt.After(first))
+		second, err := strconv.ParseInt(state.ResolvedEndTime, 10, 64)
+		require.NoError(t, err)
+		require.Greater(t, second, first)
 	})
 }
 
-func TestTimestampWindowEmpty(t *testing.T) {
+func TestTimeWindowEmpty(t *testing.T) {
 	end := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	endMillis := strconv.FormatInt(end.UnixMilli(), 10)
 	timestampCfg := &Config{Pagination: PaginationConfig{Mode: paginationModeTimestamp}, TimestampFormat: epochMilliseconds}
 
 	testCases := []struct {
@@ -2409,33 +2413,48 @@ func TestTimestampWindowEmpty(t *testing.T) {
 		state paginationState
 		empty bool
 	}{
-		{name: "start before end", cfg: timestampCfg, state: paginationState{CurrentTimestamp: end.Add(-time.Second), ResolvedEndAt: end}},
-		{name: "start equals end", cfg: timestampCfg, state: paginationState{CurrentTimestamp: end, ResolvedEndAt: end}, empty: true},
-		{name: "start after end", cfg: timestampCfg, state: paginationState{CurrentTimestamp: end.Add(time.Second), ResolvedEndAt: end}, empty: true},
+		{name: "start before end", cfg: timestampCfg, state: paginationState{CurrentTimestamp: end.Add(-time.Second), ResolvedEndTime: endMillis}},
+		{name: "start equals end", cfg: timestampCfg, state: paginationState{CurrentTimestamp: end, ResolvedEndTime: endMillis}, empty: true},
+		{name: "start after end", cfg: timestampCfg, state: paginationState{CurrentTimestamp: end.Add(time.Second), ResolvedEndTime: endMillis}, empty: true},
 		{
 			name:  "last record one resolution step before end",
 			cfg:   timestampCfg,
-			state: paginationState{CurrentTimestamp: end.Add(-time.Millisecond), TimestampFromData: true, ResolvedEndAt: end},
+			state: paginationState{CurrentTimestamp: end.Add(-time.Millisecond), TimestampFromData: true, ResolvedEndTime: endMillis},
 			empty: true,
 		},
-		{name: "no start", cfg: timestampCfg, state: paginationState{ResolvedEndAt: end}},
+		{
+			// The end was resolved at end+900µs and sent truncated to endMillis.
+			// A start at end+200µs is earlier than that end, but the gap vanishes
+			// once formatted, so the request would carry since == until.
+			name:  "window narrower than the format's precision",
+			cfg:   timestampCfg,
+			state: paginationState{CurrentTimestamp: end.Add(200 * time.Microsecond), ResolvedEndTime: endMillis},
+			empty: true,
+		},
+		{name: "no start", cfg: timestampCfg, state: paginationState{ResolvedEndTime: endMillis}},
 		{name: "no end", cfg: timestampCfg, state: paginationState{CurrentTimestamp: end}},
 		{
-			name:  "other pagination modes never skip",
+			name:  "other modes compare the resolved start",
 			cfg:   &Config{Pagination: PaginationConfig{Mode: paginationModeOffsetLimit}},
-			state: paginationState{CurrentTimestamp: end.Add(time.Second), ResolvedEndAt: end},
+			state: paginationState{ResolvedStartTime: "2025-06-01T00:00:01Z", ResolvedEndTime: "2025-06-01T00:00:00Z"},
+			empty: true,
+		},
+		{
+			name:  "other modes with an open window",
+			cfg:   &Config{Pagination: PaginationConfig{Mode: paginationModeOffsetLimit}},
+			state: paginationState{ResolvedStartTime: "2025-05-01T00:00:00Z", ResolvedEndTime: "2025-06-01T00:00:00Z"},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.empty, timestampWindowEmpty(tc.cfg, &tc.state))
+			require.Equal(t, tc.empty, timeWindowEmpty(tc.cfg, &tc.state))
 		})
 	}
 }
 
 func TestPaginationState_ResolvedEndTimeNotSerialized(t *testing.T) {
-	raw, err := json.Marshal(&paginationState{ResolvedEndTime: "1704067200", ResolvedEndAt: time.Now()})
+	raw, err := json.Marshal(&paginationState{ResolvedEndTime: "1704067200"})
 	require.NoError(t, err)
 	require.NotContains(t, string(raw), "resolved_end")
 	require.NotContains(t, string(raw), "1704067200")

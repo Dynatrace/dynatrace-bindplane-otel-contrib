@@ -2998,3 +2998,93 @@ func TestConfigFingerprint_EndTimeLagExcluded(t *testing.T) {
 	cfg.EndTimeValue = "2025-06-01T00:00:00Z"
 	require.NotEqual(t, now, configFingerprint(cfg))
 }
+
+func TestPoll_StopsPaginatingWhenStartReachesEnd(t *testing.T) {
+	// A full page whose newest record sits right at the end bound would carry
+	// the next page's start past the end. The cycle must stop there instead of
+	// sending an inverted range an API may reject.
+	end := time.Now().Add(-time.Hour).UnixMilli()
+	var requests atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode([]map[string]any{
+			{"ts": strconv.FormatInt(end-2, 10)},
+			{"ts": strconv.FormatInt(end-1, 10)},
+		}))
+	}))
+	defer server.Close()
+
+	start := strconv.FormatInt(end-time.Hour.Milliseconds(), 10)
+	r := newEndTimeTestReceiver(t, server.URL, start, strconv.FormatInt(end, 10))
+	r.cfg.Pagination.Timestamp.PageSize = 2
+	r.initializePagination()
+
+	result, err := r.poll(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 2, result.recordCount)
+	require.Equal(t, int64(1), requests.Load(), "no follow-up page may be requested once the start reaches the end")
+}
+
+func TestLoadCheckpoint_KeepsCheckpointAcrossNowBasedEnds(t *testing.T) {
+	// The default end (end_time_param_name set, end_time_value unset), "now", and
+	// "now - <duration>" all behave alike, so switching between them must keep
+	// polling progress even though "" and "now" hash differently.
+	ends := []string{"", "now", "now - 30s"}
+	for _, written := range ends {
+		for _, loaded := range ends {
+			t.Run(written+" to "+loaded, func(t *testing.T) {
+				writer := &Config{URL: "https://api.example.com/data", EndTimeParamName: "until", EndTimeValue: written,
+					Pagination: PaginationConfig{Mode: paginationModeTimestamp}}
+				reader := *writer
+				reader.EndTimeValue = loaded
+
+				store := newMemStorageClient()
+				saved := storedCheckpointTimestamp
+				raw, err := json.Marshal(checkpointData{
+					ConfigFingerprint: configFingerprint(writer),
+					PaginationState:   &paginationState{CurrentTimestamp: saved},
+				})
+				require.NoError(t, err)
+				require.NoError(t, store.Set(context.Background(), checkpointStorageKey, raw))
+
+				b := &baseReceiver{cfg: &reader, logger: zap.NewNop(), storageClient: store}
+				b.loadCheckpoint(context.Background())
+				require.NotNil(t, b.paginationState, "checkpoint must be kept")
+				require.True(t, saved.Equal(b.paginationState.CurrentTimestamp))
+			})
+		}
+	}
+}
+
+func TestLoadCheckpoint_DiscardsCheckpointForDifferentEnd(t *testing.T) {
+	for _, tc := range []struct {
+		name, written, loaded, param string
+	}{
+		{name: "now to fixed", written: "now", loaded: "2025-06-01T00:00:00Z", param: "until"},
+		{name: "fixed to now", written: "2025-06-01T00:00:00Z", loaded: "now", param: "until"},
+		{name: "fixed to lag", written: "2025-06-01T00:00:00Z", loaded: "now - 30s", param: "until"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			writer := &Config{URL: "https://api.example.com/data", EndTimeParamName: tc.param, EndTimeValue: tc.written,
+				Pagination: PaginationConfig{Mode: paginationModeTimestamp}}
+			reader := *writer
+			reader.EndTimeValue = tc.loaded
+
+			store := newMemStorageClient()
+			raw, err := json.Marshal(checkpointData{
+				ConfigFingerprint: configFingerprint(writer),
+				PaginationState:   &paginationState{CurrentTimestamp: storedCheckpointTimestamp},
+			})
+			require.NoError(t, err)
+			require.NoError(t, store.Set(context.Background(), checkpointStorageKey, raw))
+
+			b := &baseReceiver{cfg: &reader, logger: zap.NewNop(), storageClient: store}
+			b.loadCheckpoint(context.Background())
+			require.Nil(t, b.paginationState, "checkpoint for a different end must be discarded")
+		})
+	}
+}
+
+// storedCheckpointTimestamp is the polling progress a stored checkpoint carries.
+var storedCheckpointTimestamp = time.Date(2025, 5, 1, 12, 0, 0, 0, time.UTC)
