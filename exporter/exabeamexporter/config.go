@@ -23,13 +23,19 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.uber.org/zap"
 )
 
 var timezoneOffsetPattern = regexp.MustCompile(`^[+-]\d{4}$`)
+
+// maxLogTags is the number of custom fields Exabeam accepts on a Cloud Collector.
+const maxLogTags = 10
 
 // Config is the configuration for the exabeam exporter
 type Config struct {
@@ -55,17 +61,30 @@ type Config struct {
 	// SiteName is copied into every record.
 	SiteName string `mapstructure:"sitename"`
 
-	// SiteID is copied into every record.
+	// SiteID is copied into every record. It is overridden by attributes["exabeam_siteid"].
 	SiteID string `mapstructure:"siteid"`
 
 	// TimezoneOffset is copied into every record, in the form +HHMM or -HHMM.
+	// It is overridden by attributes["exabeam_timezone_offset"].
 	TimezoneOffset string `mapstructure:"timezone_offset"`
 
 	// CollectorName is copied into every record.
 	CollectorName string `mapstructure:"collector_name"`
 
-	// Tags is copied into every record as is.
-	Tags string `mapstructure:"tags"`
+	// Hostname is written to every record. It defaults to the host.name resource attribute
+	// and is overridden by attributes["exabeam_hostname"].
+	Hostname string `mapstructure:"hostname"`
+
+	// Forwarder is written to every record. It is overridden by attributes["exabeam_forwarder"].
+	Forwarder string `mapstructure:"forwarder"`
+
+	// LogTags are written to every record, merged with attributes["exabeam_logtags"].
+	// Exabeam makes each one searchable as m_c_logtags_<name>.
+	LogTags map[string]string `mapstructure:"logtags"`
+
+	// RawLogField is an OTTL expression for the raw log written to message.
+	// By default it is attributes["log.record.original"] when present, otherwise the body.
+	RawLogField string `mapstructure:"raw_log_field"`
 
 	// Endpoint is the S3-compatible endpoint to upload to.
 	Endpoint string `mapstructure:"endpoint"`
@@ -132,6 +151,19 @@ func (c *Config) Validate() error {
 		return errors.New("max_file_size must be greater than 0")
 	}
 
+	if len(c.LogTags) > maxLogTags {
+		return fmt.Errorf("logtags can have at most %d entries, got %d", maxLogTags, len(c.LogTags))
+	}
+	if _, ok := c.LogTags[""]; ok {
+		return errors.New("logtags names must not be empty")
+	}
+
+	if c.RawLogField != "" {
+		if _, err := expr.NewOTTLLogRecordExpression(c.RawLogField, component.TelemetrySettings{Logger: zap.NewNop()}); err != nil {
+			return fmt.Errorf("raw_log_field is invalid: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -186,6 +218,10 @@ func decodeConnectionString(connectionString string) (connectionSettings, error)
 
 	var s connectionSettings
 	if err := json.Unmarshal(raw, &s); err != nil {
+		// The field name is safe to report; the value may be the secret key.
+		if typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err); ok && typeErr.Field != "" {
+			return connectionSettings{}, fmt.Errorf("connection_string field %q must be a string", typeErr.Field)
+		}
 		return connectionSettings{}, errors.New("connection_string does not decode to a JSON object")
 	}
 	return s, nil
