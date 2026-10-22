@@ -26,20 +26,23 @@ import (
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/exabeamexporter/internal/metadata"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // fakeUploader records uploads and returns the next error from errs, if any.
 type fakeUploader struct {
-	mu      sync.Mutex
-	keys    []string
-	bodies  [][]byte
-	errs    []error
-	blockCh chan struct{}
+	mu        sync.Mutex
+	keys      []string
+	bodies    [][]byte
+	delivered [][]byte
+	errs      []error
+	blockCh   chan struct{}
 }
 
 func (f *fakeUploader) PutObject(ctx context.Context, key string, body []byte) error {
@@ -54,12 +57,14 @@ func (f *fakeUploader) PutObject(ctx context.Context, key string, body []byte) e
 	defer f.mu.Unlock()
 	f.keys = append(f.keys, key)
 	f.bodies = append(f.bodies, body)
+	var err error
 	if len(f.errs) > 0 {
-		err := f.errs[0]
-		f.errs = f.errs[1:]
-		return err
+		err, f.errs = f.errs[0], f.errs[1:]
 	}
-	return nil
+	if err == nil {
+		f.delivered = append(f.delivered, body)
+	}
+	return err
 }
 
 func newTestTelemetryBuilder(t *testing.T, mp *sdkmetric.MeterProvider) *metadata.TelemetryBuilder {
@@ -219,4 +224,109 @@ func TestClassifyError(t *testing.T) {
 	require.Equal(t, "none", classifyError(nil))
 	require.Equal(t, "timeout", classifyError(fmt.Errorf("wrapped: %w", context.DeadlineExceeded)))
 	require.Equal(t, "unknown", classifyError(errors.New("other")))
+}
+
+// deliveredMessages returns the message of every record in files, in order.
+func deliveredMessages(t *testing.T, files [][]byte) []string {
+	t.Helper()
+	var messages []string
+	for _, f := range files {
+		for _, line := range gunzipLines(t, f) {
+			messages = append(messages, decodeRecord(t, line)["message"].(string))
+		}
+	}
+	return messages
+}
+
+func logBodies(ld plog.Logs) []string {
+	var bodies []string
+	for _, rl := range ld.ResourceLogs().All() {
+		for _, sl := range rl.ScopeLogs().All() {
+			for _, lr := range sl.LogRecords().All() {
+				bodies = append(bodies, lr.Body().Str())
+			}
+		}
+	}
+	return bodies
+}
+
+func TestLogsDataPusherPartialFailureRetriesOnlyUnsentRecords(t *testing.T) {
+	up := &fakeUploader{errs: []error{nil, errors.New("boom")}}
+	exp, _ := newTestExporter(t, up, 2000)
+
+	// Spread the records over two resources and scopes so the retry data has to keep structure.
+	ld := plog.NewLogs()
+	for r := range 2 {
+		rl := ld.ResourceLogs().AppendEmpty()
+		rl.Resource().Attributes().PutStr("host.name", fmt.Sprintf("host-%d", r))
+		rl.SetSchemaUrl("https://example.com/schema")
+		for s := range 2 {
+			sl := rl.ScopeLogs().AppendEmpty()
+			sl.Scope().SetName(fmt.Sprintf("scope-%d", s))
+			for l := range 10 {
+				sl.LogRecords().AppendEmpty().Body().SetStr(fmt.Sprintf("%d-%d-%02d %s", r, s, l, strings.Repeat("x", 100)))
+			}
+		}
+	}
+	all := logBodies(ld)
+
+	err := exp.logsDataPusher(context.Background(), ld)
+	require.ErrorContains(t, err, "boom")
+	require.False(t, consumererror.IsPermanent(err))
+
+	var logsErr consumererror.Logs
+	require.True(t, errors.As(err, &logsErr), "the error carries only the unsent records")
+	retry := logsErr.Data()
+
+	sent := deliveredMessages(t, up.delivered)
+	require.Len(t, up.delivered, 1)
+	require.NotEmpty(t, sent)
+	require.Equal(t, all[len(sent):], logBodies(retry), "retry data is exactly the records after the uploaded file")
+
+	// Resource and scope are kept for the records that are retried.
+	last := retry.ResourceLogs().At(retry.ResourceLogs().Len() - 1)
+	host, _ := last.Resource().Attributes().Get("host.name")
+	require.Equal(t, "host-1", host.Str())
+	require.Equal(t, "https://example.com/schema", last.SchemaUrl())
+	require.Equal(t, "scope-1", last.ScopeLogs().At(last.ScopeLogs().Len()-1).Scope().Name())
+
+	// Retrying the error's data completes the batch with no record sent twice.
+	require.NoError(t, exp.logsDataPusher(context.Background(), retry))
+	require.Equal(t, all, deliveredMessages(t, up.delivered))
+}
+
+func TestLogsDataPusherFirstFileFailureRetriesEverything(t *testing.T) {
+	boom := errors.New("boom")
+	up := &fakeUploader{errs: []error{boom}}
+	exp, _ := newTestExporter(t, up, 2000)
+
+	err := exp.logsDataPusher(context.Background(), testLogs(50, 100))
+	require.ErrorIs(t, err, boom)
+	var logsErr consumererror.Logs
+	require.False(t, errors.As(err, &logsErr), "nothing was sent, so the whole request is retried as is")
+	require.Empty(t, up.delivered)
+}
+
+func TestLogsDataPusherRawLogFieldFailureFallsBack(t *testing.T) {
+	core, logs := observer.New(zap.WarnLevel)
+	up := &fakeUploader{}
+	exp, _ := newTestExporter(t, up, defaultMaxFileSize)
+	exp.encoder = newTestEncoderWithConfig(t, func(c *Config) { c.RawLogField = failingRawLogField })
+	exp.encoder.logger = zap.New(core)
+
+	ld := plog.NewLogs()
+	lrs := ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords()
+	good := lrs.AppendEmpty()
+	good.Body().SetStr("good body")
+	good.Attributes().PutStr("raw", "a,b")
+	bad := lrs.AppendEmpty()
+	bad.Body().SetStr("bad body")
+	bad.Attributes().PutInt("raw", 5)
+
+	require.NoError(t, exp.logsDataPusher(context.Background(), ld), "one bad record doesn't fail the batch")
+	require.Equal(t, []string{`["a","b"]`, "bad body"}, deliveredMessages(t, up.delivered))
+
+	warnings := logs.FilterMessage("raw_log_field failed; used the default raw log").All()
+	require.Len(t, warnings, 1, "one warning per batch")
+	require.Equal(t, int64(1), warnings[0].ContextMap()["records"])
 }

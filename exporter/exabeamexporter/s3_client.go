@@ -23,6 +23,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // defaultSigningRegion is used when no bucket location is known. GCS accepts it for SigV4.
@@ -57,9 +59,72 @@ func newS3Uploader(s connectionSettings, endpoint string) *s3Uploader {
 		// GCS rejects the aws-chunked uploads with trailing checksums that the SDK sends by default.
 		RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired,
 		ResponseChecksumValidation: aws.ResponseChecksumValidationWhenRequired,
+		APIOptions:                 []func(*middleware.Stack) error{excludeHeadersFromSigning(unsignedHeaders...)},
 	})
 
 	return &s3Uploader{client: client, bucket: s.BucketName}
+}
+
+// unsignedHeaders are sent but left out of the SigV4 signature. Google's front end
+// rewrites Accept-Encoding before GCS verifies the signature, so signing it causes
+// SignatureDoesNotMatch.
+var unsignedHeaders = []string{"Accept-Encoding"}
+
+// excludeHeadersFromSigning removes headers from the request just before it is signed
+// and restores them just after, so they are sent without being signed.
+func excludeHeadersFromSigning(headers ...string) func(*middleware.Stack) error {
+	return func(stack *middleware.Stack) error {
+		if err := stack.Finalize.Insert(removeHeadersMiddleware(headers), "Signing", middleware.Before); err != nil {
+			return fmt.Errorf("insert %s middleware: %w", removeHeadersID, err)
+		}
+		if err := stack.Finalize.Insert(restoreHeadersMiddleware(), "Signing", middleware.After); err != nil {
+			return fmt.Errorf("insert %s middleware: %w", restoreHeadersID, err)
+		}
+		return nil
+	}
+}
+
+const (
+	removeHeadersID  = "ExabeamRemoveUnsignedHeaders"
+	restoreHeadersID = "ExabeamRestoreUnsignedHeaders"
+)
+
+// removedHeadersKey holds the headers removed before signing in the request metadata.
+type removedHeadersKey struct{}
+
+func removeHeadersMiddleware(headers []string) middleware.FinalizeMiddleware {
+	return middleware.FinalizeMiddlewareFunc(removeHeadersID, func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+		req, ok := in.Request.(*smithyhttp.Request)
+		if !ok {
+			return next.HandleFinalize(ctx, in)
+		}
+		removed := make(map[string][]string, len(headers))
+		for _, h := range headers {
+			if v := req.Header.Values(h); len(v) > 0 {
+				removed[h] = v
+				req.Header.Del(h)
+			}
+		}
+		ctx = middleware.WithStackValue(ctx, removedHeadersKey{}, removed)
+		return next.HandleFinalize(ctx, in)
+	})
+}
+
+func restoreHeadersMiddleware() middleware.FinalizeMiddleware {
+	return middleware.FinalizeMiddlewareFunc(restoreHeadersID, func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+		req, ok := in.Request.(*smithyhttp.Request)
+		if !ok {
+			return next.HandleFinalize(ctx, in)
+		}
+		if removed, ok := middleware.GetStackValue(ctx, removedHeadersKey{}).(map[string][]string); ok {
+			for h, values := range removed {
+				for _, v := range values {
+					req.Header.Add(h, v)
+				}
+			}
+		}
+		return next.HandleFinalize(ctx, in)
+	})
 }
 
 // PutObject uploads body as key with the private ACL. It never checks for or creates the bucket.

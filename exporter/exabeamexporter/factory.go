@@ -35,6 +35,10 @@ const (
 	// settings: 10 MB max file size, 300s max open time and 30s max idle time.
 	defaultMaxFileSize  = 10 * 1024 * 1024
 	defaultFlushTimeout = 30 * time.Second
+
+	// defaultTimeout bounds one upload. Batched files are up to several MB compressed,
+	// more than exporterhelper's 5s default allows on a slow link.
+	defaultTimeout = 30 * time.Second
 )
 
 // NewFactory creates a factory for the Exabeam exporter
@@ -59,7 +63,7 @@ func createDefaultConfig() component.Config {
 	return &Config{
 		Endpoint:      defaultEndpoint,
 		MaxFileSize:   defaultMaxFileSize,
-		TimeoutConfig: exporterhelper.NewDefaultTimeoutConfig(),
+		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: defaultTimeout},
 		QueueConfig:   configoptional.Some(queue),
 		BackOffConfig: configretry.NewDefaultBackOffConfig(),
 	}

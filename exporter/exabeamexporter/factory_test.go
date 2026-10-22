@@ -22,8 +22,10 @@ import (
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/exabeamexporter/internal/metadata"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configopaque"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 )
@@ -33,7 +35,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 
 	require.Equal(t, "https://storage.googleapis.com", cfg.Endpoint)
 	require.Equal(t, int64(10*1024*1024), cfg.MaxFileSize)
-	require.Equal(t, exporterhelper.NewDefaultTimeoutConfig(), cfg.TimeoutConfig)
+	require.Equal(t, 30*time.Second, cfg.TimeoutConfig.Timeout)
 	require.True(t, cfg.BackOffConfig.Enabled)
 
 	require.True(t, cfg.QueueConfig.HasValue())
@@ -48,11 +50,113 @@ func TestCreateDefaultConfig(t *testing.T) {
 	require.NoError(t, componenttest.CheckConfigStruct(cfg))
 }
 
-func TestCreateLogsInvalidConfig(t *testing.T) {
+func TestCreateLogsErrors(t *testing.T) {
+	tests := []struct {
+		desc        string
+		cfg         func(t *testing.T) component.Config
+		expectedErr string
+	}{
+		{
+			desc:        "not an Exabeam config",
+			cfg:         func(*testing.T) component.Config { return &struct{}{} },
+			expectedErr: "not an Exabeam config",
+		},
+		{
+			desc: "invalid connection string",
+			cfg: func(*testing.T) component.Config {
+				cfg := createDefaultConfig().(*Config)
+				cfg.ConnectionString = "not base64!"
+				return cfg
+			},
+			expectedErr: "connection_string is not valid base64",
+		},
+		{
+			desc: "invalid raw_log_field without validation",
+			cfg: func(t *testing.T) component.Config {
+				cfg := createDefaultConfig().(*Config)
+				cfg.ConnectionString = testConnectionStringOpaque(t)
+				cfg.RawLogField = `attributes["unterminated`
+				return cfg
+			},
+			expectedErr: "raw_log_field is invalid",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			exp, err := NewFactory().CreateLogs(context.Background(), exportertest.NewNopSettings(metadata.Type), tc.cfg(t))
+			require.ErrorContains(t, err, tc.expectedErr)
+			require.Nil(t, exp)
+		})
+	}
+}
+
+// startTestExporter creates and starts an exporter against srv with fast flushes and retries.
+func startTestExporter(t *testing.T, srv *fakeS3, mutate func(*Config)) exporter.Logs {
+	t.Helper()
 	cfg := createDefaultConfig().(*Config)
-	cfg.ConnectionString = "not base64!"
-	_, err := NewFactory().CreateLogs(context.Background(), exportertest.NewNopSettings(metadata.Type), cfg)
-	require.ErrorContains(t, err, "connection_string is not valid base64")
+	cfg.ConnectionString = testConnectionStringOpaque(t)
+	cfg.Endpoint = srv.URL
+	cfg.QueueConfig.Get().Batch.Get().FlushTimeout = 10 * time.Millisecond
+	cfg.BackOffConfig.InitialInterval = 10 * time.Millisecond
+	cfg.BackOffConfig.MaxInterval = 20 * time.Millisecond
+	cfg.BackOffConfig.RandomizationFactor = 0
+	if mutate != nil {
+		mutate(cfg)
+	}
+	require.NoError(t, cfg.Validate())
+
+	exp, err := NewFactory().CreateLogs(context.Background(), exportertest.NewNopSettings(metadata.Type), cfg)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(context.Background(), componenttest.NewNopHost()))
+	t.Cleanup(func() { require.NoError(t, exp.Shutdown(context.Background())) })
+	return exp
+}
+
+// bodiesExcept returns the bodies of the PUTs srv received, leaving out the request at index skip.
+func bodiesExcept(srv *fakeS3, skip int) [][]byte {
+	var bodies [][]byte
+	for i, r := range srv.recorded() {
+		if i != skip {
+			bodies = append(bodies, r.Body)
+		}
+	}
+	return bodies
+}
+
+// TestExporterRetriesTransientFailure checks that a failed upload is retried through the
+// sending queue and the data arrives exactly once.
+func TestExporterRetriesTransientFailure(t *testing.T) {
+	srv := newFakeS3(t)
+	// The SDK doesn't retry a 403 itself, so the exporterhelper retry has to.
+	srv.respondNext(http.StatusForbidden)
+	exp := startTestExporter(t, srv, nil)
+
+	ld := testLogs(5, 10)
+	require.NoError(t, exp.ConsumeLogs(context.Background(), ld))
+
+	require.Eventually(t, func() bool { return len(srv.recorded()) >= 2 }, 5*time.Second, 10*time.Millisecond)
+	reqs := srv.recorded()
+	require.Len(t, reqs, 2)
+	require.Equal(t, deliveredMessages(t, [][]byte{reqs[0].Body}), deliveredMessages(t, [][]byte{reqs[1].Body}), "the same records are retried")
+	require.Equal(t, logBodies(ld), deliveredMessages(t, bodiesExcept(srv, 0)))
+}
+
+// TestExporterPartialFailureNoDuplicates checks that when a batch is split into several
+// files and one upload fails, only the unsent records are retried.
+func TestExporterPartialFailureNoDuplicates(t *testing.T) {
+	srv := newFakeS3(t)
+	srv.respondNext(http.StatusOK, http.StatusForbidden)
+	exp := startTestExporter(t, srv, func(c *Config) { c.MaxFileSize = 1500 })
+
+	ld := testLogs(12, 100)
+	require.NoError(t, exp.ConsumeLogs(context.Background(), ld))
+
+	expected := logBodies(ld)
+	require.Eventually(t, func() bool {
+		return len(deliveredMessages(t, bodiesExcept(srv, 1))) >= len(expected)
+	}, 5*time.Second, 10*time.Millisecond)
+	require.Greater(t, len(srv.recorded()), 3, "the batch was split into several files")
+	require.Equal(t, expected, deliveredMessages(t, bodiesExcept(srv, 1)), "every record exactly once, in order")
 }
 
 // TestExporterEndToEnd runs the exporter as the collector does, against a fake

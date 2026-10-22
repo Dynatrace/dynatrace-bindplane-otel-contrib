@@ -6,6 +6,9 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.6
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.0
+	github.com/aws/smithy-go v1.28.1
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.1.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.162.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.68.0
 	go.opentelemetry.io/collector/component/componenttest v0.162.0
@@ -28,6 +31,29 @@ require (
 )
 
 require (
+	github.com/alecthomas/participle/v2 v2.1.4 // indirect
+	github.com/antchfx/xmlquery v1.5.1 // indirect
+	github.com/antchfx/xpath v1.3.8 // indirect
+	github.com/elastic/go-grok v0.3.1 // indirect
+	github.com/elastic/lunes v0.2.2 // indirect
+	github.com/expr-lang/expr v1.17.8 // indirect
+	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
+	github.com/hashicorp/golang-lru v1.0.2 // indirect
+	github.com/iancoleman/strcase v0.3.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/magefile/mage v1.15.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.162.0 // indirect
+	github.com/twmb/murmur3 v1.2.0 // indirect
+	github.com/ua-parser/uap-go v0.0.0-20251207011819-db9adb27a0b8 // indirect
+	github.com/zeebo/xxh3 v1.1.0 // indirect
+	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
+	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)
+
+require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.4 // indirect
@@ -36,7 +62,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.4 // indirect
-	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
@@ -78,3 +103,5 @@ require (
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
+
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr => ../../pkg/expr

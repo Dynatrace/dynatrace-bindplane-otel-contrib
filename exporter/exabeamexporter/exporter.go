@@ -49,10 +49,15 @@ func newExporter(cfg *Config, params exporter.Settings) (*exabeamExporter, error
 		return nil, err
 	}
 
+	enc, err := newEncoder(cfg, s, params.TelemetrySettings)
+	if err != nil {
+		return nil, err
+	}
+
 	return &exabeamExporter{
 		settings: s,
 		uploader: newS3Uploader(s, cfg.Endpoint),
-		encoder:  newEncoder(cfg, s),
+		encoder:  enc,
 		logger:   params.Logger,
 	}, nil
 }
@@ -64,22 +69,63 @@ func (e *exabeamExporter) Capabilities() consumer.Capabilities {
 
 // logsDataPusher writes the logs as one or more files. Each batch from the sending
 // queue becomes one file, unless it is larger than max_file_size.
+// When an upload fails after earlier files of the batch were uploaded, the error carries
+// only the records that weren't uploaded, so the retry doesn't send any record twice.
 func (e *exabeamExporter) logsDataPusher(ctx context.Context, ld plog.Logs) error {
-	files, err := e.encoder.encode(ld)
+	files, err := e.encoder.encode(ctx, ld)
 	if err != nil {
 		return consumererror.NewPermanent(fmt.Errorf("encode logs: %w", err))
 	}
 
-	for _, file := range files {
-		name, err := newObjectName(e.settings.CollectorID, time.Now())
-		if err != nil {
+	for i, file := range files {
+		err := e.uploadFile(ctx, file.data)
+		if err == nil {
+			continue
+		}
+		if i == 0 {
 			return err
 		}
-		if err := e.uploadAndRecord(ctx, name, file); err != nil {
-			return err
-		}
+		return consumererror.NewLogs(err, logsFrom(ld, file.firstRecord))
 	}
 	return nil
+}
+
+func (e *exabeamExporter) uploadFile(ctx context.Context, data []byte) error {
+	name, err := newObjectName(e.settings.CollectorID, time.Now())
+	if err != nil {
+		return err
+	}
+	return e.uploadAndRecord(ctx, name, data)
+}
+
+// logsFrom returns a copy of the log records of ld from index start onward, keeping their
+// resource and scope.
+func logsFrom(ld plog.Logs, start int) plog.Logs {
+	out := plog.NewLogs()
+	index := 0
+	for _, rl := range ld.ResourceLogs().All() {
+		var outRL plog.ResourceLogs
+		for _, sl := range rl.ScopeLogs().All() {
+			var outSL plog.ScopeLogs
+			for _, lr := range sl.LogRecords().All() {
+				if index >= start {
+					if outRL == (plog.ResourceLogs{}) {
+						outRL = out.ResourceLogs().AppendEmpty()
+						rl.Resource().CopyTo(outRL.Resource())
+						outRL.SetSchemaUrl(rl.SchemaUrl())
+					}
+					if outSL == (plog.ScopeLogs{}) {
+						outSL = outRL.ScopeLogs().AppendEmpty()
+						sl.Scope().CopyTo(outSL.Scope())
+						outSL.SetSchemaUrl(sl.SchemaUrl())
+					}
+					lr.CopyTo(outSL.LogRecords().AppendEmpty())
+				}
+				index++
+			}
+		}
+	}
+	return out
 }
 
 // uploadAndRecord uploads the file and records telemetry metrics.
