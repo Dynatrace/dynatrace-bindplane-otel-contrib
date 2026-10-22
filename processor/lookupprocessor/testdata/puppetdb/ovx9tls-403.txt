@@ -1,0 +1,1 @@
+Permission denied: The client certificate name stranger doesnt appear in the certificate allowlist. Is your master's (or other OpenVoxDB client's) certname listed in OpenVoxDB's certificate-allowlist file?

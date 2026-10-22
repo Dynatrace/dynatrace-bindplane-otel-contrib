@@ -91,6 +91,8 @@ func (p *lookupProcessor) buildSource() (LookupSource, error) {
 		return NewRedisSource(p.cfg.Redis, p.logger)
 	case p.cfg.API != nil:
 		return NewAPISource(p.cfg.API, p.logger)
+	case p.cfg.PuppetDB != nil:
+		return NewPuppetDBSource(p.cfg.PuppetDB, p.logger)
 	case p.cfg.CSV != "":
 		return NewCSVFile(p.cfg.CSV, p.cfg.Field, p.logger), nil
 	default:
@@ -105,16 +107,16 @@ func (p *lookupProcessor) start(ctx context.Context, host component.Host) error 
 		return fmt.Errorf("failed to create lookup source: %w", err)
 	}
 
-	// A CSV index is already resident in memory, so fronting it with a cache cannot
-	// reduce work: it only adds a lock per lookup and a second copy of the data.
-	// Bypass structurally rather than by rejecting the config, because
+	// A CSV or PuppetDB index is already resident in memory, so fronting it with a
+	// cache cannot reduce work: it only adds a lock per lookup and a second copy of
+	// the data. Bypass structurally rather than by rejecting the config, because
 	// createDefaultConfig enables the cache, so rejecting it would fail every
 	// existing CSV configuration at startup.
-	if p.cfg.CSV != "" {
+	if resident := p.residentSourceType(); resident != "" {
 		if keys := p.cfg.setCacheKeys(); len(keys) > 0 {
 			p.logger.Warn(
-				"cache settings do not apply to a csv source and are ignored; "+
-					"setting them with 'csv' becomes a configuration error in a future release",
+				fmt.Sprintf("cache settings do not apply to a %s source and are ignored; "+
+					"setting them with '%s' becomes a configuration error in a future release", resident, resident),
 				zap.String("keys", strings.Join(keys, ", ")),
 			)
 		}
@@ -149,6 +151,25 @@ func (p *lookupProcessor) start(ctx context.Context, host component.Host) error 
 	return nil
 }
 
+// residentSourceType names the configured source when it keeps its whole
+// index in memory, and is empty for sources that query per lookup.
+func (p *lookupProcessor) residentSourceType() string {
+	switch {
+	case p.cfg.CSV != "":
+		return sourceTypeCSV
+	case p.cfg.PuppetDB != nil:
+		return sourceTypePuppetDB
+	default:
+		return ""
+	}
+}
+
+// contextLoader is implemented by sources whose Load makes network calls, so
+// shutdown can cancel a reload in flight instead of waiting out its timeout.
+type contextLoader interface {
+	LoadContext(ctx context.Context) error
+}
+
 // shutdown stops the processor.
 func (p *lookupProcessor) shutdown(context.Context) error {
 	if p.cancel != nil {
@@ -169,8 +190,13 @@ func (p *lookupProcessor) loadSource(ctx context.Context) {
 	defer ticker.Stop()
 	defer p.wg.Done()
 
+	load := p.source.Load
+	if cl, ok := p.source.(contextLoader); ok {
+		load = func() error { return cl.LoadContext(ctx) }
+	}
+
 	for {
-		if err := p.source.Load(); err != nil {
+		if err := load(); err != nil {
 			p.logger.Error("failed to load source", zap.Error(err))
 		} else {
 			p.logger.Debug("source reload check complete")
