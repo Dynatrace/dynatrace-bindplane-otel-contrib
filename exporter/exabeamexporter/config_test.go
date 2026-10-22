@@ -44,6 +44,11 @@ func testConnectionString(t *testing.T, fields map[string]string) string {
 	return base64.StdEncoding.EncodeToString(b)
 }
 
+func testConnectionStringOpaque(t *testing.T) configopaque.String {
+	t.Helper()
+	return configopaque.String(testConnectionString(t, fullConnectionFields()))
+}
+
 func fullConnectionFields() map[string]string {
 	return map[string]string{
 		"collector_id":    testCollectorID,
@@ -66,7 +71,10 @@ func TestLoadConfig(t *testing.T) {
 	connCfg := createDefaultConfig().(*Config)
 	connCfg.ConnectionString = "eyJjb2xsZWN0b3JfaWQiOiJiNTU3ZTRmYy0xMjM0LTQ1NjctODlhYi1jZGVmMDEyMzQ1NjciLCJhY2Nlc3Nfa2V5IjoiR09PR1RFU1RBQ0NFU1NLRVkiLCJzZWNyZXRfa2V5IjoidGVzdC1zZWNyZXQta2V5IiwiYnVja2V0X25hbWUiOiJkbC10b3BpYy1vcHMtZGlzdC1jYy1tZ3J0bi1lMmUiLCJidWNrZXRfbG9jYXRpb24iOiJVUyIsInNpdGVuYW1lIjoiYWJjb3JwIiwic2l0ZWlkIjoieGRmc2Rmdzk5OTk5c2ZzZGYiLCJ0aW1lem9uZV9vZmZzZXQiOiItMDcwMCJ9"
 	connCfg.CollectorName = "bindplane-gateway"
-	connCfg.Tags = `"env":"prod"`
+	connCfg.Hostname = "gw-01"
+	connCfg.Forwarder = "bindplane"
+	connCfg.RawLogField = `attributes["raw"]`
+	connCfg.LogTags = map[string]string{"department": "HR", "servertype": "PCI"}
 
 	fieldsCfg := createDefaultConfig().(*Config)
 	fieldsCfg.CollectorID = testCollectorID
@@ -220,6 +228,13 @@ func TestConfigValidate(t *testing.T) {
 			expectedErr: "connection_string is not valid base64",
 		},
 		{
+			desc: "connection string field is not a string",
+			mutate: func(c *Config) {
+				c.ConnectionString = configopaque.String(base64.StdEncoding.EncodeToString([]byte(`{"collector_id":"id","secret_key":"` + testSecretKey + `","siteid":123}`)))
+			},
+			expectedErr: `connection_string field "siteid" must be a string`,
+		},
+		{
 			desc: "connection string is not JSON",
 			mutate: func(c *Config) {
 				c.ConnectionString = configopaque.String(base64.StdEncoding.EncodeToString([]byte("secret_key=abc")))
@@ -249,6 +264,40 @@ func TestConfigValidate(t *testing.T) {
 				c.Endpoint = ""
 			},
 			expectedErr: "endpoint must be an http or https URL",
+		},
+		{
+			desc: "invalid raw_log_field",
+			mutate: func(c *Config) {
+				c.ConnectionString = configopaque.String(missing())
+				c.RawLogField = `attributes["unterminated`
+			},
+			expectedErr: "raw_log_field is invalid",
+		},
+		{
+			desc: "valid raw_log_field",
+			mutate: func(c *Config) {
+				c.ConnectionString = configopaque.String(missing())
+				c.RawLogField = `Concat([attributes["a"], body], " ")`
+			},
+		},
+		{
+			desc: "too many logtags",
+			mutate: func(c *Config) {
+				c.ConnectionString = configopaque.String(missing())
+				c.LogTags = map[string]string{}
+				for i := range 11 {
+					c.LogTags[fmt.Sprintf("tag%d", i)] = "v"
+				}
+			},
+			expectedErr: "logtags can have at most 10 entries, got 11",
+		},
+		{
+			desc: "empty logtag name",
+			mutate: func(c *Config) {
+				c.ConnectionString = configopaque.String(missing())
+				c.LogTags = map[string]string{"": "v"}
+			},
+			expectedErr: "logtags names must not be empty",
 		},
 		{
 			desc: "max file size not positive",
