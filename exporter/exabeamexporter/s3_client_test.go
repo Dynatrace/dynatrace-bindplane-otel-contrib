@@ -23,6 +23,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,6 +43,8 @@ type fakeS3 struct {
 	mu       sync.Mutex
 	requests []recordedRequest
 	status   int
+	// next holds statuses for the next requests, in order, before falling back to status.
+	next []int
 }
 
 func newFakeS3(t *testing.T) *fakeS3 {
@@ -57,6 +61,9 @@ func newFakeS3(t *testing.T) *fakeS3 {
 			Body:   body,
 		})
 		status := f.status
+		if len(f.next) > 0 {
+			status, f.next = f.next[0], f.next[1:]
+		}
 		f.mu.Unlock()
 		if status != http.StatusOK {
 			w.WriteHeader(status)
@@ -74,6 +81,13 @@ func (f *fakeS3) setStatus(status int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.status = status
+}
+
+// respondNext answers the next requests with statuses, in order.
+func (f *fakeS3) respondNext(statuses ...int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.next = append(f.next, statuses...)
 }
 
 func (f *fakeS3) recorded() []recordedRequest {
@@ -113,6 +127,10 @@ func TestS3UploaderPutObject(t *testing.T) {
 	require.Contains(t, auth, "/US/s3/aws4_request")
 	require.NotContains(t, auth, testSecretKey)
 
+	// Google's front end rewrites Accept-Encoding before GCS checks the signature,
+	// so signing it causes SignatureDoesNotMatch.
+	requireAcceptEncodingUnsigned(t, req)
+
 	require.Equal(t, "private", req.Header.Get("X-Amz-Acl"))
 	require.Empty(t, req.Header.Get("X-Amz-Storage-Class"))
 
@@ -121,6 +139,29 @@ func TestS3UploaderPutObject(t *testing.T) {
 	require.Empty(t, req.Header.Get("X-Amz-Trailer"))
 	for k := range req.Header {
 		require.False(t, strings.HasPrefix(strings.ToLower(k), "x-amz-checksum-"), "unexpected checksum header %s", k)
+	}
+}
+
+// requireAcceptEncodingUnsigned checks Accept-Encoding is sent but not signed.
+func requireAcceptEncodingUnsigned(t *testing.T, req recordedRequest) {
+	t.Helper()
+	auth := req.Header.Get("Authorization")
+	require.Contains(t, auth, "SignedHeaders=")
+	require.NotContains(t, auth, "accept-encoding")
+	require.Equal(t, []string{"identity"}, req.Header.Values("Accept-Encoding"), "sent once, unsigned")
+}
+
+func TestS3UploaderSDKRetryKeepsHeaderUnsigned(t *testing.T) {
+	srv := newFakeS3(t)
+	srv.respondNext(http.StatusServiceUnavailable)
+	up := newS3Uploader(testSettings(), srv.URL)
+
+	require.NoError(t, up.PutObject(context.Background(), "key.log.gz", []byte("x")))
+
+	reqs := srv.recorded()
+	require.Len(t, reqs, 2, "the SDK retries the 503 itself")
+	for _, req := range reqs {
+		requireAcceptEncodingUnsigned(t, req)
 	}
 }
 
@@ -146,4 +187,32 @@ func TestS3UploaderError(t *testing.T) {
 	for _, r := range srv.recorded() {
 		require.Equal(t, http.MethodPut, r.Method)
 	}
+}
+
+func TestExcludeHeadersFromSigningNeedsSigningStep(t *testing.T) {
+	// An SDK that renamed or dropped its Signing step must fail loudly, not send signed headers.
+	stack := middleware.NewStack("test", smithyhttp.NewStackRequest)
+	err := excludeHeadersFromSigning(unsignedHeaders...)(stack)
+	require.ErrorContains(t, err, "insert "+removeHeadersID+" middleware")
+
+	require.NoError(t, stack.Finalize.Add(middleware.FinalizeMiddlewareFunc("Signing", func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+		return next.HandleFinalize(ctx, in)
+	}), middleware.After))
+	require.NoError(t, excludeHeadersFromSigning(unsignedHeaders...)(stack))
+	require.Equal(t, []string{removeHeadersID, "Signing", restoreHeadersID}, stack.Finalize.List())
+}
+
+func TestHeaderMiddlewaresPassThroughNonHTTPRequests(t *testing.T) {
+	var reached int
+	next := middleware.FinalizeHandlerFunc(func(context.Context, middleware.FinalizeInput) (middleware.FinalizeOutput, middleware.Metadata, error) {
+		reached++
+		return middleware.FinalizeOutput{}, middleware.Metadata{}, nil
+	})
+	in := middleware.FinalizeInput{Request: "not an http request"}
+
+	_, _, err := removeHeadersMiddleware(unsignedHeaders).HandleFinalize(context.Background(), in, next)
+	require.NoError(t, err)
+	_, _, err = restoreHeadersMiddleware().HandleFinalize(context.Background(), in, next)
+	require.NoError(t, err)
+	require.Equal(t, 2, reached)
 }
