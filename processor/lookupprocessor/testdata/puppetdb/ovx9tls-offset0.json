@@ -1,0 +1,162 @@
+[
+  {
+    "certname": "db01.example.com",
+    "facts.os.family": "Debian",
+    "trusted.extensions.pp_role": "database",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node01.example.com",
+    "facts.os.family": "Debian",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node02.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node03.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node04.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node05.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node06.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node07.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node08.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node09.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node10.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node11.example.com",
+    "facts.os.family": "Debian",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node12.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node13.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node14.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node15.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node16.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node17.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node18.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  },
+  {
+    "certname": "node19.example.com",
+    "facts.os.family": "RedHat",
+    "trusted.extensions.pp_role": "web",
+    "facts.processors.count": 20,
+    "facts.is_virtual": true,
+    "facts.no.such.fact": null
+  }
+]
