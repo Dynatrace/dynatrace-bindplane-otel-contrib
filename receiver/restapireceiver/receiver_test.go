@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/restapireceiver/internal/metadata"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -2869,8 +2870,10 @@ func TestPoll_RelativeEndTimeAdvancesEveryCycle(t *testing.T) {
 	var untils []int64
 	server := newWindowServer(t, &untils, &mu)
 
-	start := strconv.FormatInt(time.Now().Add(-time.Hour).UnixMilli(), 10)
+	clock := clockwork.NewFakeClockAt(time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC))
+	start := strconv.FormatInt(clock.Now().Add(-time.Hour).UnixMilli(), 10)
 	r := newEndTimeTestReceiver(t, server.URL, start, "now - 1s")
+	r.clock = clock
 	r.initializePagination()
 
 	ctx := context.Background()
@@ -2878,7 +2881,7 @@ func TestPoll_RelativeEndTimeAdvancesEveryCycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, first.recordCount)
 
-	time.Sleep(20 * time.Millisecond)
+	clock.Advance(20 * time.Millisecond)
 
 	second, err := r.poll(ctx)
 	require.NoError(t, err)
@@ -2886,11 +2889,10 @@ func TestPoll_RelativeEndTimeAdvancesEveryCycle(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Len(t, untils, 2)
-	require.Greater(t, untils[1], untils[0], "the end bound must be re-resolved every poll cycle")
-
-	lagged := time.Now().Add(-time.Second).UnixMilli()
-	require.LessOrEqual(t, untils[1], lagged, "the end bound must trail now by the configured lag")
+	require.Equal(t, []int64{
+		clock.Now().Add(-20*time.Millisecond - time.Second).UnixMilli(),
+		clock.Now().Add(-time.Second).UnixMilli(),
+	}, untils, "the end bound must be re-resolved every poll cycle, trailing now by the configured lag")
 }
 
 func TestPoll_EndTimeNotRestoredFromCheckpoint(t *testing.T) {

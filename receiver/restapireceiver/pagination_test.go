@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -2352,53 +2353,46 @@ func TestHasMoreFieldName(t *testing.T) {
 }
 
 func TestRefreshEndTime(t *testing.T) {
+	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
+
 	t.Run("relative end trails now by the lag", func(t *testing.T) {
 		cfg := &Config{EndTimeParamName: "until", EndTimeValue: "now - 30s", TimestampFormat: epochSeconds}
 		state := &paginationState{}
-
-		before := time.Now().Add(-30 * time.Second).Unix()
-		refreshEndTime(cfg, state)
-		after := time.Now().Add(-30 * time.Second).Unix()
-
-		end, err := strconv.ParseInt(state.ResolvedEndTime, 10, 64)
-		require.NoError(t, err)
-		require.GreaterOrEqual(t, end, before)
-		require.LessOrEqual(t, end, after)
+		refreshEndTime(cfg, state, now)
+		require.Equal(t, strconv.FormatInt(now.Add(-30*time.Second).Unix(), 10), state.ResolvedEndTime)
 	})
 
 	t.Run("end param alone defaults to now", func(t *testing.T) {
 		cfg := &Config{EndTimeParamName: "until"}
 		state := &paginationState{}
-		refreshEndTime(cfg, state)
-		end, err := time.Parse(time.RFC3339, state.ResolvedEndTime)
-		require.NoError(t, err)
-		require.WithinDuration(t, time.Now(), end, 2*time.Second)
+		refreshEndTime(cfg, state, now)
+		require.Equal(t, "2025-06-01T12:00:00Z", state.ResolvedEndTime)
 	})
 
 	t.Run("fixed end is sent as written", func(t *testing.T) {
 		cfg := &Config{EndTimeParamName: "until", EndTimeValue: "2025-06-01T00:00:00Z"}
 		state := &paginationState{}
-		refreshEndTime(cfg, state)
+		refreshEndTime(cfg, state, now)
 		require.Equal(t, "2025-06-01T00:00:00Z", state.ResolvedEndTime)
 	})
 
 	t.Run("no end configured", func(t *testing.T) {
 		state := &paginationState{}
-		refreshEndTime(&Config{}, state)
+		refreshEndTime(&Config{}, state, now)
 		require.Empty(t, state.ResolvedEndTime)
 	})
 
 	t.Run("each call re-resolves", func(t *testing.T) {
 		cfg := &Config{EndTimeValue: "now", TimestampFormat: epochNanoseconds}
 		state := &paginationState{}
-		refreshEndTime(cfg, state)
-		first, err := strconv.ParseInt(state.ResolvedEndTime, 10, 64)
-		require.NoError(t, err)
-		time.Sleep(time.Millisecond)
-		refreshEndTime(cfg, state)
-		second, err := strconv.ParseInt(state.ResolvedEndTime, 10, 64)
-		require.NoError(t, err)
-		require.Greater(t, second, first)
+		clock := clockwork.NewFakeClockAt(now)
+
+		refreshEndTime(cfg, state, clock.Now())
+		require.Equal(t, strconv.FormatInt(now.UnixNano(), 10), state.ResolvedEndTime)
+
+		clock.Advance(time.Millisecond)
+		refreshEndTime(cfg, state, clock.Now())
+		require.Equal(t, strconv.FormatInt(now.Add(time.Millisecond).UnixNano(), 10), state.ResolvedEndTime)
 	})
 }
 

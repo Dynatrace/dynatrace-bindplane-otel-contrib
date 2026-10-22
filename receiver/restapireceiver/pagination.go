@@ -202,7 +202,7 @@ func newPaginationState(cfg *Config) *paginationState {
 	if cfg.StartTimeValue != "" {
 		state.ResolvedStartTime = formatTimeBoundValue(cfg.StartTimeValue, cfg.TimestampFormat)
 	}
-	refreshEndTime(cfg, state)
+	refreshEndTime(cfg, state, time.Now())
 
 	return state
 }
@@ -210,8 +210,8 @@ func newPaginationState(cfg *Config) *paginationState {
 // refreshEndTime resolves the end bound for the poll cycle about to start.
 // Called once per cycle, so every page in the cycle shares the same end, while
 // "now" and "now - <duration>" advance from one cycle to the next. A fixed value
-// resolves to itself every time.
-func refreshEndTime(cfg *Config, state *paginationState) {
+// resolves to itself every time. now is passed in so callers choose the clock.
+func refreshEndTime(cfg *Config, state *paginationState, now time.Time) {
 	if cfg.EndTimeParamName == "" && cfg.EndTimeValue == "" {
 		return
 	}
@@ -223,7 +223,7 @@ func refreshEndTime(cfg *Config, state *paginationState) {
 
 	// Validation has already rejected a malformed relative value.
 	if lag, ok, _ := parseRelativeNow(endValue); ok {
-		state.ResolvedEndTime = formatTimeBound(time.Now().UTC().Add(-lag), cfg.TimestampFormat)
+		state.ResolvedEndTime = formatTimeBound(now.UTC().Add(-lag), cfg.TimestampFormat)
 		return
 	}
 

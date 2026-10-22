@@ -28,6 +28,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/adapter"
 	"go.opentelemetry.io/collector/component"
@@ -75,6 +76,10 @@ type baseReceiver struct {
 	// it to the next consumer. Installed by the logs and metrics constructors;
 	// it is the only per-signal step in the shared poll loop.
 	consume consumeFunc
+
+	// clock supplies "now" for the end bound resolved each poll cycle. Real in
+	// production; tests swap in a fake so they can advance time without sleeping.
+	clock clockwork.Clock
 }
 
 // initializeRequestBody parses the configured request_body template. Validate
@@ -681,7 +686,7 @@ func (b *baseReceiver) poll(ctx context.Context) (pollResult, error) {
 	result := pollResult{}
 
 	// Resolve the end bound once for the whole cycle, so every page shares it.
-	refreshEndTime(b.cfg, b.paginationState)
+	refreshEndTime(b.cfg, b.paginationState, b.clock.Now())
 
 	if timeWindowEmpty(b.cfg, b.paginationState) {
 		b.logger.Debug("skipping poll cycle: start time has reached the end time",
@@ -806,6 +811,7 @@ func newRESTAPILogsReceiver(
 			logger:   params.Logger,
 			cfg:      cfg,
 			id:       params.ID,
+			clock:    clockwork.NewRealClock(),
 		},
 		consumer: cons,
 	}
@@ -1108,6 +1114,7 @@ func newRESTAPIMetricsReceiver(
 			logger:   params.Logger,
 			cfg:      cfg,
 			id:       params.ID,
+			clock:    clockwork.NewRealClock(),
 		},
 		consumer: cons,
 	}
