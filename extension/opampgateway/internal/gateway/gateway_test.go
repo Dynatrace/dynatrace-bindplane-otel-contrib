@@ -717,6 +717,33 @@ func (s *testOpAMPServer) WaitForAgentMessage(t *testing.T, agentID string, time
 	}
 }
 
+// RequireNoAgentMessage fails the test if a message for the agent arrives within the
+// duration. Messages for other agents are buffered for later calls.
+func (s *testOpAMPServer) RequireNoAgentMessage(t *testing.T, agentID string, within time.Duration) {
+	t.Helper()
+
+	s.pendingMu.Lock()
+	for _, m := range s.pending {
+		require.NotEqual(t, agentID, m.AgentID, "unexpected message for agent %s", agentID)
+	}
+	s.pendingMu.Unlock()
+
+	deadline := time.After(within)
+	for {
+		select {
+		case msg := <-s.recvCh:
+			require.NotEqual(t, agentID, msg.AgentID, "unexpected message for agent %s", agentID)
+			s.pendingMu.Lock()
+			s.pending = append(s.pending, msg)
+			s.pendingMu.Unlock()
+		case err := <-s.errCh:
+			require.NoError(t, err)
+		case <-deadline:
+			return
+		}
+	}
+}
+
 // UserAgents returns the User-Agent header of every open upstream connection,
 // keyed by connection id.
 func (s *testOpAMPServer) UserAgents() map[string]string {

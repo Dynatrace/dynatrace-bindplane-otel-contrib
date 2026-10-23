@@ -145,8 +145,11 @@ func (g *Gateway) HandleDownstreamMessage(_ context.Context, connection *downstr
 	}
 
 	// register the downstream connection for the agent ID so we can forward messages to the
-	// agent from the server
-	g.server.setAgentConnection(agentID, connection)
+	// agent from the server. A late message with an ID that the server replaced does not
+	// route that ID to the connection again.
+	if connection.agents.seen(agentID) {
+		g.server.setAgentConnection(agentID, connection)
+	}
 
 	// find the upstream connection
 	upstreamConnection := connection.upstreamConnection
@@ -157,8 +160,16 @@ func (g *Gateway) HandleDownstreamMessage(_ context.Context, connection *downstr
 	if err := upstreamConnection.send(msg); err != nil {
 		return fmt.Errorf("send upstream: %w", err)
 	}
+	connection.upstreamGeneration.Store(upstreamConnection.generation.Load())
 	g.telemetry.OpampgatewayMessages.Add(context.Background(), 1, directionUpstream)
 	g.telemetry.OpampgatewayMessagesBytes.Add(context.Background(), int64(len(msg.data)), directionUpstream)
+
+	// The agent said it is leaving (directly, or through a chained gateway). Stop routing
+	// to it, so the close of its connection does not report it a second time.
+	if message.GetAgentDisconnect() != nil {
+		connection.agents.left(agentID)
+		g.server.agentConnections.removeIfValue(agentID, connection)
+	}
 	return nil
 }
 
@@ -171,9 +182,90 @@ func (g *Gateway) HandleDownstreamError(_ context.Context, connection *downstrea
 // HandleDownstreamClose handles the closing of a downstream connection.
 func (g *Gateway) HandleDownstreamClose(_ context.Context, connection *downstreamConnection) error {
 	g.logger.Debug("downstream connection closed", zap.String(keyDownstreamConnectionID, connection.id))
+	agentIDs := connection.agents.close()
 	g.client.unassignUpstreamConnection(connection.id)
 	g.server.removeDownstreamConnection(connection)
+	g.sendAgentDisconnects(connection, agentIDs)
 	return nil
+}
+
+// sendAgentDisconnects tells the upstream server that the agents of a closed connection
+// left. The upstream connection is shared, so the server cannot see when one agent behind
+// the gateway disconnects; without this message it keeps the agent connected until the
+// upstream connection closes.
+func (g *Gateway) sendAgentDisconnects(connection *downstreamConnection, agentIDs []string) {
+	upstream := connection.upstreamConnection
+	if upstream == nil || len(agentIDs) == 0 {
+		return
+	}
+	// The server ends the sessions of all agents on an upstream socket when the socket
+	// closes. A report on the next socket is stale and can end a new session of the agent.
+	generation := connection.upstreamGeneration.Load()
+	if current, connected := upstream.currentGeneration(); !connected || current != generation {
+		g.logger.Debug("not reporting agents of a closed upstream socket",
+			zap.String(keyDownstreamConnectionID, connection.id),
+			zap.Int(keyAgentCount, len(agentIDs)))
+		return
+	}
+	for _, agentID := range agentIDs {
+		// Another connection still uses the agent ID, for example an agent with a duplicate
+		// ID. Route the ID to that connection, and do not report it.
+		if other, ok := g.server.downstreamConnections.find(func(c *downstreamConnection) bool {
+			return c.agents.has(agentID)
+		}); ok {
+			g.routeAgent(agentID, other)
+			continue
+		}
+		raw, err := rawAgentID(agentID)
+		if err != nil {
+			g.logger.Warn("cannot report agent disconnect", zap.String(keyAgentID, agentID), zap.Error(err))
+			continue
+		}
+		data, err := encodeWSMessage(&protobufs.AgentToServer{
+			InstanceUid:     raw,
+			AgentDisconnect: &protobufs.AgentDisconnect{},
+		})
+		if err != nil {
+			g.logger.Warn("cannot encode agent disconnect", zap.String(keyAgentID, agentID), zap.Error(err))
+			continue
+		}
+		msg := newMessage(0, data)
+		msg.generation = generation
+		if err := upstream.send(msg); err != nil {
+			// The upstream socket closed, so the server ends the session itself.
+			g.logger.Debug("cannot send agent disconnect", zap.String(keyAgentID, agentID), zap.Error(err))
+			continue
+		}
+		g.logger.Debug("reported agent disconnect", zap.String(keyAgentID, agentID), zap.String(keyUpstreamConnectionID, upstream.id))
+		g.telemetry.OpampgatewayMessages.Add(context.Background(), 1, directionUpstream)
+		g.telemetry.OpampgatewayMessagesBytes.Add(context.Background(), int64(len(data)), directionUpstream)
+	}
+}
+
+// routeAgent routes the agent ID to the connection. The connection can close at the same
+// time on its own goroutine, so the route goes again when the connection no longer has the
+// agent. Without this, a route to the closed connection could stay.
+func (g *Gateway) routeAgent(agentID string, conn *downstreamConnection) {
+	g.server.setAgentConnection(agentID, conn)
+	if !conn.agents.has(agentID) {
+		g.server.agentConnections.removeIfValue(agentID, conn)
+	}
+}
+
+// renameAgent handles a new instance UID that the server gave an agent. It routes the new
+// UID to the connection of the agent now, so messages for it arrive before the agent sends
+// one, and stops routing the old UID.
+func (g *Gateway) renameAgent(conn *downstreamConnection, agentID string, newUID []byte) {
+	newAgentID, err := parseAgentID(newUID)
+	if err != nil {
+		g.logger.Warn("invalid new_instance_uid in agent identification", zap.String(keyAgentID, agentID), zap.Error(err))
+		return
+	}
+	if newAgentID == agentID || !conn.agents.rename(agentID, newAgentID) {
+		return
+	}
+	g.routeAgent(newAgentID, conn)
+	g.server.agentConnections.removeIfValue(agentID, conn)
 }
 
 // --------------------------------------------------------------------------------------
@@ -234,6 +326,10 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 	// inject cached CustomCapabilities into the first message forwarded to each downstream
 	// agent.
 	message = g.injectCustomCapabilities(connection, conn, &m, message)
+
+	if newUID := m.GetAgentIdentification().GetNewInstanceUid(); len(newUID) > 0 {
+		g.renameAgent(conn, agentID, newUID)
+	}
 
 	// forward the message to the downstream connection
 	msg := fmt.Sprintf("%s <= %s", conn.id, connection.id)
