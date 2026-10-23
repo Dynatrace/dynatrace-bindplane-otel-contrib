@@ -431,6 +431,7 @@ type upstreamMessage struct {
 type testUpstreamConnection struct {
 	id        string
 	userAgent string
+	header    http.Header
 	conn      *websocket.Conn
 }
 
@@ -537,7 +538,7 @@ func (s *testOpAMPServer) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Lock()
-	s.connections = append(s.connections, &testUpstreamConnection{id: id, userAgent: userAgent, conn: conn})
+	s.connections = append(s.connections, &testUpstreamConnection{id: id, userAgent: userAgent, header: r.Header.Clone(), conn: conn})
 	s.mu.Unlock()
 	s.connectionCount.Add(1)
 
@@ -756,6 +757,18 @@ func (s *testOpAMPServer) UserAgents() map[string]string {
 	return agents
 }
 
+// Headers returns the request headers of every open upstream connection, keyed by
+// connection id.
+func (s *testOpAMPServer) Headers() map[string]http.Header {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	headers := make(map[string]http.Header, len(s.connections))
+	for _, c := range s.connections {
+		headers[c.id] = c.header
+	}
+	return headers
+}
+
 func (s *testOpAMPServer) removeConnection(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -882,6 +895,23 @@ func (a *testAgent) WaitForMessage(t *testing.T, timeout time.Duration) *protobu
 
 func (a *testAgent) Close() error {
 	return a.conn.Close()
+}
+
+// WaitForClose waits until the gateway closes the agent connection. Messages that arrive
+// before the close are discarded.
+func (a *testAgent) WaitForClose(t *testing.T, timeout time.Duration) {
+	t.Helper()
+	deadline := time.After(timeout)
+	for {
+		select {
+		case _, ok := <-a.recvCh:
+			if !ok {
+				return
+			}
+		case <-deadline:
+			t.Fatalf("agent %s connection was not closed", a.id)
+		}
+	}
 }
 
 func (a *testAgent) readLoop() {

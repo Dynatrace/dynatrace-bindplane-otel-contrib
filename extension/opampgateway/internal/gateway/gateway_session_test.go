@@ -15,6 +15,9 @@
 package gateway
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -196,4 +199,141 @@ func TestGatewayDoesNotReportAnIDThatAnotherConnectionUses(t *testing.T) {
 	// The route moves to the connection that still uses the ID.
 	require.NoError(t, h.upstream.Send(&protobufs.ServerToAgent{InstanceUid: other.RawID(), Capabilities: 3}))
 	require.Equal(t, uint64(3), other.WaitForMessage(t, 5*time.Second).GetCapabilities())
+}
+
+func disconnectAgentMessage(t *testing.T, instanceUID []byte) *protobufs.ServerToAgent {
+	t.Helper()
+	data, err := json.Marshal(OpampGatewayDisconnectAgent{InstanceUID: instanceUID, RetryAfterSeconds: 300})
+	require.NoError(t, err)
+	return &protobufs.ServerToAgent{
+		CustomMessage: &protobufs.CustomMessage{
+			Capability: OpampGatewayCapability,
+			Type:       OpampGatewayDisconnectAgentType,
+			Data:       data,
+		},
+	}
+}
+
+func TestGatewayAdvertisesDisconnectAgent(t *testing.T) {
+	t.Parallel()
+
+	h := newGatewayTestHarness(t, 2)
+	require.Eventually(t, func() bool { return len(h.upstream.Headers()) == 2 }, 5*time.Second, 50*time.Millisecond)
+	for id, header := range h.upstream.Headers() {
+		require.Contains(t, header.Values("X-Opamp-Gateway-Capabilities"), OpampGatewayDisconnectAgentType, id)
+	}
+}
+
+func TestGatewayDisconnectAgentClosesOnlyThatAgent(t *testing.T) {
+	t.Parallel()
+
+	h := newGatewayTestHarness(t, 1)
+	agent := h.NewAgent(t)
+	sibling := h.NewAgent(t)
+	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	h.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+	sibling.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	h.upstream.WaitForAgentMessage(t, sibling.ID(), 5*time.Second)
+
+	require.NoError(t, h.upstream.Send(disconnectAgentMessage(t, agent.RawID())))
+	agent.WaitForClose(t, 5*time.Second)
+	h.upstream.RequireNoAgentMessage(t, agent.ID(), 300*time.Millisecond)
+
+	require.NoError(t, h.upstream.Send(&protobufs.ServerToAgent{InstanceUid: sibling.RawID(), Capabilities: 5}))
+	require.Equal(t, uint64(5), sibling.WaitForMessage(t, 5*time.Second).GetCapabilities())
+}
+
+func TestGatewayDisconnectAgentForUnknownAgentIsIgnored(t *testing.T) {
+	t.Parallel()
+
+	h := newGatewayTestHarness(t, 1)
+	agent := h.NewAgent(t)
+	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	h.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+
+	unknown := uuid.New()
+	require.NoError(t, h.upstream.Send(disconnectAgentMessage(t, unknown[:])))
+	require.NoError(t, h.upstream.Send(&protobufs.ServerToAgent{InstanceUid: agent.RawID(), Capabilities: 3}))
+	require.Equal(t, uint64(3), agent.WaitForMessage(t, 5*time.Second).GetCapabilities())
+}
+
+func TestGatewayChainedDisconnectAgentIsForwarded(t *testing.T) {
+	t.Parallel()
+
+	outer := newGatewayTestHarness(t, 1)
+	inner := newChainedGatewayHarness(t, "inner", outer.agentURL, 1)
+
+	agent := inner.NewAgent(t)
+	sibling := inner.NewAgent(t)
+	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	outer.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+	sibling.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	outer.upstream.WaitForAgentMessage(t, sibling.ID(), 5*time.Second)
+
+	// The outer gateway must not close the connection of the inner gateway, which carries
+	// the sibling too. It forwards the request, and the inner gateway closes the agent.
+	require.NoError(t, outer.upstream.Send(disconnectAgentMessage(t, agent.RawID())))
+	agent.WaitForClose(t, 5*time.Second)
+
+	require.NoError(t, outer.upstream.Send(&protobufs.ServerToAgent{InstanceUid: sibling.RawID(), Capabilities: 4}))
+	require.Equal(t, uint64(4), sibling.WaitForMessage(t, 5*time.Second).GetCapabilities())
+}
+
+func TestGatewayChainedDisconnectAgentIsNotReportedLater(t *testing.T) {
+	t.Parallel()
+
+	outer := newGatewayTestHarness(t, 1)
+	inner := newChainedGatewayHarness(t, "inner", outer.agentURL, 1)
+
+	agent := inner.NewAgent(t)
+	sibling := inner.NewAgent(t)
+	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	outer.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+	sibling.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	outer.upstream.WaitForAgentMessage(t, sibling.ID(), 5*time.Second)
+
+	require.NoError(t, outer.upstream.Send(disconnectAgentMessage(t, agent.RawID())))
+	agent.WaitForClose(t, 5*time.Second)
+	_, ok := outer.gateway.server.getAgentConnection(agent.ID())
+	require.False(t, ok, "the outer gateway stops routing to the agent")
+
+	// When the connection of the inner gateway closes, only the sibling is reported. The
+	// server already ended the session of the agent.
+	require.NoError(t, inner.gateway.Shutdown(context.Background()))
+	msg := outer.upstream.WaitForAgentMessage(t, sibling.ID(), 5*time.Second)
+	require.NotNil(t, msg.Message.GetAgentDisconnect())
+	outer.upstream.RequireNoAgentMessage(t, agent.ID(), 300*time.Millisecond)
+}
+
+func TestGatewayDisconnectAgentIsNotForwardedToAGatewayWithoutSupport(t *testing.T) {
+	t.Parallel()
+
+	outer := newGatewayTestHarness(t, 1)
+	inner := newChainedGatewayHarness(t, "inner", outer.agentURL, 1)
+
+	agent := inner.NewAgent(t)
+	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	outer.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+
+	// An older inner gateway does not send the capability header.
+	conn, ok := outer.gateway.server.getAgentConnection(agent.ID())
+	require.True(t, ok)
+	require.True(t, conn.disconnectAgentSupported.Load(), "the inner gateway advertises the capability")
+	conn.disconnectAgentSupported.Store(false)
+
+	require.NoError(t, outer.upstream.Send(disconnectAgentMessage(t, agent.RawID())))
+	require.NoError(t, outer.upstream.Send(&protobufs.ServerToAgent{InstanceUid: agent.RawID(), Capabilities: 6}))
+	require.Equal(t, uint64(6), agent.WaitForMessage(t, 5*time.Second).GetCapabilities(),
+		"the request is not forwarded, so the agent stays connected and routed")
+}
+
+func TestHasGatewayCapability(t *testing.T) {
+	header := http.Header{}
+	require.False(t, hasGatewayCapability(header, OpampGatewayDisconnectAgentType))
+
+	header.Set(gatewayCapabilitiesHeader, "other, disconnectAgent")
+	require.True(t, hasGatewayCapability(header, OpampGatewayDisconnectAgentType))
+
+	header.Set(gatewayCapabilitiesHeader, "disconnectAgentV2")
+	require.False(t, hasGatewayCapability(header, OpampGatewayDisconnectAgentType))
 }
