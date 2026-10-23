@@ -21,12 +21,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/adapter"
 	"go.opentelemetry.io/collector/component"
@@ -74,6 +76,10 @@ type baseReceiver struct {
 	// it to the next consumer. Installed by the logs and metrics constructors;
 	// it is the only per-signal step in the shared poll loop.
 	consume consumeFunc
+
+	// clock supplies "now" for the end bound resolved each poll cycle. Real in
+	// production; tests swap in a fake so they can advance time without sleeping.
+	clock clockwork.Clock
 }
 
 // initializeRequestBody parses the configured request_body template. Validate
@@ -164,7 +170,9 @@ func (b *baseReceiver) reconcileCheckpointWithConfig() {
 		}
 	}
 
-	if b.cfg.Pagination.Mode == paginationModePageSize {
+	// Timestamp pagination's page size is the same kind of knob, and it also
+	// decides when a page counts as full, so a stale value would misjudge hasMore.
+	if b.cfg.Pagination.Mode == paginationModePageSize || b.cfg.Pagination.Mode == paginationModeTimestamp {
 		configuredPageSize := newPaginationState(b.cfg).PageSize
 		if b.paginationState.PageSize != configuredPageSize {
 			b.logger.Info("applying configured page size over the value in the stored checkpoint",
@@ -255,6 +263,9 @@ func (b *baseReceiver) adjustPollInterval(result pollResult) {
 // is no longer valid because it tracks pagination state for a different query.
 //
 // Included: URL, pagination mode, start_time_value, end_time_value, starting_offset, starting_page.
+// end_time_value is hashed with any "now - <duration>" lag normalized to "now"
+// (see fingerprintEndTimeValue), and loadCheckpoint also accepts the other
+// "now"-based ends (see acceptedFingerprints).
 // These are the fields where a change means "I want different data" and the checkpoint is stale.
 //
 // Excluded (changing these does NOT invalidate the checkpoint):
@@ -278,7 +289,7 @@ func configFingerprint(cfg *Config) string {
 	h.Write([]byte{0})
 	h.Write([]byte(cfg.StartTimeValue))
 	h.Write([]byte{0})
-	h.Write([]byte(cfg.EndTimeValue))
+	h.Write([]byte(fingerprintEndTimeValue(cfg.EndTimeValue)))
 	h.Write([]byte{0})
 	h.Write([]byte(fmt.Sprintf("%d", cfg.Pagination.OffsetLimit.StartingOffset)))
 	h.Write([]byte{0})
@@ -297,6 +308,45 @@ func configFingerprint(cfg *Config) string {
 	}
 
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// fingerprintEndTimeValue hashes every "now - <duration>" end as "now". The lag
+// only shifts when records become eligible, not which records the query
+// covers, and the data-driven start keeps its place, so tuning it must not
+// discard the checkpoint. "now" and "" pass through so existing fingerprints
+// are unchanged.
+func fingerprintEndTimeValue(value string) string {
+	if lag, ok, err := parseRelativeNow(value); ok && err == nil && lag > 0 {
+		return "now"
+	}
+	return value
+}
+
+// acceptedFingerprints returns every fingerprint a stored checkpoint may carry
+// and still be valid for cfg, starting with configFingerprint(cfg) itself.
+//
+// An unset end_time_value with end_time_param_name set behaves exactly like
+// "now", but the two hashed differently before lags existed, and changing what
+// either hashes to now would discard every existing checkpoint on upgrade.
+// So the written fingerprint stays as it was, and on load a checkpoint written
+// under any other "now"-based end is accepted too: switching between the
+// default end, "now", and "now - <duration>" keeps polling progress.
+func acceptedFingerprints(cfg *Config) []string {
+	fingerprints := []string{configFingerprint(cfg)}
+
+	nowBased := isRelativeToNow(cfg.EndTimeValue) || (cfg.EndTimeValue == "" && cfg.EndTimeParamName != "")
+	if !nowBased {
+		return fingerprints
+	}
+
+	for _, equivalent := range []string{"", "now"} {
+		alt := *cfg
+		alt.EndTimeValue = equivalent
+		if fingerprint := configFingerprint(&alt); fingerprint != fingerprints[0] {
+			fingerprints = append(fingerprints, fingerprint)
+		}
+	}
+	return fingerprints
 }
 
 // loadCheckpoint loads the checkpoint from storage and validates it against the current config.
@@ -323,11 +373,11 @@ func (b *baseReceiver) loadCheckpoint(ctx context.Context) {
 	// (different URL, pagination settings, start_time_value, etc.), the checkpoint
 	// is stale and must be discarded to avoid applying pagination state from a
 	// different query configuration.
-	currentFingerprint := configFingerprint(b.cfg)
-	if checkpoint.ConfigFingerprint != "" && checkpoint.ConfigFingerprint != currentFingerprint {
+	accepted := acceptedFingerprints(b.cfg)
+	if checkpoint.ConfigFingerprint != "" && !slices.Contains(accepted, checkpoint.ConfigFingerprint) {
 		b.logger.Warn("discarding stored checkpoint because receiver configuration has changed",
 			zap.String("stored_fingerprint", checkpoint.ConfigFingerprint),
-			zap.String("current_fingerprint", currentFingerprint))
+			zap.String("current_fingerprint", accepted[0]))
 		return
 	}
 
@@ -497,6 +547,15 @@ func (b *baseReceiver) handlePagination(fullResponse map[string]any, data []map[
 		return false, apiRequest{}
 	}
 
+	// A full page can carry the start up to the cycle's end bound. Stop rather
+	// than send an inverted range; the start is kept, so nothing is skipped.
+	if timeWindowEmpty(b.cfg, b.paginationState) {
+		b.logger.Debug("start time has reached the end time, stopping pagination",
+			zap.Time("current_timestamp", b.paginationState.CurrentTimestamp),
+			zap.String("end_time", b.paginationState.ResolvedEndTime))
+		return false, apiRequest{}
+	}
+
 	// Rebuild the request from the advanced pagination state
 	nextReq, err := b.buildAPIRequest()
 	if err != nil {
@@ -626,6 +685,16 @@ func (b *baseReceiver) poll(ctx context.Context) (pollResult, error) {
 
 	result := pollResult{}
 
+	// Resolve the end bound once for the whole cycle, so every page shares it.
+	refreshEndTime(b.cfg, b.paginationState, b.clock.Now())
+
+	if timeWindowEmpty(b.cfg, b.paginationState) {
+		b.logger.Debug("skipping poll cycle: start time has reached the end time",
+			zap.Time("current_timestamp", b.paginationState.CurrentTimestamp),
+			zap.String("end_time", b.paginationState.ResolvedEndTime))
+		return result, nil
+	}
+
 	// Build the initial request from the current pagination state
 	req, err := b.buildAPIRequest()
 	if err != nil {
@@ -742,6 +811,7 @@ func newRESTAPILogsReceiver(
 			logger:   params.Logger,
 			cfg:      cfg,
 			id:       params.ID,
+			clock:    clockwork.NewRealClock(),
 		},
 		consumer: cons,
 	}
@@ -1044,6 +1114,7 @@ func newRESTAPIMetricsReceiver(
 			logger:   params.Logger,
 			cfg:      cfg,
 			id:       params.ID,
+			clock:    clockwork.NewRealClock(),
 		},
 		consumer: cons,
 	}

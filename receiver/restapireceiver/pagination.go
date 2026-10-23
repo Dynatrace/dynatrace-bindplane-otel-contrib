@@ -109,10 +109,18 @@ type paginationState struct {
 	CurrentTimestamp  time.Time `json:"current_timestamp,omitempty"`
 	TimestampFromData bool      `json:"timestamp_from_data,omitempty"` // true if CurrentTimestamp was set from response data (vs initial config)
 
-	// Resolved time-bound values. "now" is resolved once per polling cycle
-	// so that all pages within a single pagination run share the same value.
+	// Resolved time-bound values. The start is resolved once, when the state is
+	// created, and is checkpointed on purpose: outside timestamp pagination the
+	// stored offset or page is a position within the query that start defines,
+	// so re-resolving "now" after a restart would shift the query under it and
+	// skip records.
 	ResolvedStartTime string `json:"resolved_start_time,omitempty"`
-	ResolvedEndTime   string `json:"resolved_end_time,omitempty"`
+
+	// The end is re-resolved by refreshEndTime at the start of every poll cycle,
+	// so all pages within a cycle share one value while a "now"-based end keeps
+	// moving between cycles. It is deliberately kept out of the checkpoint: a
+	// restored end would freeze "now" at whenever it was last saved.
+	ResolvedEndTime string `json:"-"`
 
 	// Metadata
 	TotalRecords int `json:"total_records,omitempty"`
@@ -187,8 +195,6 @@ func newPaginationState(cfg *Config) *paginationState {
 		}
 	}
 
-	// Resolve "now" once so all pages in a pagination run share the same value.
-	//
 	// Resolution is driven by the configured values, not by the *_param_name
 	// settings: a param name only decides whether the bound is sent as a query
 	// parameter, and a request_body template may reference the bound without any
@@ -196,15 +202,33 @@ func newPaginationState(cfg *Config) *paginationState {
 	if cfg.StartTimeValue != "" {
 		state.ResolvedStartTime = formatTimeBoundValue(cfg.StartTimeValue, cfg.TimestampFormat)
 	}
-	if cfg.EndTimeParamName != "" || cfg.EndTimeValue != "" {
-		endValue := cfg.EndTimeValue
-		if endValue == "" {
-			endValue = "now"
-		}
-		state.ResolvedEndTime = formatTimeBoundValue(endValue, cfg.TimestampFormat)
-	}
+	refreshEndTime(cfg, state, time.Now())
 
 	return state
+}
+
+// refreshEndTime resolves the end bound for the poll cycle about to start.
+// Called once per cycle, so every page in the cycle shares the same end, while
+// "now" and "now - <duration>" advance from one cycle to the next. A fixed value
+// resolves to itself every time. now is passed in so callers choose the clock.
+func refreshEndTime(cfg *Config, state *paginationState, now time.Time) {
+	if cfg.EndTimeParamName == "" && cfg.EndTimeValue == "" {
+		return
+	}
+
+	endValue := cfg.EndTimeValue
+	if endValue == "" {
+		endValue = "now"
+	}
+
+	// Validation has already rejected a malformed relative value.
+	if lag, ok, _ := parseRelativeNow(endValue); ok {
+		state.ResolvedEndTime = formatTimeBound(now.UTC().Add(-lag), cfg.TimestampFormat)
+		return
+	}
+
+	// Fixed value — already validated, sent as written.
+	state.ResolvedEndTime = endValue
 }
 
 // buildPaginationParams builds query parameters for pagination based on the current state.
@@ -257,8 +281,8 @@ func buildPaginationParams(cfg *Config, state *paginationState) url.Values {
 		}
 	}
 
-	// End time is always applied as a static value regardless of pagination mode.
-	// Uses the value resolved once in newPaginationState so all pages share the same time.
+	// End time is applied the same way regardless of pagination mode. Uses the
+	// value refreshEndTime resolved for this poll cycle, so all its pages share it.
 	if cfg.EndTimeParamName != "" && state.ResolvedEndTime != "" {
 		params.Set(cfg.EndTimeParamName, state.ResolvedEndTime)
 	}
@@ -600,17 +624,22 @@ func parseTimestampString(s string) (time.Time, bool) {
 // Otherwise, returns the value as-is (it was already validated by Config.Validate()).
 func formatTimeBoundValue(value, format string) string {
 	if value == "now" {
-		now := time.Now().UTC()
-		if isEpochFormat(format) {
-			return formatTimestampEpoch(now, format)
-		}
-		if format == "" {
-			format = time.RFC3339
-		}
-		return now.Format(format)
+		return formatTimeBound(time.Now().UTC(), format)
 	}
 	// Fixed value — already validated, pass through as-is.
 	return value
+}
+
+// formatTimeBound formats t per the configured timestamp_format, defaulting to
+// RFC3339.
+func formatTimeBound(t time.Time, format string) string {
+	if isEpochFormat(format) {
+		return formatTimestampEpoch(t, format)
+	}
+	if format == "" {
+		format = time.RFC3339
+	}
+	return t.Format(format)
 }
 
 // updatePaginationState updates the pagination state to the next page/offset.
@@ -675,15 +704,30 @@ func requestStartTime(cfg *Config, state *paginationState) string {
 	if state.PagesFetched > 0 || state.TimestampFromData {
 		timestampForRequest = timestampForRequest.Add(timestampResolution(cfg.TimestampFormat))
 	}
+	return formatTimeBound(timestampForRequest, cfg.TimestampFormat)
+}
 
-	format := cfg.TimestampFormat
-	if isEpochFormat(format) {
-		return formatTimestampEpoch(timestampForRequest, format)
+// timeWindowEmpty reports whether the next request's start bound has reached
+// the end bound resolved for this cycle, so it would ask for a range that ends
+// at or before it starts. The bounds are compared as they will be sent, after
+// formatting to the configured timestamp_format, so a window that only exists
+// below the format's precision counts as empty. Records are not lost by
+// skipping: the start stays put and, when the end is "now"-based, the next
+// cycle's end has moved on.
+func timeWindowEmpty(cfg *Config, state *paginationState) bool {
+	startValue := requestStartTime(cfg, state)
+	if startValue == "" || state.ResolvedEndTime == "" {
+		return false
 	}
-	if format == "" {
-		format = time.RFC3339
+	start, err := cfg.parseConfigTimestamp(startValue)
+	if err != nil {
+		return false
 	}
-	return timestampForRequest.Format(format)
+	end, err := cfg.parseConfigTimestamp(state.ResolvedEndTime)
+	if err != nil {
+		return false
+	}
+	return !start.Before(end)
 }
 
 // requestBodyData is the value set a request_body template renders against.

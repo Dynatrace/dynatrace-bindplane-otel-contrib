@@ -212,10 +212,40 @@ These top-level fields add start and/or end time query parameters to every reque
 | Field                   | Type   | Default | Required | Description                                                                                                                                                                                                                                                                       |
 | ----------------------- | ------ | ------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `start_time_param_name` | string |         | `false`  | Request parameter name for start time (e.g., "since", "from", "start_time"). **Required** when `pagination.mode` is `timestamp`                                                                                                                                                     |
-| `start_time_value`      | string |         | `false`  | Value for the start time: `"now"` resolves to the current time at receiver start (not dynamically updated), or a fixed timestamp in the configured format (e.g., `"2025-01-01T00:00:00Z"` or `"1704067200"` for epoch). For timestamp pagination, this is the initial start value |
+| `start_time_value`      | string |         | `false`  | Value for the start time: `"now"` resolves to the current time when the receiver first starts without a checkpoint, or a fixed timestamp in the configured format (e.g., `"2025-01-01T00:00:00Z"` or `"1704067200"` for epoch). For timestamp pagination, this is the initial start value, after which the start follows the response data. In other pagination modes the start is not dynamically updated: it is stored in the checkpoint and reused after a restart, so a saved offset or page still refers to the same query |
 | `end_time_param_name`   | string |         | `false`  | Request parameter name for end time (e.g., "until", "to", "end_time"). If set, sends an end time on every request                                                                                                                                                                   |
-| `end_time_value`        | string | `now`   | `false`  | Value for the end time: `"now"` (default) resolves to the current time at receiver start (not dynamically updated), or a fixed timestamp in the configured format                                                                                                                 |
+| `end_time_value`        | string | `now`   | `false`  | Value for the end time: `"now"` (default) or `"now - <duration>"` (e.g., `"now - 30s"`), resolved at the start of every poll; or a fixed timestamp in the configured format. See [End time](#end-time) |
 | `timestamp_format`      | string | RFC3339 | `false`  | Format for both start and end time request parameters. Accepts Go time format strings or epoch formats (see below). With an epoch format, `start_time_value` and `end_time_value` must be plain JSON numbers — no leading `+` and no trailing `.` — so a `request_body` template can emit them unquoted                                                                                                                                                                  |
+
+#### End time
+
+The end time is resolved at the **start of every poll cycle** and shared by every page in that cycle, so a multi-page cycle queries one consistent window. A `now`-based end keeps moving from one cycle to the next. It is never saved to or restored from the checkpoint.
+
+`end_time_value` accepts three forms:
+
+- `now` (the default when `end_time_param_name` is set): the current time.
+- `now - <duration>`: the current time minus a [Go duration](https://pkg.go.dev/time#ParseDuration) such as `30s`, `5m`, or `1m30s`. Spaces are optional (`now-30s` also works) and the duration must be greater than zero. Use this for APIs that index events late: the lag holds the window back until they are queryable, so they are delayed instead of missed.
+- A fixed timestamp in the configured `timestamp_format` or RFC3339, sent as written on every request.
+
+The relative form is only supported for `end_time_value`. `start_time_value` still accepts `now` or a fixed timestamp.
+
+With `timestamp` pagination the start time follows the response data. When the start reaches or passes the end, as it does right after startup with `start_time_value: now` and a lagged end, or once the data passes a fixed end, the receiver sends no request that cycle and backs off as for an empty poll. The start does not move, so a moving end opens the window again on a later poll and nothing is dropped.
+
+Other pagination modes skip a cycle the same way while their start is at or after the end, for example for the length of the lag after startup with `start_time_value: now` and `end_time_value: now - <duration>`. Both bounds are compared as they are sent, after formatting to `timestamp_format`, so a window narrower than the format's precision also counts as empty.
+
+```yaml
+receivers:
+  restapi:
+    url: "https://api.example.com/events"
+    start_time_param_name: "since"
+    start_time_value: "2025-01-01T00:00:00Z"
+    end_time_param_name: "until"
+    end_time_value: "now - 30s"
+    pagination:
+      mode: timestamp
+      timestamp:
+        timestamp_field_name: "created_at"
+```
 
 ### Request Body Templating
 
@@ -903,16 +933,16 @@ The checkpoint includes:
 
 ### Page size and checkpoints
 
-`pagination.offset_limit.limit` and `pagination.page_size.page_size` are throughput knobs
-rather than part of the query, so changing either does **not** discard a stored checkpoint.
+`pagination.offset_limit.limit`, `pagination.page_size.page_size`, and `pagination.timestamp.page_size`
+are throughput knobs rather than part of the query, so changing any of them does **not** discard a stored checkpoint.
 The configured value is re-applied over the one in the checkpoint on startup, so the change
-takes effect on the next poll while the cursor, offset, or page already reached is preserved.
+takes effect on the next poll while the cursor, offset, page, or timestamp already reached is preserved.
 
 ### Config change detection
 
-Each checkpoint is tagged with a fingerprint derived from the URL, pagination settings, and time parameters (`start_time_param_name`, `start_time_value`, `end_time_param_name`, `end_time_value`, `timestamp_format`). If any of these fields change between restarts (e.g., a different `url`, `start_time_value`, or pagination `mode`), the stored checkpoint is discarded and the receiver starts fresh from the new configuration. This prevents a checkpoint from one query configuration from silently applying to a different one.
+Each checkpoint is tagged with a fingerprint derived from the fields that define what data is fetched: `url`, `pagination.mode`, `start_time_value`, `end_time_value`, `pagination.offset_limit.starting_offset`, `pagination.page_size.starting_page`, and `request_body`. If any of these fields change between restarts (e.g., a different `url`, `start_time_value`, or pagination `mode`), the stored checkpoint is discarded and the receiver starts fresh from the new configuration. This prevents a checkpoint from one query configuration from silently applying to a different one. Switching between the default end (`end_time_param_name` set, `end_time_value` unset), `now`, and `now - <duration>`, or changing only the lag, keeps the checkpoint, since all of them end at the current time and the stored progress is still valid.
 
-Non-query fields like `min_poll_interval`, authentication credentials, and `headers` do not affect the fingerprint.
+Non-query fields like `min_poll_interval`, authentication credentials, `headers`, the `*_param_name` fields, and `timestamp_format` do not affect the fingerprint.
 
 ### Timestamp pagination and checkpointing
 

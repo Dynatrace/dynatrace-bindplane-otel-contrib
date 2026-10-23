@@ -1890,7 +1890,7 @@ func TestIsValidJSONNumber(t *testing.T) {
 	// and that rejects anything strconv.ParseInt will not take.
 	require.True(t, isValidJSONNumber(`"123"`))
 	cfg := &Config{TimestampFormat: epochSeconds}
-	require.Error(t, cfg.validateTimestampValue(`"123"`, "start_time_value"))
+	require.Error(t, cfg.validateTimestampValue(`"123"`, "start_time_value", false))
 }
 
 // TestEpochTimeBoundsMarshalIntoRequestBody guards the bug isValidJSONNumber
@@ -2083,6 +2083,89 @@ func TestConfigUnmarshalBodyOptions(t *testing.T) {
 			require.Equal(t, tc.wantIncludeOriginal, cfg.IncludeLogRecordOriginal)
 			require.Equal(t, tc.wantNeedsOriginal, cfg.needsOriginal())
 			require.NoError(t, cfg.Validate())
+		})
+	}
+}
+
+func TestParseRelativeNow(t *testing.T) {
+	testCases := []struct {
+		value   string
+		lag     time.Duration
+		ok      bool
+		wantErr string
+	}{
+		{value: "now", ok: true},
+		{value: "now-30s", lag: 30 * time.Second, ok: true},
+		{value: "now - 1m30s", lag: 90 * time.Second, ok: true},
+		{value: "now -2h", lag: 2 * time.Hour, ok: true},
+		{value: "now+30s", ok: true, wantErr: `must be "now" or "now - <duration>"`},
+		{value: "now ", ok: true, wantErr: `must be "now" or "now - <duration>"`},
+		{value: "now - abc", ok: true, wantErr: "duration must be a Go duration"},
+		{value: "now - 30", ok: true, wantErr: "duration must be a Go duration"},
+		{value: "now-0s", ok: true, wantErr: "duration must be greater than 0"},
+		{value: "now - -5s", ok: true, wantErr: "duration must be greater than 0"},
+		{value: "2025-01-01T00:00:00Z", ok: false},
+		{value: "1704067200", ok: false},
+		{value: "", ok: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.value, func(t *testing.T) {
+			lag, ok, err := parseRelativeNow(tc.value)
+			require.Equal(t, tc.ok, ok)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.lag, lag)
+		})
+	}
+}
+
+func TestConfig_ValidateRelativeEndTime(t *testing.T) {
+	newConfig := func(start, end string) *Config {
+		return &Config{
+			URL:                "https://api.example.com/data",
+			AuthMode:           authModeNone,
+			StartTimeParamName: "since",
+			StartTimeValue:     start,
+			EndTimeParamName:   "until",
+			EndTimeValue:       end,
+			Pagination: PaginationConfig{
+				Mode:      paginationModeTimestamp,
+				Timestamp: TimestampPagination{TimestampFieldName: "ts"},
+			},
+		}
+	}
+
+	testCases := []struct {
+		name        string
+		start       string
+		end         string
+		format      string
+		expectedErr string
+	}{
+		{name: "lag", start: "now", end: "now-30s"},
+		{name: "lag with spaces", start: "now", end: "now - 1m30s"},
+		{name: "lag with epoch format", start: "1704067200", end: "now - 30s", format: epochSeconds},
+		{name: "fixed start before lagged end is not compared", start: "2999-01-01T00:00:00Z", end: "now - 30s"},
+		{name: "future offset", end: "now+30s", expectedErr: `end_time_value "now+30s" is invalid: must be "now" or "now - <duration>"`},
+		{name: "bad duration", end: "now-abc", expectedErr: `end_time_value "now-abc" is invalid: duration must be a Go duration`},
+		{name: "zero lag", end: "now-0s", expectedErr: `end_time_value "now-0s" is invalid: duration must be greater than 0`},
+		{name: "lag on start", start: "now-30s", expectedErr: `start_time_value "now-30s" is invalid: "now - <duration>" is only supported for end_time_value`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := newConfig(tc.start, tc.end)
+			cfg.TimestampFormat = tc.format
+			err := cfg.Validate()
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tc.expectedErr)
 		})
 	}
 }
