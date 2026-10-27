@@ -38,7 +38,7 @@ This exporter writes logs to the Google Cloud Storage bucket that Exabeam create
 | logtags            | map    |                                  | `false`  | Up to 10 key/value pairs with non-empty names, copied into every record. Merged with `attributes["exabeam_logtags"]`. Exabeam makes each one searchable as `m_c_logtags_<name>`.     |
 | raw_log_field      | string |                                  | `false`  | An OTTL expression for the raw log written to `message`, for example `body` or `attributes["raw"]`. Defaults to `attributes["log.record.original"]` when present, otherwise `body`. Maps and lists are written as JSON. If the expression fails for a record, that record uses the default and a warning is logged for the batch. |
 | endpoint           | string | `https://storage.googleapis.com` | `false`  | The S3-compatible endpoint to upload to.                                                                                                                                               |
-| max_file_size      | int    | `10485760`                       | `false`  | The maximum uncompressed size of a file in bytes. A batch larger than this is split into several files.                                                                               |
+| max_file_size      | int    | `10000000`                       | `false`  | The maximum uncompressed size of a file in bytes. A batch larger than this is split into several files.                                                                               |
 | timeout            | string | `30s`                            | `false`  | The timeout for each upload. See [doc](https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/README.md) for details.                            |
 | sending_queue      | map    | see [File Rollover](#file-rollover) | `false` | See [doc](https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/README.md) for details.                                                      |
 | retry_on_failure   | map    |                                  | `false`  | See [doc](https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/README.md) for details.                                                          |
@@ -70,22 +70,30 @@ Exabeam recommends rolling files over at 10 MB, 300 seconds open or 30 seconds i
 
 ```yaml
 sending_queue:
-  num_consumers: 10   # concurrent uploads
+  num_consumers: 10   # batches uploading at once
   queue_size: 1000
   batch:
     sizer: bytes
-    min_size: 10485760   # 10 MiB
-    max_size: 10485760   # 10 MiB
-    flush_timeout: 30s
+    min_size: 10000000   # 10 MB
+    max_size: 10000000   # 10 MB
+    flush_timeout: 300s
 ```
 
 - **Size:** a batch is flushed once it reaches `min_size`, and is never larger than `max_size`. The batch sizer measures the OTLP size of the data. The exporter also splits a batch into several files at `max_file_size` bytes of uncompressed output, so no file is larger than that.
-- **Open and idle time:** a batch is flushed at most `flush_timeout` after it opens. The 30s default keeps files within both of Exabeam's time limits.
-- **Open files:** `num_consumers` sets how many files can be uploading at once.
+- **Open time:** a batch is flushed at most `flush_timeout` after it opens, so the 300s default matches Exabeam's max open time. Adding data to a batch does not restart the timer.
+- **Idle time:** the batcher has no idle timeout. A batch that stops receiving data is flushed when `flush_timeout` expires, so it can wait up to 300s instead of 30s. Lower `flush_timeout` to get data to Exabeam sooner, at the cost of smaller files.
+- **Open files:** only one batch is filled at a time, which is within Exabeam's limit of 100 open files. `num_consumers` sets how many full batches can be uploading at once, so up to about `num_consumers` × `max_size` bytes of batches are held in memory while they upload.
 
-A batch is often larger than `max_file_size` once encoded, because each record's metadata is added to it, so it is split into several files. If one of those uploads fails, only the records from that file onward are retried. Files that were already uploaded are not sent again.
+A batch is often larger than `max_file_size` once encoded, because each record's metadata is added to it, so it is split into several files. If one of those uploads fails while the collector is running, only the records from that file onward are retried. Files that were already uploaded are not sent again.
 
-Buffered batches are uploaded when the collector shuts down. Configure a persistent queue (`sending_queue.storage`) to keep queued data across restarts.
+#### Shutdown
+
+When the collector shuts down, retries stop and each buffered batch gets one upload attempt. What happens to a batch that still fails depends on the queue:
+
+- **In-memory queue (default):** every queued batch, including the one being filled, is attempted once. A batch that fails is dropped.
+- **Persistent queue (`sending_queue.storage`):** queued batches that haven't been read yet stay in storage. Batches being filled or uploaded are attempted once, and a batch that fails is kept and sent again after the collector restarts. If some of that batch's files were already uploaded, the whole batch is resent, so those files are uploaded twice.
+
+Shutdown waits for these uploads to finish and has no time limit of its own. Each upload is bounded by `timeout`. If the process is killed first, for example when a Kubernetes termination grace period runs out, data that hasn't been uploaded is lost unless it is in a persistent queue.
 
 ### Object Name
 

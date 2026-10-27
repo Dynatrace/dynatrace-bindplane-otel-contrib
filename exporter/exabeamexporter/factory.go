@@ -32,9 +32,10 @@ const (
 	defaultEndpoint = "https://storage.googleapis.com"
 
 	// defaultMaxFileSize and defaultFlushTimeout follow Exabeam's recommended rollover
-	// settings: 10 MB max file size, 300s max open time and 30s max idle time.
-	defaultMaxFileSize  = 10 * 1024 * 1024
-	defaultFlushTimeout = 30 * time.Second
+	// settings: 10 MB max file size and 300s max open time. The batcher's flush timeout
+	// starts when a batch opens, so it matches max open time; there is no idle timeout.
+	defaultMaxFileSize  = 10_000_000
+	defaultFlushTimeout = 300 * time.Second
 
 	// defaultTimeout bounds one upload. Batched files are up to several MB compressed,
 	// more than exporterhelper's 5s default allows on a slow link.
