@@ -86,6 +86,8 @@ sending_queue:
 
 A batch is often larger than `max_file_size` once encoded, because each record's metadata is added to it, so it is split into several files. If one of those uploads fails while the collector is running, only the records from that file onward are retried. Files that were already uploaded are not sent again.
 
+Uploads rejected with a 4xx status other than 408 or 429, such as 403 for wrong keys or 404 for a missing bucket, are not retried, because retrying can't fix them. The records in the failed file and any later files of the batch are dropped. Network errors, timeouts, 408, 429 and 5xx responses are retried.
+
 #### Shutdown
 
 When the collector shuts down, retries stop and each buffered batch gets one upload attempt. What happens to a batch that still fails depends on the queue:
