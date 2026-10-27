@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/pmetrictest"
 	"github.com/stretchr/testify/require"
@@ -389,7 +390,7 @@ func TestResettableThroughputMeasurementsRegistry(t *testing.T) {
 		expectedMetrics, err := golden.ReadMetrics(filepath.Join("testdata", "expected", "throughput_measurements_no_count.yaml"))
 		require.NoError(t, err)
 
-		require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics, pmetrictest.IgnoreTimestamp()))
+		require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics, pmetrictest.IgnoreTimestamp(), pmetrictest.IgnoreMetricAttributeValue(InstanceIDAttribute)))
 	})
 
 	t.Run("Test sequence tracking", func(t *testing.T) {
@@ -517,7 +518,7 @@ func TestResettableThroughputMeasurementsRegistry(t *testing.T) {
 		expectedMetrics, err := golden.ReadMetrics(filepath.Join("testdata", "expected", "throughput_measurements_count.yaml"))
 		require.NoError(t, err)
 
-		require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics, pmetrictest.IgnoreTimestamp()))
+		require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics, pmetrictest.IgnoreTimestamp(), pmetrictest.IgnoreMetricAttributeValue(InstanceIDAttribute)))
 	})
 
 	t.Run("Test only metrics throughput", func(t *testing.T) {
@@ -541,7 +542,7 @@ func TestResettableThroughputMeasurementsRegistry(t *testing.T) {
 		expectedMetrics, err := golden.ReadMetrics(filepath.Join("testdata", "expected", "throughput_measurements_metrics_only.yaml"))
 		require.NoError(t, err)
 
-		require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics, pmetrictest.IgnoreTimestamp()))
+		require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics, pmetrictest.IgnoreTimestamp(), pmetrictest.IgnoreMetricAttributeValue(InstanceIDAttribute)))
 	})
 
 	t.Run("Test registered measurements are in OTLP payload (extra attributes)", func(t *testing.T) {
@@ -575,7 +576,7 @@ func TestResettableThroughputMeasurementsRegistry(t *testing.T) {
 		expectedMetrics, err := golden.ReadMetrics(filepath.Join("testdata", "expected", "throughput_measurements_extra_attrs.yaml"))
 		require.NoError(t, err)
 
-		require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics, pmetrictest.IgnoreTimestamp()))
+		require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics, pmetrictest.IgnoreTimestamp(), pmetrictest.IgnoreMetricAttributeValue(InstanceIDAttribute)))
 	})
 
 	t.Run("Test reset removes registered measurements", func(t *testing.T) {
@@ -770,4 +771,35 @@ func TestRegistry_IgnoresRejectedRecords(t *testing.T) {
 	// More rejected traffic after a report does not trigger another one.
 	tmp.RecordRejectedLogs(context.Background(), Measurement{Size: 3974, Count: 16})
 	require.Equal(t, 0, reg.OTLPMeasurements(nil).DataPointCount())
+}
+
+func TestOTLPMeasurements_InstanceID(t *testing.T) {
+	_, err := uuid.Parse(InstanceID)
+	require.NoError(t, err)
+
+	reg := NewResettableThroughputMeasurementsRegistry(true)
+	tmp, _ := newTestMeasurements(t)
+	require.NoError(t, reg.RegisterThroughputMeasurements("throughputmeasurement/1", tmp))
+
+	// A caller-supplied instance ID is overridden and the caller's map is left untouched.
+	extra := map[string]string{InstanceIDAttribute: "caller-supplied", "env": "prod"}
+	tmp.RecordLogs(context.Background(), Measurement{Size: 1, Count: 1})
+	first := reg.OTLPMeasurements(extra)
+	require.Equal(t, map[string]string{InstanceIDAttribute: "caller-supplied", "env": "prod"}, extra)
+
+	tmp.RecordLogs(context.Background(), Measurement{Size: 1, Count: 1})
+	second := reg.OTLPMeasurements(nil)
+
+	for _, m := range []pmetric.Metrics{first, second} {
+		ms := m.ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics()
+		require.Greater(t, ms.Len(), 0)
+		for i := 0; i < ms.Len(); i++ {
+			dps := ms.At(i).Sum().DataPoints()
+			for j := 0; j < dps.Len(); j++ {
+				v, ok := dps.At(j).Attributes().Get(InstanceIDAttribute)
+				require.True(t, ok, ms.At(i).Name())
+				require.Equal(t, InstanceID, v.Str(), ms.At(i).Name())
+			}
+		}
+	}
 }

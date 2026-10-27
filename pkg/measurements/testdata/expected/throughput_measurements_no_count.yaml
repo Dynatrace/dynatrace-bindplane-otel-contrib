@@ -7,6 +7,9 @@ resourceMetrics:
               dataPoints:
                 - asInt: "3974"
                   attributes:
+                    - key: bindplane_instance_id
+                      value:
+                        stringValue: 00000000-0000-0000-0000-000000000000
                     - key: processor
                       value:
                         stringValue: throughputmeasurement/1
@@ -16,6 +19,9 @@ resourceMetrics:
               dataPoints:
                 - asInt: "5675"
                   attributes:
+                    - key: bindplane_instance_id
+                      value:
+                        stringValue: 00000000-0000-0000-0000-000000000000
                     - key: processor
                       value:
                         stringValue: throughputmeasurement/1
@@ -25,6 +31,9 @@ resourceMetrics:
               dataPoints:
                 - asInt: "16767"
                   attributes:
+                    - key: bindplane_instance_id
+                      value:
+                        stringValue: 00000000-0000-0000-0000-000000000000
                     - key: processor
                       value:
                         stringValue: throughputmeasurement/1
@@ -34,6 +43,9 @@ resourceMetrics:
               dataPoints:
                 - asInt: "2373"
                   attributes:
+                    - key: bindplane_instance_id
+                      value:
+                        stringValue: 00000000-0000-0000-0000-000000000000
                     - key: processor
                       value:
                         stringValue: throughputmeasurement/1
