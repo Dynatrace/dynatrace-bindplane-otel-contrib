@@ -312,7 +312,7 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 	}
 
 	// find the downstream connection from the server
-	conn, ok := g.server.getAgentConnection(agentID)
+	conn, ok := g.agentConnectionFor(connection, agentID)
 	if !ok {
 		// downstream connection no longer exists, so there is nowhere to forward the message
 		g.logger.Debug("dropping message for disconnected agent",
@@ -340,6 +340,24 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 	g.telemetry.OpampgatewayMessages.Add(context.Background(), 1, directionDownstream)
 	g.telemetry.OpampgatewayMessagesBytes.Add(context.Background(), int64(len(message.data)), directionDownstream)
 	return nil
+}
+
+// agentConnectionFor returns the downstream connection for a message to the agent from the
+// upstream connection. Agents with a duplicate ID can be on more than one downstream
+// connection. The server sends a message for a session on the upstream connection that
+// carries the session, so a downstream connection on that upstream connection gets the
+// message. Otherwise a reassignment for a silent pending agent goes to the active agent.
+func (g *Gateway) agentConnectionFor(upstream *upstreamConnection, agentID string) (*downstreamConnection, bool) {
+	conn, ok := g.server.getAgentConnection(agentID)
+	if ok && conn.upstreamConnection == upstream {
+		return conn, true
+	}
+	if other, found := g.server.downstreamConnections.find(func(c *downstreamConnection) bool {
+		return c.upstreamConnection == upstream && c.agents.has(agentID)
+	}); found {
+		return other, true
+	}
+	return conn, ok
 }
 
 // relayChainedConnect relays an OpampGatewayConnect request from a downstream gateway to the

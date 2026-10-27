@@ -784,6 +784,23 @@ func (s *testOpAMPServer) Send(resp *protobufs.ServerToAgent) error {
 	return writeWSMessage(s.connections[len(s.connections)-1].conn, payload)
 }
 
+// SendOn sends the message on the upstream connection with the ID.
+func (s *testOpAMPServer) SendOn(connectionID string, resp *protobufs.ServerToAgent) error {
+	payload, err := proto.Marshal(resp)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, c := range s.connections {
+		if c.id == connectionID {
+			return writeWSMessage(c.conn, payload)
+		}
+	}
+	return fmt.Errorf("no upstream connection %s", connectionID)
+}
+
 // Close closes the test OpAMP server. It will close all the connections and the server.
 func (s *testOpAMPServer) Close() {
 	s.server.Close()
