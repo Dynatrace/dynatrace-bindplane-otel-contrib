@@ -34,7 +34,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 
 	require.Equal(t, "https://storage.googleapis.com", cfg.Endpoint)
-	require.Equal(t, int64(10*1024*1024), cfg.MaxFileSize)
+	require.Equal(t, int64(10_000_000), cfg.MaxFileSize)
 	require.Equal(t, 30*time.Second, cfg.TimeoutConfig.Timeout)
 	require.True(t, cfg.BackOffConfig.Enabled)
 
@@ -43,9 +43,9 @@ func TestCreateDefaultConfig(t *testing.T) {
 	require.True(t, queue.Batch.HasValue())
 	batch := queue.Batch.Get()
 	require.Equal(t, exporterhelper.RequestSizerTypeBytes, batch.Sizer)
-	require.Equal(t, int64(10*1024*1024), batch.MinSize)
-	require.Equal(t, int64(10*1024*1024), batch.MaxSize)
-	require.Equal(t, 30*time.Second, batch.FlushTimeout)
+	require.Equal(t, int64(10_000_000), batch.MinSize)
+	require.Equal(t, int64(10_000_000), batch.MaxSize)
+	require.Equal(t, 300*time.Second, batch.FlushTimeout)
 
 	require.NoError(t, componenttest.CheckConfigStruct(cfg))
 }
@@ -177,7 +177,7 @@ func TestExporterEndToEnd(t *testing.T) {
 	require.NoError(t, exp.ConsumeLogs(context.Background(), testLogs(3, 10)))
 	require.NoError(t, exp.ConsumeLogs(context.Background(), testLogs(2, 10)))
 
-	// The batch is far below 10 MiB and the 30s flush timeout hasn't passed, so nothing is uploaded yet.
+	// The batch is far below 10 MB and the 300s flush timeout hasn't passed, so nothing is uploaded yet.
 	require.Empty(t, srv.recorded())
 
 	require.NoError(t, exp.Shutdown(context.Background()))
