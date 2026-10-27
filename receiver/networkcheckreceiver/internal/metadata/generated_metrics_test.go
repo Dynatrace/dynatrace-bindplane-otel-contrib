@@ -84,24 +84,36 @@ func TestMetricsBuilder(t *testing.T) {
 			mb.RecordTracerouteHopLatencyDataPoint(ts, 1, 20, "traceroute.hop.address-val", AttributeTracerouteTriggerScheduled, "dns.server-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordTracerouteHopLatencyDataPoint(ts, 3, 21, "traceroute.hop.address-val-2", AttributeTracerouteTriggerPingFailure, "dns.server-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordTracerouteHopLatencyDataPoint(ts+1, 3, 21, "traceroute.hop.address-val-2", AttributeTracerouteTriggerPingFailure, "dns.server-val-2")
+				assert.Equal(t, 2, mb.metricTracerouteHopLatency.data.Gauge().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordTracerouteHopStatusDataPoint(ts, 1, 20, "traceroute.hop.address-val", AttributeTracerouteTriggerScheduled, "dns.server-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordTracerouteHopStatusDataPoint(ts, 3, 21, "traceroute.hop.address-val-2", AttributeTracerouteTriggerPingFailure, "dns.server-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordTracerouteHopStatusDataPoint(ts+1, 3, 21, "traceroute.hop.address-val-2", AttributeTracerouteTriggerPingFailure, "dns.server-val-2")
+				assert.Equal(t, 2, mb.metricTracerouteHopStatus.data.Gauge().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordTracerouteHopsDataPoint(ts, 1, AttributeTracerouteTriggerScheduled, "dns.server-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordTracerouteHopsDataPoint(ts, 3, AttributeTracerouteTriggerPingFailure, "dns.server-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordTracerouteHopsDataPoint(ts+1, 3, AttributeTracerouteTriggerPingFailure, "dns.server-val-2")
+				assert.Equal(t, 2, mb.metricTracerouteHops.data.Gauge().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordTracerouteReachedDataPoint(ts, 1, AttributeTracerouteTriggerScheduled, "dns.server-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordTracerouteReachedDataPoint(ts, 3, AttributeTracerouteTriggerPingFailure, "dns.server-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordTracerouteReachedDataPoint(ts+1, 3, AttributeTracerouteTriggerPingFailure, "dns.server-val-2")
+				assert.Equal(t, 2, mb.metricTracerouteReached.data.Gauge().DataPoints().Len())
 			}
 
 			rb := mb.NewResourceBuilder()
@@ -169,7 +181,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["traceroute.hop.latency"], "Found a duplicate in the metrics slice: traceroute.hop.latency")
 						validatedMetrics["traceroute.hop.latency"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
-						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Gauge().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Gauge().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Round-trip time to a hop that answered. Not emitted for hops that did not answer.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
@@ -224,7 +238,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["traceroute.hop.status"], "Found a duplicate in the metrics slice: traceroute.hop.status")
 						validatedMetrics["traceroute.hop.status"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
-						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Gauge().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Gauge().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "1 if the hop answered one of its probes, 0 if it answered none. Averaged over time, the fraction of traces in which the hop answered.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
@@ -273,7 +289,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["traceroute.hops"], "Found a duplicate in the metrics slice: traceroute.hops")
 						validatedMetrics["traceroute.hops"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
-						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Gauge().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Gauge().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Number of hops the trace probed. 0 when the trace could not run.", mi.Description())
 						assert.Equal(t, "{hop}", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
@@ -318,7 +336,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["traceroute.reached"], "Found a duplicate in the metrics slice: traceroute.reached")
 						validatedMetrics["traceroute.reached"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
-						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Gauge().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Gauge().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "1 if the destination answered, 0 if it did not or the trace could not run.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)

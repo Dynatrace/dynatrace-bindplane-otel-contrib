@@ -98,108 +98,162 @@ func TestMetricsBuilder(t *testing.T) {
 			mb.RecordAwsNeuronDeviceHostMemoryUsageDataPoint(ts, 1, "memory_category-val", AttributeMemoryStatePresent)
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronDeviceHostMemoryUsageDataPoint(ts, 3, "memory_category-val-2", AttributeMemoryStatePeak)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronDeviceHostMemoryUsageDataPoint(ts+1, 3, "memory_category-val-2", AttributeMemoryStatePeak)
+				assert.Equal(t, 2, mb.metricAwsNeuronDeviceHostMemoryUsage.data.Sum().DataPoints().Len())
 			}
 
 			allMetricsCount++
 			mb.RecordAwsNeuronDevicePowerUtilizationDataPoint(ts, 1, AttributePowerStatisticMin)
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronDevicePowerUtilizationDataPoint(ts, 3, AttributePowerStatisticMax)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronDevicePowerUtilizationDataPoint(ts+1, 3, AttributePowerStatisticMax)
+				assert.Equal(t, 2, mb.metricAwsNeuronDevicePowerUtilization.data.Gauge().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordAwsNeuronErrorsDataPoint(ts, 1, "hw_id-val", "memory_type-val", "error_type-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronErrorsDataPoint(ts, 3, "hw_id-val-2", "memory_type-val-2", "error_type-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronErrorsDataPoint(ts+1, 3, "hw_id-val-2", "memory_type-val-2", "error_type-val-2")
+				assert.Equal(t, 2, mb.metricAwsNeuronErrors.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordAwsNeuronExecutionCountDataPoint(ts, 1, "execution_status-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronExecutionCountDataPoint(ts, 3, "execution_status-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronExecutionCountDataPoint(ts+1, 3, "execution_status-val-2")
+				assert.Equal(t, 2, mb.metricAwsNeuronExecutionCount.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordAwsNeuronExecutionErrorsDataPoint(ts, 1, "error_type-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronExecutionErrorsDataPoint(ts, 3, "error_type-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronExecutionErrorsDataPoint(ts+1, 3, "error_type-val-2")
+				assert.Equal(t, 2, mb.metricAwsNeuronExecutionErrors.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordAwsNeuronExecutionLatencyDataPoint(ts, 1, AttributeLatencyTypeTotal, "quantile-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronExecutionLatencyDataPoint(ts, 3, AttributeLatencyTypeDevice, "quantile-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronExecutionLatencyDataPoint(ts+1, 3, AttributeLatencyTypeDevice, "quantile-val-2")
+				assert.Equal(t, 2, mb.metricAwsNeuronExecutionLatency.data.Gauge().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordAwsNeuronNeuroncoreDeviceMemoryUsageDataPoint(ts, 1, 10, "memory_category-val", AttributeMemoryStatePresent)
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronNeuroncoreDeviceMemoryUsageDataPoint(ts, 3, 11, "memory_category-val-2", AttributeMemoryStatePeak)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronNeuroncoreDeviceMemoryUsageDataPoint(ts+1, 3, 11, "memory_category-val-2", AttributeMemoryStatePeak)
+				assert.Equal(t, 2, mb.metricAwsNeuronNeuroncoreDeviceMemoryUsage.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordAwsNeuronNeuroncoreFlopsDataPoint(ts, 1, 10)
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronNeuroncoreFlopsDataPoint(ts, 3, 11)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronNeuroncoreFlopsDataPoint(ts+1, 3, 11)
+				assert.Equal(t, 2, mb.metricAwsNeuronNeuroncoreFlops.data.Gauge().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordAwsNeuronNeuroncoreHostMemoryUsageDataPoint(ts, 1, 10, AttributeMemoryStatePresent)
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronNeuroncoreHostMemoryUsageDataPoint(ts, 3, 11, AttributeMemoryStatePeak)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronNeuroncoreHostMemoryUsageDataPoint(ts+1, 3, 11, AttributeMemoryStatePeak)
+				assert.Equal(t, 2, mb.metricAwsNeuronNeuroncoreHostMemoryUsage.data.Sum().DataPoints().Len())
 			}
 
 			allMetricsCount++
 			mb.RecordAwsNeuronNeuroncoreInferencesDataPoint(ts, 1, 10)
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronNeuroncoreInferencesDataPoint(ts, 3, 11)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronNeuroncoreInferencesDataPoint(ts+1, 3, 11)
+				assert.Equal(t, 2, mb.metricAwsNeuronNeuroncoreInferences.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordAwsNeuronNeuroncoreMemoryUsageDataPoint(ts, 1, 10, "memory_category-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronNeuroncoreMemoryUsageDataPoint(ts, 3, 11, "memory_category-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronNeuroncoreMemoryUsageDataPoint(ts+1, 3, 11, "memory_category-val-2")
+				assert.Equal(t, 2, mb.metricAwsNeuronNeuroncoreMemoryUsage.data.Sum().DataPoints().Len())
 			}
 
 			allMetricsCount++
 			mb.RecordAwsNeuronNeuroncoreStatusDataPoint(ts, 1, 10, "status-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronNeuroncoreStatusDataPoint(ts, 3, 11, "status-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronNeuroncoreStatusDataPoint(ts+1, 3, 11, "status-val-2")
+				assert.Equal(t, 2, mb.metricAwsNeuronNeuroncoreStatus.data.Sum().DataPoints().Len())
 			}
 
 			allMetricsCount++
 			mb.RecordAwsNeuronNeuroncoreTimeInUseDataPoint(ts, 1, 10)
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronNeuroncoreTimeInUseDataPoint(ts, 3, 11)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronNeuroncoreTimeInUseDataPoint(ts+1, 3, 11)
+				assert.Equal(t, 2, mb.metricAwsNeuronNeuroncoreTimeInUse.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordAwsNeuronNeuroncoreUtilizationDataPoint(ts, 1, 10)
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronNeuroncoreUtilizationDataPoint(ts, 3, 11)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronNeuroncoreUtilizationDataPoint(ts+1, 3, 11)
+				assert.Equal(t, 2, mb.metricAwsNeuronNeuroncoreUtilization.data.Gauge().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordAwsNeuronRuntimeMemoryUsageDataPoint(ts, 1, "memory_type-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronRuntimeMemoryUsageDataPoint(ts, 3, "memory_type-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronRuntimeMemoryUsageDataPoint(ts+1, 3, "memory_type-val-2")
+				assert.Equal(t, 2, mb.metricAwsNeuronRuntimeMemoryUsage.data.Sum().DataPoints().Len())
 			}
 
 			allMetricsCount++
 			mb.RecordAwsNeuronRuntimeVcpuUtilizationDataPoint(ts, 1, "cpu_state-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronRuntimeVcpuUtilizationDataPoint(ts, 3, "cpu_state-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronRuntimeVcpuUtilizationDataPoint(ts+1, 3, "cpu_state-val-2")
+				assert.Equal(t, 2, mb.metricAwsNeuronRuntimeVcpuUtilization.data.Gauge().DataPoints().Len())
 			}
 
 			allMetricsCount++
 			mb.RecordAwsNeuronSystemCPUUtilizationDataPoint(ts, 1, "cpu-val", "cpu_state-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronSystemCPUUtilizationDataPoint(ts, 3, "cpu-val-2", "cpu_state-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronSystemCPUUtilizationDataPoint(ts+1, 3, "cpu-val-2", "cpu_state-val-2")
+				assert.Equal(t, 2, mb.metricAwsNeuronSystemCPUUtilization.data.Gauge().DataPoints().Len())
 			}
 
 			allMetricsCount++
 			mb.RecordAwsNeuronSystemMemoryUsageDataPoint(ts, 1, "memory_type-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordAwsNeuronSystemMemoryUsageDataPoint(ts, 3, "memory_type-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordAwsNeuronSystemMemoryUsageDataPoint(ts+1, 3, "memory_type-val-2")
+				assert.Equal(t, 2, mb.metricAwsNeuronSystemMemoryUsage.data.Sum().DataPoints().Len())
 			}
 
 			rb := mb.NewResourceBuilder()
@@ -283,7 +337,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.device.host_memory.usage"], "Found a duplicate in the metrics slice: aws.neuron.device.host_memory.usage")
 						validatedMetrics["aws.neuron.device.host_memory.usage"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Device-level host memory by sysfs category (present and peak).", mi.Description())
 						assert.Equal(t, "By", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -327,7 +383,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.device.power.utilization"], "Found a duplicate in the metrics slice: aws.neuron.device.power.utilization")
 						validatedMetrics["aws.neuron.device.power.utilization"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
-						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Gauge().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Gauge().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Device power utilization (fraction of max power) from sysfs, split by statistic over the sampling period (best-effort; not populated on all instances).", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
@@ -375,7 +433,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.errors"], "Found a duplicate in the metrics slice: aws.neuron.errors")
 						validatedMetrics["aws.neuron.errors"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Cumulative ECC errors from Neuron hardware counters (neuron-monitor or sysfs).", mi.Description())
 						assert.Equal(t, "{error}", mi.Unit())
 						assert.True(t, mi.Sum().IsMonotonic())
@@ -423,7 +483,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.execution.count"], "Found a duplicate in the metrics slice: aws.neuron.execution.count")
 						validatedMetrics["aws.neuron.execution.count"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Executions on the NeuronCore in the collection period, by outcome.", mi.Description())
 						assert.Equal(t, "{execution}", mi.Unit())
 						assert.True(t, mi.Sum().IsMonotonic())
@@ -467,7 +529,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.execution.errors"], "Found a duplicate in the metrics slice: aws.neuron.execution.errors")
 						validatedMetrics["aws.neuron.execution.errors"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Execution errors on the NeuronCore in the collection period.", mi.Description())
 						assert.Equal(t, "{error}", mi.Unit())
 						assert.True(t, mi.Sum().IsMonotonic())
@@ -512,7 +576,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.execution.latency"], "Found a duplicate in the metrics slice: aws.neuron.execution.latency")
 						validatedMetrics["aws.neuron.execution.latency"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
-						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Gauge().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Gauge().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Execution latency percentiles reported by neuron-monitor.", mi.Description())
 						assert.Equal(t, "s", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
@@ -562,7 +628,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.neuroncore.device_memory.usage"], "Found a duplicate in the metrics slice: aws.neuron.neuroncore.device_memory.usage")
 						validatedMetrics["aws.neuron.neuroncore.device_memory.usage"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Device memory per NeuronCore by fine-grained sysfs category (present and peak).", mi.Description())
 						assert.Equal(t, "By", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -608,7 +676,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.neuroncore.flops"], "Found a duplicate in the metrics slice: aws.neuron.neuroncore.flops")
 						validatedMetrics["aws.neuron.neuroncore.flops"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
-						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Gauge().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Gauge().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Effective floating point operations per second on the NeuronCore.", mi.Description())
 						assert.Equal(t, "{flop}/s", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
@@ -653,7 +723,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.neuroncore.host_memory.usage"], "Found a duplicate in the metrics slice: aws.neuron.neuroncore.host_memory.usage")
 						validatedMetrics["aws.neuron.neuroncore.host_memory.usage"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Host memory attributed to each NeuronCore from sysfs (present and peak).", mi.Description())
 						assert.Equal(t, "By", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -699,7 +771,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.neuroncore.inferences"], "Found a duplicate in the metrics slice: aws.neuron.neuroncore.inferences")
 						validatedMetrics["aws.neuron.neuroncore.inferences"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Inference count from sysfs (runtime-gated; usually zero).", mi.Description())
 						assert.Equal(t, "{inference}", mi.Unit())
 						assert.True(t, mi.Sum().IsMonotonic())
@@ -746,7 +820,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.neuroncore.memory.usage"], "Found a duplicate in the metrics slice: aws.neuron.neuroncore.memory.usage")
 						validatedMetrics["aws.neuron.neuroncore.memory.usage"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Device memory used per NeuronCore by category (neuron-monitor aggregate view).", mi.Description())
 						assert.Equal(t, "By", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -795,7 +871,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.neuroncore.status"], "Found a duplicate in the metrics slice: aws.neuron.neuroncore.status")
 						validatedMetrics["aws.neuron.neuroncore.status"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "sysfs per-NeuronCore status/error counters (runtime-gated; usually zero).", mi.Description())
 						assert.Equal(t, "{event}", mi.Unit())
 						assert.True(t, mi.Sum().IsMonotonic())
@@ -841,7 +919,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.neuroncore.time_in_use"], "Found a duplicate in the metrics slice: aws.neuron.neuroncore.time_in_use")
 						validatedMetrics["aws.neuron.neuroncore.time_in_use"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "NeuronCore time-in-use counter from sysfs (runtime-gated; usually zero).", mi.Description())
 						assert.Equal(t, "s", mi.Unit())
 						assert.True(t, mi.Sum().IsMonotonic())
@@ -883,7 +963,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.neuroncore.utilization"], "Found a duplicate in the metrics slice: aws.neuron.neuroncore.utilization")
 						validatedMetrics["aws.neuron.neuroncore.utilization"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
-						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Gauge().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Gauge().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Fraction of time the NeuronCore was in use.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
@@ -925,7 +1007,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.runtime.memory.usage"], "Found a duplicate in the metrics slice: aws.neuron.runtime.memory.usage")
 						validatedMetrics["aws.neuron.runtime.memory.usage"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Memory used by the Neuron runtime.", mi.Description())
 						assert.Equal(t, "By", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -967,7 +1051,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.runtime.vcpu.utilization"], "Found a duplicate in the metrics slice: aws.neuron.runtime.vcpu.utilization")
 						validatedMetrics["aws.neuron.runtime.vcpu.utilization"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
-						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Gauge().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Gauge().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "Per-runtime vCPU utilization reported by neuron-monitor.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
@@ -1010,7 +1096,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.system.cpu.utilization"], "Found a duplicate in the metrics slice: aws.neuron.system.cpu.utilization")
 						validatedMetrics["aws.neuron.system.cpu.utilization"] = true
 						assert.Equal(t, pmetric.MetricTypeGauge, mi.Type())
-						assert.Equal(t, 1, mi.Gauge().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Gauge().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Gauge().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "System vCPU utilization reported by neuron-monitor (duplicates the hostmetrics receiver).", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						dp := mi.Gauge().DataPoints().At(0)
@@ -1054,7 +1142,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["aws.neuron.system.memory.usage"], "Found a duplicate in the metrics slice: aws.neuron.system.memory.usage")
 						validatedMetrics["aws.neuron.system.memory.usage"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "System memory reported by neuron-monitor (duplicates the hostmetrics receiver).", mi.Description())
 						assert.Equal(t, "By", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
