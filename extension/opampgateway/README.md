@@ -174,6 +174,11 @@ server can keep one accurate session for each agent behind the gateway:
   a message is not reported.
 - When the server sends `agent_identification` with a new instance UID, the
   gateway routes the new UID to the same agent connection at once.
+- When more than one agent connection uses the same agent ID, the gateway sends
+  a message from the server to the agent connection on the upstream connection
+  that carried the message. The server sends the messages of a session on the
+  upstream connection of that session, so a new instance UID goes to the agent
+  that the server reassigned.
 - Every upstream connection sends the header
   `X-Opamp-Gateway-Capabilities: disconnectAgent`. The server can then send a
   `disconnectAgent` custom message (capability: `com.bindplane.opamp-gateway`,
