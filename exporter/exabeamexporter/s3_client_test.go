@@ -16,6 +16,8 @@ package exabeamexporter // import "github.com/dynatrace/dynatrace-bindplane-otel
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -23,9 +25,11 @@ import (
 	"sync"
 	"testing"
 
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 )
 
 // recordedRequest is a request received by fakeS3.
@@ -184,9 +188,29 @@ func TestS3UploaderError(t *testing.T) {
 
 	err := up.PutObject(context.Background(), "key.log.gz", []byte("x"))
 	require.ErrorContains(t, err, "AccessDenied")
-	for _, r := range srv.recorded() {
-		require.Equal(t, http.MethodPut, r.Method)
+	require.True(t, consumererror.IsPermanent(err), "wrong keys can't be fixed by retrying")
+	require.Len(t, srv.recorded(), 1, "the SDK doesn't retry a 403 either")
+	require.Equal(t, http.MethodPut, srv.recorded()[0].Method)
+}
+
+func TestIsPermanentUploadError(t *testing.T) {
+	respErr := func(code int) error {
+		return fmt.Errorf("put object key: %w", &awshttp.ResponseError{
+			ResponseError: &smithyhttp.ResponseError{
+				Response: &smithyhttp.Response{Response: &http.Response{StatusCode: code}},
+				Err:      errors.New("api error"),
+			},
+		})
 	}
+
+	for _, code := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound} {
+		require.True(t, isPermanentUploadError(respErr(code)), "%d is permanent", code)
+	}
+	for _, code := range []int{http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusServiceUnavailable} {
+		require.False(t, isPermanentUploadError(respErr(code)), "%d is retried", code)
+	}
+	require.False(t, isPermanentUploadError(errors.New("connection refused")), "errors without a response are retried")
+	require.False(t, isPermanentUploadError(context.DeadlineExceeded))
 }
 
 func TestExcludeHeadersFromSigningNeedsSigningStep(t *testing.T) {

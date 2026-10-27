@@ -17,7 +17,9 @@ package exabeamexporter // import "github.com/dynatrace/dynatrace-bindplane-otel
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -25,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 )
 
 // defaultSigningRegion is used when no bucket location is known. GCS accepts it for SigV4.
@@ -128,6 +131,8 @@ func restoreHeadersMiddleware() middleware.FinalizeMiddleware {
 }
 
 // PutObject uploads body as key with the private ACL. It never checks for or creates the bucket.
+// Errors that retrying can't fix are marked permanent so the exporterhelper drops the data
+// instead of retrying it.
 func (u *s3Uploader) PutObject(ctx context.Context, key string, body []byte) error {
 	_, err := u.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(u.bucket),
@@ -137,7 +142,25 @@ func (u *s3Uploader) PutObject(ctx context.Context, key string, body []byte) err
 		ACL:           types.ObjectCannedACLPrivate,
 	})
 	if err != nil {
-		return fmt.Errorf("put object %s: %w", key, err)
+		err = fmt.Errorf("put object %s: %w", key, err)
+		if isPermanentUploadError(err) {
+			return consumererror.NewPermanent(err)
+		}
+		return err
 	}
 	return nil
+}
+
+// isPermanentUploadError reports whether err is a 4xx response other than 408 Request Timeout
+// or 429 Too Many Requests, such as wrong keys (403) or a missing bucket (404). 5xx responses
+// and errors without a response, such as network errors, are retried. The SDK has already
+// retried 5xx responses itself by the time they get here.
+func isPermanentUploadError(err error) bool {
+	var respErr interface{ HTTPStatusCode() int }
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	code := respErr.HTTPStatusCode()
+	return code >= 400 && code < 500 &&
+		code != http.StatusRequestTimeout && code != http.StatusTooManyRequests
 }
