@@ -6,10 +6,10 @@ traceroute, which upstream does not have:
 
 | Section | Runs | Configuration |
 |---------|------|---------------|
-| `http` | [`http_check`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.162.0/receiver/httpcheckreceiver) | The `http_check` configuration |
-| `icmp` | [`icmp_check`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.162.0/receiver/icmpcheckreceiver) | The `icmp_check` configuration |
-| `dns` | [`dns_check`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.162.0/receiver/dnscheckreceiver) | The `dns_check` configuration |
-| `tcp` | [`tcp_check`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.162.0/receiver/tcpcheckreceiver) | The `tcp_check` configuration |
+| `http` | [`http_check`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.163.0/receiver/httpcheckreceiver) | The `http_check` configuration |
+| `icmp` | [`icmp_check`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.163.0/receiver/icmpcheckreceiver) | The `icmp_check` configuration |
+| `dns` | [`dns_check`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.163.0/receiver/dnscheckreceiver) | The `dns_check` configuration |
+| `tcp` | [`tcp_check`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.163.0/receiver/tcpcheckreceiver) | The `tcp_check` configuration |
 | `traceroute` | This receiver | [Below](#traceroute) |
 
 The `http`, `icmp`, `dns` and `tcp` sections are the upstream receivers'

@@ -91,18 +91,27 @@ func TestMetricsBuilder(t *testing.T) {
 			mb.RecordM365OnedriveUserActivityCountDataPoint(ts, 1, AttributeOnedriveActivityViewEdit)
 			if tt.name == "reaggregate_set" {
 				mb.RecordM365OnedriveUserActivityCountDataPoint(ts, 3, AttributeOnedriveActivitySynced)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordM365OnedriveUserActivityCountDataPoint(ts+1, 3, AttributeOnedriveActivitySynced)
+				assert.Equal(t, 2, mb.metricM365OnedriveUserActivityCount.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordM365OutlookAppUserCountDataPoint(ts, 1, AttributeOutlookAppsPop3)
 			if tt.name == "reaggregate_set" {
 				mb.RecordM365OutlookAppUserCountDataPoint(ts, 3, AttributeOutlookAppsImap4)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordM365OutlookAppUserCountDataPoint(ts+1, 3, AttributeOutlookAppsImap4)
+				assert.Equal(t, 2, mb.metricM365OutlookAppUserCount.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordM365OutlookEmailActivityCountDataPoint(ts, 1, AttributeOutlookActivityRead)
 			if tt.name == "reaggregate_set" {
 				mb.RecordM365OutlookEmailActivityCountDataPoint(ts, 3, AttributeOutlookActivitySent)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordM365OutlookEmailActivityCountDataPoint(ts+1, 3, AttributeOutlookActivitySent)
+				assert.Equal(t, 2, mb.metricM365OutlookEmailActivityCount.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
@@ -112,6 +121,9 @@ func TestMetricsBuilder(t *testing.T) {
 			mb.RecordM365OutlookQuotaStatusCountDataPoint(ts, 1, AttributeOutlookQuotasUnderLimit)
 			if tt.name == "reaggregate_set" {
 				mb.RecordM365OutlookQuotaStatusCountDataPoint(ts, 3, AttributeOutlookQuotasWarning)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordM365OutlookQuotaStatusCountDataPoint(ts+1, 3, AttributeOutlookQuotasWarning)
+				assert.Equal(t, 2, mb.metricM365OutlookQuotaStatusCount.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
@@ -142,6 +154,9 @@ func TestMetricsBuilder(t *testing.T) {
 			mb.RecordM365TeamsDeviceUsageUsersDataPoint(ts, 1, AttributeTeamsDevicesAndroid)
 			if tt.name == "reaggregate_set" {
 				mb.RecordM365TeamsDeviceUsageUsersDataPoint(ts, 3, AttributeTeamsDevicesIOS)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordM365TeamsDeviceUsageUsersDataPoint(ts+1, 3, AttributeTeamsDevicesIOS)
+				assert.Equal(t, 2, mb.metricM365TeamsDeviceUsageUsers.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
@@ -240,7 +255,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["m365.onedrive.user_activity.count"], "Found a duplicate in the metrics slice: m365.onedrive.user_activity.count")
 						validatedMetrics["m365.onedrive.user_activity.count"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The number of users who have interacted with a OneDrive file, by action, in the last 7 days.", mi.Description())
 						assert.Equal(t, "{users}", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -284,7 +301,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["m365.outlook.app.user.count"], "Found a duplicate in the metrics slice: m365.outlook.app.user.count")
 						validatedMetrics["m365.outlook.app.user.count"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The number of unique users per app over the period of time in the organization Outlook in the last 7 days.", mi.Description())
 						assert.Equal(t, "{users}", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -328,7 +347,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["m365.outlook.email_activity.count"], "Found a duplicate in the metrics slice: m365.outlook.email_activity.count")
 						validatedMetrics["m365.outlook.email_activity.count"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The number of email actions by members over the period of time in the organization Outlook.", mi.Description())
 						assert.Equal(t, "{emails}", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -386,7 +407,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["m365.outlook.quota_status.count"], "Found a duplicate in the metrics slice: m365.outlook.quota_status.count")
 						validatedMetrics["m365.outlook.quota_status.count"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The number of mailboxes in the various quota statuses over the period of time in the org in the last 7 days.", mi.Description())
 						assert.Equal(t, "{mailboxes}", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -542,7 +565,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["m365.teams.device_usage.users"], "Found a duplicate in the metrics slice: m365.teams.device_usage.users")
 						validatedMetrics["m365.teams.device_usage.users"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The number of unique users by device/platform that have used Teams in the last 7 days.", mi.Description())
 						assert.Equal(t, "{users}", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())

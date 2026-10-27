@@ -7,3 +7,6 @@ status:
   stability:
     alpha: [logs]
   distributions: [Dynatrace-Bindplane]
+
+sending_queue:
+  support: default

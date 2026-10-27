@@ -13,3 +13,6 @@ tests:
   skip_lifecycle: true
   goleak:
     skip: true
+
+sending_queue:
+  support: default

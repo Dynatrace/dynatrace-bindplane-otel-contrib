@@ -11,3 +11,6 @@ status:
 tests:
   skip_lifecycle: true
   skip_shutdown: true
+
+sending_queue:
+  support: default

@@ -89,6 +89,9 @@ func TestMetricsBuilder(t *testing.T) {
 			mb.RecordSapnetweaverAbapUpdateStatusDataPoint(ts, 1, AttributeControlStateGray)
 			if tt.name == "reaggregate_set" {
 				mb.RecordSapnetweaverAbapUpdateStatusDataPoint(ts, 3, AttributeControlStateGreen)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordSapnetweaverAbapUpdateStatusDataPoint(ts+1, 3, AttributeControlStateGreen)
+				assert.Equal(t, 2, mb.metricSapnetweaverAbapUpdateStatus.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
@@ -152,24 +155,36 @@ func TestMetricsBuilder(t *testing.T) {
 			mb.RecordSapnetweaverProcessAvailabilityDataPoint(ts, 1, "process_name-val", "process_description-val", AttributeControlStateGray)
 			if tt.name == "reaggregate_set" {
 				mb.RecordSapnetweaverProcessAvailabilityDataPoint(ts, 3, "process_name-val-2", "process_description-val-2", AttributeControlStateGreen)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordSapnetweaverProcessAvailabilityDataPoint(ts+1, 3, "process_name-val-2", "process_description-val-2", AttributeControlStateGreen)
+				assert.Equal(t, 2, mb.metricSapnetweaverProcessAvailability.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordSapnetweaverQueueCountDataPoint(ts, 1, "wp_type-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordSapnetweaverQueueCountDataPoint(ts, 3, "wp_type-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordSapnetweaverQueueCountDataPoint(ts+1, 3, "wp_type-val-2")
+				assert.Equal(t, 2, mb.metricSapnetweaverQueueCount.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordSapnetweaverQueueMaxCountDataPoint(ts, 1, "wp_type-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordSapnetweaverQueueMaxCountDataPoint(ts, 3, "wp_type-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordSapnetweaverQueueMaxCountDataPoint(ts+1, 3, "wp_type-val-2")
+				assert.Equal(t, 2, mb.metricSapnetweaverQueueMaxCount.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordSapnetweaverQueuePeakCountDataPoint(ts, 1, "wp_type-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordSapnetweaverQueuePeakCountDataPoint(ts, 3, "wp_type-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordSapnetweaverQueuePeakCountDataPoint(ts+1, 3, "wp_type-val-2")
+				assert.Equal(t, 2, mb.metricSapnetweaverQueuePeakCount.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
@@ -182,6 +197,9 @@ func TestMetricsBuilder(t *testing.T) {
 			mb.RecordSapnetweaverResponseDurationDataPoint(ts, "1", AttributeResponseTypeTransaction)
 			if tt.name == "reaggregate_set" {
 				mb.RecordSapnetweaverResponseDurationDataPoint(ts, "3", AttributeResponseTypeDialog)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordSapnetweaverResponseDurationDataPoint(ts+1, "3", AttributeResponseTypeDialog)
+				assert.Equal(t, 2, mb.metricSapnetweaverResponseDuration.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
@@ -212,18 +230,27 @@ func TestMetricsBuilder(t *testing.T) {
 			mb.RecordSapnetweaverSystemInstanceAvailabilityDataPoint(ts, 1, "hostname-val", 15, "feature-val", AttributeControlStateGray)
 			if tt.name == "reaggregate_set" {
 				mb.RecordSapnetweaverSystemInstanceAvailabilityDataPoint(ts, 3, "hostname-val-2", 16, "feature-val-2", AttributeControlStateGreen)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordSapnetweaverSystemInstanceAvailabilityDataPoint(ts+1, 3, "hostname-val-2", 16, "feature-val-2", AttributeControlStateGreen)
+				assert.Equal(t, 2, mb.metricSapnetweaverSystemInstanceAvailability.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordSapnetweaverWorkProcessActiveCountDataPoint(ts, 1, "instance-val", "wp_type-val", "wp_status-val")
 			if tt.name == "reaggregate_set" {
 				mb.RecordSapnetweaverWorkProcessActiveCountDataPoint(ts, 3, "instance-val-2", "wp_type-val-2", "wp_status-val-2")
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordSapnetweaverWorkProcessActiveCountDataPoint(ts+1, 3, "instance-val-2", "wp_type-val-2", "wp_status-val-2")
+				assert.Equal(t, 2, mb.metricSapnetweaverWorkProcessActiveCount.data.Sum().DataPoints().Len())
 			}
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordSapnetweaverWorkProcessJobAbortedStatusDataPoint(ts, 1, AttributeControlStateGray)
 			if tt.name == "reaggregate_set" {
 				mb.RecordSapnetweaverWorkProcessJobAbortedStatusDataPoint(ts, 3, AttributeControlStateGreen)
+				// a different timestamp is a different key: must not merge with the above.
+				mb.RecordSapnetweaverWorkProcessJobAbortedStatusDataPoint(ts+1, 3, AttributeControlStateGreen)
+				assert.Equal(t, 2, mb.metricSapnetweaverWorkProcessJobAbortedStatus.data.Sum().DataPoints().Len())
 			}
 
 			rb := mb.NewResourceBuilder()
@@ -291,7 +318,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["sapnetweaver.abap.update.status"], "Found a duplicate in the metrics slice: sapnetweaver.abap.update.status")
 						validatedMetrics["sapnetweaver.abap.update.status"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The status of the ABAP update process.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -593,7 +622,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["sapnetweaver.process_availability"], "Found a duplicate in the metrics slice: sapnetweaver.process_availability")
 						validatedMetrics["sapnetweaver.process_availability"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The processes availability directly started by the sapstartsrv Web service.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -641,7 +672,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["sapnetweaver.queue.count"], "Found a duplicate in the metrics slice: sapnetweaver.queue.count")
 						validatedMetrics["sapnetweaver.queue.count"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The queue length.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -685,7 +718,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["sapnetweaver.queue_max.count"], "Found a duplicate in the metrics slice: sapnetweaver.queue_max.count")
 						validatedMetrics["sapnetweaver.queue_max.count"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The max queue length.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -729,7 +764,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["sapnetweaver.queue_peak.count"], "Found a duplicate in the metrics slice: sapnetweaver.queue_peak.count")
 						validatedMetrics["sapnetweaver.queue_peak.count"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The peak queue length.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -801,7 +838,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["sapnetweaver.response.duration"], "Found a duplicate in the metrics slice: sapnetweaver.response.duration")
 						validatedMetrics["sapnetweaver.response.duration"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The response time duration.", mi.Description())
 						assert.Equal(t, "ms", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -966,7 +1005,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["sapnetweaver.system.instance_availability"], "Found a duplicate in the metrics slice: sapnetweaver.system.instance_availability")
 						validatedMetrics["sapnetweaver.system.instance_availability"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The availability status of each system instance.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -1022,7 +1063,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["sapnetweaver.work_process.active.count"], "Found a duplicate in the metrics slice: sapnetweaver.work_process.active.count")
 						validatedMetrics["sapnetweaver.work_process.active.count"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The number of free ABAP work processes in the system.", mi.Description())
 						assert.Equal(t, "{work_processes}", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())
@@ -1070,7 +1113,9 @@ func TestMetricsBuilder(t *testing.T) {
 						assert.False(t, validatedMetrics["sapnetweaver.work_process.job.aborted.status"], "Found a duplicate in the metrics slice: sapnetweaver.work_process.job.aborted.status")
 						validatedMetrics["sapnetweaver.work_process.job.aborted.status"] = true
 						assert.Equal(t, pmetric.MetricTypeSum, mi.Type())
-						assert.Equal(t, 1, mi.Sum().DataPoints().Len())
+						// 2 points: the merged one above, plus one with a different timestamp that must not have merged with it.
+						assert.Equal(t, 2, mi.Sum().DataPoints().Len())
+						assert.Equal(t, ts+1, mi.Sum().DataPoints().At(1).Timestamp())
 						assert.Equal(t, "The status of aborted jobs on an application server.", mi.Description())
 						assert.Equal(t, "1", mi.Unit())
 						assert.False(t, mi.Sum().IsMonotonic())

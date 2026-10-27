@@ -91,3 +91,6 @@ tests:
       enabled: false
     timeout: 1m30s
   expect_consumer_error: true 
+
+sending_queue:
+  support: default

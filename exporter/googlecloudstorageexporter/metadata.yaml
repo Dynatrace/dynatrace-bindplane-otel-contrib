@@ -90,3 +90,6 @@ telemetry:
         value_type: int
       attributes:
         - bucket
+
+sending_queue:
+  support: default
