@@ -3,7 +3,7 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/snapshotp
 go 1.26.10
 
 require (
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/snapshot v1.1.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/snapshot v1.2.0
 	github.com/open-telemetry/opamp-go v0.24.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampcustommessages v0.163.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.163.0

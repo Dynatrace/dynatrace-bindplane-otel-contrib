@@ -3,9 +3,9 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chroniclee
 go 1.26.10
 
 require (
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.1.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.1.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo v1.1.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.2.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.2.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo v1.2.0
 	github.com/goccy/go-json v0.11.2
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/google/uuid v1.6.0

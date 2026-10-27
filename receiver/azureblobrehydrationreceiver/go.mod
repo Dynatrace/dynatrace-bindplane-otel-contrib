@@ -3,10 +3,10 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobr
 go 1.26.10
 
 require (
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob v1.1.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume v1.1.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.1.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.1.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob v1.2.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume v1.2.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.2.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.2.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.69.0
 	go.opentelemetry.io/collector/component/componenttest v0.163.0

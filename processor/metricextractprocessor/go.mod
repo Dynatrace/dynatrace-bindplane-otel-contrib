@@ -3,8 +3,8 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/processor/metricext
 go 1.26.10
 
 require (
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.1.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/routereceiver v1.1.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.2.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/routereceiver v1.2.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.163.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.163.0
 	github.com/stretchr/testify v1.12.1
