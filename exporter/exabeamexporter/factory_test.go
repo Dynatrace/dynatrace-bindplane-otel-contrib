@@ -127,8 +127,8 @@ func bodiesExcept(srv *fakeS3, skip int) [][]byte {
 // sending queue and the data arrives exactly once.
 func TestExporterRetriesTransientFailure(t *testing.T) {
 	srv := newFakeS3(t)
-	// The SDK doesn't retry a 403 itself, so the exporterhelper retry has to.
-	srv.respondNext(http.StatusForbidden)
+	// The SDK doesn't retry a 429 without a throttling error code itself, so the exporterhelper retry has to.
+	srv.respondNext(http.StatusTooManyRequests)
 	exp := startTestExporter(t, srv, nil)
 
 	ld := testLogs(5, 10)
@@ -145,7 +145,7 @@ func TestExporterRetriesTransientFailure(t *testing.T) {
 // files and one upload fails, only the unsent records are retried.
 func TestExporterPartialFailureNoDuplicates(t *testing.T) {
 	srv := newFakeS3(t)
-	srv.respondNext(http.StatusOK, http.StatusForbidden)
+	srv.respondNext(http.StatusOK, http.StatusTooManyRequests)
 	exp := startTestExporter(t, srv, func(c *Config) { c.MaxFileSize = 1500 })
 
 	ld := testLogs(12, 100)
@@ -157,6 +157,55 @@ func TestExporterPartialFailureNoDuplicates(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 	require.Greater(t, len(srv.recorded()), 3, "the batch was split into several files")
 	require.Equal(t, expected, deliveredMessages(t, bodiesExcept(srv, 1)), "every record exactly once, in order")
+}
+
+// TestExporterDoesNotRetryPermanentFailure checks that the sending queue drops a batch
+// rejected with a permanent error instead of retrying it.
+func TestExporterDoesNotRetryPermanentFailure(t *testing.T) {
+	srv := newFakeS3(t)
+	srv.setStatus(http.StatusForbidden)
+	exp := startTestExporter(t, srv, nil)
+
+	require.NoError(t, exp.ConsumeLogs(context.Background(), testLogs(5, 10)))
+
+	require.Eventually(t, func() bool { return len(srv.recorded()) == 1 }, 5*time.Second, 10*time.Millisecond)
+	// The test backoff is 10-20ms, so a retry would show up well within this window.
+	require.Never(t, func() bool { return len(srv.recorded()) > 1 }, 300*time.Millisecond, 10*time.Millisecond)
+}
+
+// TestExporterFlushesAtMinSize checks that a batch is uploaded as soon as it reaches min_size,
+// without waiting for the flush timeout, and that the rest is uploaded on shutdown.
+func TestExporterFlushesAtMinSize(t *testing.T) {
+	srv := newFakeS3(t)
+
+	cfg := createDefaultConfig().(*Config)
+	cfg.ConnectionString = testConnectionStringOpaque(t)
+	cfg.Endpoint = srv.URL
+	batch := cfg.QueueConfig.Get().Batch.Get()
+	batch.MinSize = 2000
+	batch.MaxSize = 2000
+	batch.FlushTimeout = time.Hour
+	require.NoError(t, cfg.Validate())
+
+	exp, err := NewFactory().CreateLogs(context.Background(), exportertest.NewNopSettings(metadata.Type), cfg)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(context.Background(), componenttest.NewNopHost()))
+
+	ld := testLogs(50, 100)
+	expected := logBodies(ld)
+	require.NoError(t, exp.ConsumeLogs(context.Background(), ld))
+
+	// Over 5000 bytes of logs fill at least two batches, which upload before the hour-long flush timeout.
+	require.Eventually(t, func() bool { return len(srv.recorded()) >= 2 }, 5*time.Second, 10*time.Millisecond)
+
+	require.NoError(t, exp.Shutdown(context.Background()))
+
+	var bodies [][]byte
+	for _, r := range srv.recorded() {
+		bodies = append(bodies, r.Body)
+	}
+	// Batches upload concurrently, so files can arrive in any order.
+	require.ElementsMatch(t, expected, deliveredMessages(t, bodies), "every record exactly once")
 }
 
 // TestExporterEndToEnd runs the exporter as the collector does, against a fake

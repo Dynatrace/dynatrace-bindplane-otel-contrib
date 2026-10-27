@@ -18,12 +18,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/exabeamexporter/internal/metadata"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils/retryserver"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/consumererror"
@@ -218,6 +220,97 @@ func TestLogsDataPusherTimeout(t *testing.T) {
 
 	rm := collectMetrics(t, reader)
 	require.Equal(t, int64(1), sumValue(t, findMetric(rm, "otelcol_exporter_timeout_total")))
+}
+
+// TestUploadRetrySequences checks which upload responses the exporterhelper retries. The SDK
+// retries 408, 500, 502, 503 and 504 itself before returning, so the sequences use statuses it
+// doesn't retry, and each call sends one request.
+func TestUploadRetrySequences(t *testing.T) {
+	type callExpectation struct {
+		expectErr    bool
+		permanentErr bool
+	}
+
+	testCases := []struct {
+		name     string
+		sequence []retryserver.Response
+		calls    []callExpectation
+	}{
+		{
+			name: "rate limited then success: 429 → 429 → success",
+			sequence: []retryserver.Response{
+				{StatusCode: http.StatusTooManyRequests},
+				{StatusCode: http.StatusTooManyRequests},
+				{StatusCode: http.StatusOK},
+			},
+			calls: []callExpectation{
+				{expectErr: true, permanentErr: false},
+				{expectErr: true, permanentErr: false},
+				{expectErr: false},
+			},
+		},
+		{
+			name: "server error then success: 501 → success",
+			sequence: []retryserver.Response{
+				{StatusCode: http.StatusNotImplemented},
+				{StatusCode: http.StatusOK},
+			},
+			calls: []callExpectation{
+				{expectErr: true, permanentErr: false},
+				{expectErr: false},
+			},
+		},
+		{
+			name:     "wrong keys: 403",
+			sequence: []retryserver.Response{{StatusCode: http.StatusForbidden}},
+			calls:    []callExpectation{{expectErr: true, permanentErr: true}},
+		},
+		{
+			name:     "missing bucket: 404",
+			sequence: []retryserver.Response{{StatusCode: http.StatusNotFound}},
+			calls:    []callExpectation{{expectErr: true, permanentErr: true}},
+		},
+		{
+			name: "retryable then permanent: 429 → 400",
+			sequence: []retryserver.Response{
+				{StatusCode: http.StatusTooManyRequests},
+				{StatusCode: http.StatusBadRequest},
+			},
+			calls: []callExpectation{
+				{expectErr: true, permanentErr: false},
+				{expectErr: true, permanentErr: true},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := retryserver.New(t, tc.sequence)
+			exp, _ := newTestExporter(t, newS3Uploader(testSettings(), srv.URL()), defaultMaxFileSize)
+
+			for i, call := range tc.calls {
+				err := exp.logsDataPusher(context.Background(), testLogs(1, 10))
+				if call.expectErr {
+					require.Error(t, err, "call %d should return error", i)
+					require.Equal(t, call.permanentErr, consumererror.IsPermanent(err), "call %d permanentErr mismatch", i)
+				} else {
+					require.NoError(t, err, "call %d should succeed", i)
+				}
+			}
+			require.Equal(t, len(tc.calls), srv.RequestCount(), "one request per call")
+		})
+	}
+}
+
+// TestLogsDataPusherPermanentFailureAfterPartialUpload checks that a permanent error on a later
+// file stays permanent, so the exporterhelper drops the unsent records instead of retrying them.
+func TestLogsDataPusherPermanentFailureAfterPartialUpload(t *testing.T) {
+	up := &fakeUploader{errs: []error{nil, consumererror.NewPermanent(errors.New("forbidden"))}}
+	exp, _ := newTestExporter(t, up, 2000)
+
+	err := exp.logsDataPusher(context.Background(), testLogs(50, 100))
+	require.True(t, consumererror.IsPermanent(err))
+	require.Len(t, up.delivered, 1)
 }
 
 func TestClassifyError(t *testing.T) {
