@@ -2,6 +2,29 @@
 
 # exabeam
 
+## Sending Queue
+
+**Support:** This component overrides the default QueueBatch configuration.
+
+```yaml
+sending_queue:
+    enabled: true              # OVERRIDE
+    wait_for_result: false     # default
+    sizer: requests            # default
+    queue_size: 1000           # default
+    block_on_overflow: false   # default
+    storage: null              # default
+    num_consumers: 10          # default
+    batch:
+        enabled: true          # OVERRIDE
+        flush_timeout: 5m0s    # OVERRIDE
+        sizer: bytes           # OVERRIDE
+        min_size: 10000000     # OVERRIDE
+        max_size: 10000000     # OVERRIDE
+        partition:
+            metadata_keys: []  # default
+```
+
 ## Internal Telemetry
 
 The following telemetry is emitted by this component.

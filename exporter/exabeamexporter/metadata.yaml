@@ -90,3 +90,16 @@ telemetry:
         value_type: int
       attributes:
         - bucket
+
+sending_queue:
+  support: has_overrides
+  # Batches are sized in bytes and flushed after Exabeam's recommended max file size (10 MB)
+  # or max open time (300s), so each batch becomes one file.
+  overrides:
+    enabled: true
+    batch:
+      enabled: true
+      sizer: bytes
+      min_size: 10000000
+      max_size: 10000000
+      flush_timeout: 300s
