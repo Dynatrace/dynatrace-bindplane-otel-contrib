@@ -197,3 +197,33 @@ func TestGatewayDoesNotReportAnIDThatAnotherConnectionUses(t *testing.T) {
 	require.NoError(t, h.upstream.Send(&protobufs.ServerToAgent{InstanceUid: other.RawID(), Capabilities: 3}))
 	require.Equal(t, uint64(3), other.WaitForMessage(t, 5*time.Second).GetCapabilities())
 }
+
+func TestGatewayDuplicateIDRoutesToTheAgentOnTheUpstreamConnection(t *testing.T) {
+	t.Parallel()
+
+	h := newGatewayTestHarness(t, 2)
+	id := uuid.New()
+
+	// The pending agent is silent while it waits, so the active agent sends the ID last.
+	pending := newTestAgent(t, h.agentURL, id[:])
+	pending.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	pendingUpstream := h.upstream.WaitForAgentMessage(t, pending.ID(), 5*time.Second).ConnectionID
+	active := newTestAgent(t, h.agentURL, id[:])
+	active.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	activeUpstream := h.upstream.WaitForAgentMessage(t, active.ID(), 5*time.Second).ConnectionID
+	require.NotEqual(t, pendingUpstream, activeUpstream, "the agents use different upstream connections")
+
+	// The server reassigns the agent of the session on the upstream connection of the pending agent.
+	newID := uuid.New()
+	require.NoError(t, h.upstream.SendOn(pendingUpstream, &protobufs.ServerToAgent{
+		InstanceUid:         id[:],
+		AgentIdentification: &protobufs.AgentIdentification{NewInstanceUid: newID[:]},
+	}))
+	require.Equal(t, newID[:], pending.WaitForMessage(t, 5*time.Second).GetAgentIdentification().GetNewInstanceUid())
+
+	// The active agent keeps the ID: its next message is the one for it, not the reassignment.
+	require.NoError(t, h.upstream.SendOn(activeUpstream, &protobufs.ServerToAgent{InstanceUid: id[:], Capabilities: 5}))
+	msg := active.WaitForMessage(t, 5*time.Second)
+	require.Nil(t, msg.GetAgentIdentification())
+	require.Equal(t, uint64(5), msg.GetCapabilities())
+}
