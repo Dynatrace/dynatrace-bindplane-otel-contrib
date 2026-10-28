@@ -388,6 +388,68 @@ func TestLogsDataPusherPartialFailureRetriesOnlyUnsentRecords(t *testing.T) {
 	require.Equal(t, all, deliveredMessages(t, up.delivered))
 }
 
+// TestLogsDataPusherPartialFailureWithEmptyContainers checks that the encoder's file boundaries
+// and the retry data count records the same way when resources and scopes without records are
+// mixed in, for a failure on any file after the first.
+func TestLogsDataPusherPartialFailureWithEmptyContainers(t *testing.T) {
+	const bodyLen = 100
+	lineSize := testLineSize(t, bodyLen)
+
+	// 8 records with 3 per file: files start at records 0, 3 and 6.
+	newLogs := func() plog.Logs {
+		ld := plog.NewLogs()
+		next := 0
+		addRecords := func(sl plog.ScopeLogs, n int) {
+			for range n {
+				sl.LogRecords().AppendEmpty().Body().SetStr(fmt.Sprintf("%04d %s", next, strings.Repeat("x", bodyLen)))
+				next++
+			}
+		}
+		ld.ResourceLogs().AppendEmpty() // no scopes
+		rl := ld.ResourceLogs().AppendEmpty()
+		rl.ScopeLogs().AppendEmpty() // no records
+		addRecords(rl.ScopeLogs().AppendEmpty(), 4)
+		rl.ScopeLogs().AppendEmpty()
+		ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty()
+		rl = ld.ResourceLogs().AppendEmpty()
+		addRecords(rl.ScopeLogs().AppendEmpty(), 2)
+		rl.ScopeLogs().AppendEmpty()
+		addRecords(rl.ScopeLogs().AppendEmpty(), 2)
+		ld.ResourceLogs().AppendEmpty()
+		return ld
+	}
+
+	testCases := []struct {
+		desc       string
+		errs       []error
+		retryStart int
+	}{
+		{desc: "second file fails", errs: []error{nil, errors.New("boom")}, retryStart: 3},
+		{desc: "third file fails", errs: []error{nil, nil, errors.New("boom")}, retryStart: 6},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			up := &fakeUploader{errs: tc.errs}
+			exp, _ := newTestExporter(t, up, 3*lineSize)
+
+			ld := newLogs()
+			all := logBodies(ld)
+			require.Len(t, all, 8)
+
+			err := exp.logsDataPusher(context.Background(), ld)
+			require.ErrorContains(t, err, "boom")
+			var logsErr consumererror.Logs
+			require.True(t, errors.As(err, &logsErr))
+			require.Equal(t, all[:tc.retryStart], deliveredMessages(t, up.delivered))
+			require.Equal(t, all[tc.retryStart:], logBodies(logsErr.Data()))
+
+			require.NoError(t, exp.logsDataPusher(context.Background(), logsErr.Data()))
+			require.Equal(t, all, deliveredMessages(t, up.delivered), "no record is sent twice or skipped")
+		})
+	}
+}
+
 func TestLogsDataPusherFirstFileFailureRetriesEverything(t *testing.T) {
 	boom := errors.New("boom")
 	up := &fakeUploader{errs: []error{boom}}

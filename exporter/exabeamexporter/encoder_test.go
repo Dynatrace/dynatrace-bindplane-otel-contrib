@@ -563,3 +563,45 @@ func TestEncoderSplitsAtMaxFileSize(t *testing.T) {
 	require.Len(t, last, 1)
 	require.Equal(t, strings.Repeat("b", 2000), decodeRecord(t, last[0])["message"])
 }
+
+// testLineSize returns the size of one encoded line, newline included, for a record from testLogs.
+func testLineSize(t *testing.T, bodyLen int) int64 {
+	t.Helper()
+	files, err := newTestEncoder(defaultMaxFileSize).encode(context.Background(), testLogs(1, bodyLen))
+	require.NoError(t, err)
+	lines := gunzipLines(t, files[0].data)
+	require.Len(t, lines, 1)
+	return int64(len(lines[0]) + 1)
+}
+
+func TestEncoderMaxFileSizeBoundary(t *testing.T) {
+	lineSize := testLineSize(t, 100)
+
+	testCases := []struct {
+		desc          string
+		maxFileSize   int64
+		expectedFirst []int
+	}{
+		{desc: "records exactly filling the limit share a file", maxFileSize: 3 * lineSize, expectedFirst: []int{0}},
+		{desc: "one byte under splits", maxFileSize: 3*lineSize - 1, expectedFirst: []int{0, 2}},
+		{desc: "limit of one line gives a file per record", maxFileSize: lineSize, expectedFirst: []int{0, 1, 2}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			files, err := newTestEncoder(tc.maxFileSize).encode(context.Background(), testLogs(3, 100))
+			require.NoError(t, err)
+
+			var first []int
+			for _, f := range files {
+				first = append(first, f.firstRecord)
+				var size int64
+				for _, l := range gunzipLines(t, f.data) {
+					size += int64(len(l) + 1)
+				}
+				require.LessOrEqual(t, size, tc.maxFileSize)
+			}
+			require.Equal(t, tc.expectedFirst, first)
+		})
+	}
+}
