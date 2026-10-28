@@ -76,27 +76,26 @@ func (c *chainedConnects) removeConnection(conn *downstreamConnection) {
 	}
 }
 
-// chainedConnectRequestUID reports whether the message is an OpampGatewayConnect request that
+// chainedConnectRequest reports whether the message is an OpampGatewayConnect request that
 // a downstream gateway created on behalf of one of its agents. Such a message has no
 // instance_uid. Messages that do have an instance_uid are never treated as chained connect
 // requests, so they keep going through the regular agent path.
 //
 // When the message is a connect request but its payload cannot be parsed, the returned
-// request UID is empty, because the result cannot be routed back without it.
-func chainedConnectRequestUID(m *protobufs.AgentToServer) (requestUID string, isConnect bool) {
+// request is empty, so its request UID is empty and the result cannot be routed back.
+func chainedConnectRequest(m *protobufs.AgentToServer) (connect OpampGatewayConnect, isConnect bool) {
 	cm := m.GetCustomMessage()
 	if len(m.GetInstanceUid()) != 0 || cm == nil {
-		return "", false
+		return OpampGatewayConnect{}, false
 	}
 	if cm.GetCapability() != OpampGatewayCapability || cm.GetType() != OpampGatewayConnectType {
-		return "", false
+		return OpampGatewayConnect{}, false
 	}
 
-	var connect OpampGatewayConnect
 	if err := jsoniter.Unmarshal(cm.GetData(), &connect); err != nil {
-		return "", true
+		return OpampGatewayConnect{}, true
 	}
-	return connect.RequestUID, true
+	return connect, true
 }
 
 // connectResultRequestUID returns the request UID of an OpampGatewayConnectResult custom

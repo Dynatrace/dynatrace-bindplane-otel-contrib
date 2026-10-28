@@ -63,8 +63,8 @@ type downstreamConnection struct {
 	// once it relays a connect request. Such a connection carries many agents.
 	chainedGateway atomic.Bool
 
-	// disconnectAgentSupported is true when the peer advertised the disconnectAgent
-	// capability. Only a chained gateway does; an older one does not.
+	// disconnectAgentSupported is true when a chained gateway listed the disconnectAgent
+	// capability in its connect request. An older chained gateway does not.
 	disconnectAgentSupported atomic.Bool
 }
 

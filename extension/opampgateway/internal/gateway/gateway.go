@@ -136,8 +136,8 @@ func (g *Gateway) HandleDownstreamMessage(_ context.Context, connection *downstr
 	// A downstream gateway sends an OpampGatewayConnect message for each agent that connects
 	// to it. The gateway creates that message itself, so it has no instance_uid and must not
 	// go through the agent ID parsing below. Relay it to the upstream server instead.
-	if requestUID, ok := chainedConnectRequestUID(&message); ok {
-		return g.relayChainedConnect(connection, msg, requestUID)
+	if connect, ok := chainedConnectRequest(&message); ok {
+		return g.relayChainedConnect(connection, msg, connect)
 	}
 
 	agentID, err := parseAgentID(message.GetInstanceUid())
@@ -424,7 +424,8 @@ func (g *Gateway) disconnectAgent(upstream *upstreamConnection, msg *message, cu
 // relayChainedConnect relays an OpampGatewayConnect request from a downstream gateway to the
 // upstream server. The request is forwarded unchanged on the upstream connection assigned to
 // the downstream gateway, and the request UID is recorded so the result can be routed back.
-func (g *Gateway) relayChainedConnect(connection *downstreamConnection, msg *message, requestUID string) error {
+func (g *Gateway) relayChainedConnect(connection *downstreamConnection, msg *message, connect OpampGatewayConnect) error {
+	requestUID := connect.RequestUID
 	if requestUID == "" {
 		return errors.New("cannot relay gateway connect request without a request_uid")
 	}
@@ -432,6 +433,7 @@ func (g *Gateway) relayChainedConnect(connection *downstreamConnection, msg *mes
 	upstreamConnection := connection.upstreamConnection
 
 	connection.chainedGateway.Store(true)
+	connection.disconnectAgentSupported.Store(connect.supports(OpampGatewayDisconnectAgentType))
 
 	// record the request before sending it so the result can never arrive before the request
 	// is known

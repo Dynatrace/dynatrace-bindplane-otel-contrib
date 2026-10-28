@@ -179,15 +179,21 @@ server can keep one accurate session for each agent behind the gateway:
   that carried the message. The server sends the messages of a session on the
   upstream connection of that session, so a new instance UID goes to the agent
   that the server reassigned.
-- Every upstream connection sends the header
-  `X-Opamp-Gateway-Capabilities: disconnectAgent`. The server can then send a
-  `disconnectAgent` custom message (capability: `com.bindplane.opamp-gateway`,
-  JSON fields `instance_uid` as base64 bytes and `retry_after_seconds`) to close
-  the connection of one agent, for example an agent with a duplicate agent ID.
-  The other agents on the upstream connection are not affected. When the agent
-  is behind a chained gateway, the gateway passes the request on to that
-  gateway. If the chained gateway does not advertise `disconnectAgent`, the
-  gateway logs a warning and the agent stays connected.
+- The server can send a `disconnectAgent` custom message (capability:
+  `com.bindplane.opamp-gateway`, JSON fields `instance_uid` as base64 bytes and
+  `retry_after_seconds`) to close the connection of one agent, for example an
+  agent with a duplicate agent ID. The other agents on the upstream connection
+  are not affected. The server finds support for this message in the
+  `AvailableComponents` of the gateway collector: the `opampgateway` extension
+  at the version that added it, or newer. The server links an upstream
+  connection to the gateway collector through the agent ID in the
+  `X-Opamp-Gateway-Connection-Id` header, so set `server.agent_id` or a
+  `service.instance.id` resource attribute. Without an agent ID, the server
+  does not send `disconnectAgent`.
+- When the agent is behind a chained gateway, the gateway passes the request on
+  to that gateway. A chained gateway lists `disconnectAgent` in the
+  `gateway_capabilities` field of its `connect` requests. If the chained gateway
+  does not list it, the gateway logs a warning and the agent stays connected.
 
 ## Telemetry
 

@@ -16,7 +16,7 @@ package gateway
 
 import (
 	"net/http"
-	"strings"
+	"slices"
 )
 
 // OpampGatewayConnect represents an authentication request sent by a gateway on behalf of an
@@ -34,6 +34,16 @@ type OpampGatewayConnect struct {
 	// Headers contains HTTP-style headers the server can use to validate the agent
 	// connection.
 	Headers http.Header `json:"headers"`
+
+	// GatewayCapabilities lists the optional features of the gateway that sends the request,
+	// for example disconnectAgent. A gateway that relays the request to a chained gateway uses
+	// it; the server does not.
+	GatewayCapabilities []string `json:"gateway_capabilities,omitempty"`
+}
+
+// supports reports whether the gateway that sent the request lists the capability.
+func (c OpampGatewayConnect) supports(capability string) bool {
+	return slices.Contains(c.GatewayCapabilities, capability)
 }
 
 // OpampGatewayConnectResult represents the server's response to an OpampGatewayConnect request.
@@ -63,25 +73,10 @@ const (
 
 	// OpampGatewayDisconnectAgentType is sent by the server to make the gateway close the
 	// connection of one downstream agent, for example an agent with a duplicate agent ID.
-	// The gateway advertises support in the X-Opamp-Gateway-Capabilities header.
+	// The server finds support in the AvailableComponents of the gateway collector. A
+	// chained gateway lists it in the GatewayCapabilities of its connect requests.
 	OpampGatewayDisconnectAgentType = "disconnectAgent"
-
-	// gatewayCapabilitiesHeader lists the optional gateway features the server can use.
-	gatewayCapabilitiesHeader = "X-Opamp-Gateway-Capabilities"
 )
-
-// hasGatewayCapability reports whether the comma-separated X-Opamp-Gateway-Capabilities
-// header lists the capability.
-func hasGatewayCapability(header http.Header, capability string) bool {
-	for _, value := range header.Values(gatewayCapabilitiesHeader) {
-		for _, c := range strings.Split(value, ",") {
-			if strings.TrimSpace(c) == capability {
-				return true
-			}
-		}
-	}
-	return false
-}
 
 // OpampGatewayDisconnectAgent asks the gateway to close the connection of one downstream
 // agent.
