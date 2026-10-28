@@ -16,7 +16,6 @@ package exabeamexporter // import "github.com/dynatrace/dynatrace-bindplane-otel
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -26,6 +25,7 @@ import (
 	"time"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr"
+	"github.com/klauspost/compress/gzip"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
