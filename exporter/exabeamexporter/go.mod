@@ -9,6 +9,7 @@ require (
 	github.com/aws/smithy-go v1.28.1
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.1.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.1.0
+	github.com/klauspost/compress v1.20.3
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.163.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.69.0
