@@ -17,7 +17,6 @@ package gateway
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"testing"
 	"time"
 
@@ -272,16 +271,6 @@ func disconnectAgentMessage(t *testing.T, instanceUID []byte) *protobufs.ServerT
 	}
 }
 
-func TestGatewayAdvertisesDisconnectAgent(t *testing.T) {
-	t.Parallel()
-
-	h := newGatewayTestHarness(t, 2)
-	require.Eventually(t, func() bool { return len(h.upstream.Headers()) == 2 }, 5*time.Second, 50*time.Millisecond)
-	for id, header := range h.upstream.Headers() {
-		require.Contains(t, header.Values("X-Opamp-Gateway-Capabilities"), OpampGatewayDisconnectAgentType, id)
-	}
-}
-
 func TestGatewayDisconnectAgentClosesOnlyThatAgent(t *testing.T) {
 	t.Parallel()
 
@@ -373,10 +362,10 @@ func TestGatewayDisconnectAgentIsNotForwardedToAGatewayWithoutSupport(t *testing
 	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
 	outer.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
 
-	// An older inner gateway does not send the capability header.
+	// An older inner gateway does not list the capability in its connect request.
 	conn, ok := routedConnection(outer.gateway, agent.ID())
 	require.True(t, ok)
-	require.True(t, conn.disconnectAgentSupported.Load(), "the inner gateway advertises the capability")
+	require.True(t, conn.disconnectAgentSupported.Load(), "the inner gateway lists the capability in its connect request")
 	conn.disconnectAgentSupported.Store(false)
 
 	require.NoError(t, outer.upstream.Send(disconnectAgentMessage(t, agent.RawID())))
@@ -385,15 +374,32 @@ func TestGatewayDisconnectAgentIsNotForwardedToAGatewayWithoutSupport(t *testing
 		"the request is not forwarded, so the agent stays connected and routed")
 }
 
-func TestHasGatewayCapability(t *testing.T) {
-	header := http.Header{}
-	require.False(t, hasGatewayCapability(header, OpampGatewayDisconnectAgentType))
+func TestChainedConnectRequest(t *testing.T) {
+	connectMessage := func(t *testing.T, connect OpampGatewayConnect) *protobufs.AgentToServer {
+		data, err := json.Marshal(connect)
+		require.NoError(t, err)
+		return &protobufs.AgentToServer{CustomMessage: &protobufs.CustomMessage{
+			Capability: OpampGatewayCapability,
+			Type:       OpampGatewayConnectType,
+			Data:       data,
+		}}
+	}
 
-	header.Set(gatewayCapabilitiesHeader, "other, disconnectAgent")
-	require.True(t, hasGatewayCapability(header, OpampGatewayDisconnectAgentType))
+	connect, ok := chainedConnectRequest(connectMessage(t, OpampGatewayConnect{
+		RequestUID:          "req-1",
+		GatewayCapabilities: []string{"other", OpampGatewayDisconnectAgentType},
+	}))
+	require.True(t, ok)
+	require.Equal(t, "req-1", connect.RequestUID)
+	require.True(t, connect.supports(OpampGatewayDisconnectAgentType))
 
-	header.Set(gatewayCapabilitiesHeader, "disconnectAgentV2")
-	require.False(t, hasGatewayCapability(header, OpampGatewayDisconnectAgentType))
+	// An older gateway sends no capabilities.
+	connect, ok = chainedConnectRequest(connectMessage(t, OpampGatewayConnect{RequestUID: "req-2"}))
+	require.True(t, ok)
+	require.False(t, connect.supports(OpampGatewayDisconnectAgentType))
+
+	_, ok = chainedConnectRequest(&protobufs.AgentToServer{InstanceUid: []byte("agent")})
+	require.False(t, ok)
 }
 
 func TestGatewayDoesNotForwardAnAgentDisconnectForAnIDThatAnotherConnectionUses(t *testing.T) {

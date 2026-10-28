@@ -282,7 +282,6 @@ func (s *server) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	// create the downstream connection
 	c := newDownstreamConnection(s.shutdownCtx, conn, s.telemetry, upstreamConnection, id, s.logger)
-	c.disconnectAgentSupported.Store(hasGatewayCapability(r.Header, OpampGatewayDisconnectAgentType))
 	s.addDownstreamConnection(id, c)
 
 	// start the connection in a goroutine to prevent blocking the handler
@@ -325,9 +324,10 @@ func (s *server) acceptOpAMPConnection(ctx context.Context, req *http.Request, u
 
 	// Create the OpampGatewayConnect message with RequestUid for correlation
 	connectMsg := OpampGatewayConnect{
-		RequestUID:    requestUID,
-		RemoteAddress: req.RemoteAddr,
-		Headers:       req.Header,
+		RequestUID:          requestUID,
+		RemoteAddress:       req.RemoteAddr,
+		Headers:             req.Header,
+		GatewayCapabilities: []string{OpampGatewayDisconnectAgentType},
 	}
 
 	// Marshal the connect message
