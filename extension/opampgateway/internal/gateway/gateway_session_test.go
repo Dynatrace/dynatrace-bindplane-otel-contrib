@@ -445,3 +445,36 @@ func TestGatewayAgentDisconnectWithTheOldIDIsReportedOnce(t *testing.T) {
 	require.NoError(t, agent.Close())
 	h.upstream.RequireNoAgentMessage(t, newID.String(), 500*time.Millisecond)
 }
+
+func TestDownstreamConnectionDisconnectAgentSupportNeedsEveryConnectRequest(t *testing.T) {
+	supported := OpampGatewayConnect{GatewayCapabilities: []string{OpampGatewayDisconnectAgentType}}
+	conn := &downstreamConnection{}
+
+	conn.recordChainedConnect(supported)
+	require.True(t, conn.chainedGateway.Load())
+	require.True(t, conn.disconnectAgentSupported.Load())
+
+	// An older gateway relays requests of newer gateways unchanged, so one request without
+	// the capability shows that the gateway on the connection does not support it.
+	conn.recordChainedConnect(OpampGatewayConnect{})
+	require.False(t, conn.disconnectAgentSupported.Load())
+	conn.recordChainedConnect(supported)
+	require.False(t, conn.disconnectAgentSupported.Load())
+}
+
+func TestRelayedConnectRequestListsTheCapabilitiesOfTheRelayingGateway(t *testing.T) {
+	m := &protobufs.AgentToServer{CustomMessage: &protobufs.CustomMessage{
+		Capability: OpampGatewayCapability,
+		Type:       OpampGatewayConnectType,
+		Data:       []byte(`{"request_uid":"req-1","remote_address":"a","headers":null,"future":1}`),
+	}}
+
+	data, err := withGatewayCapabilities(m.GetCustomMessage().GetData())
+	require.NoError(t, err)
+
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal(data, &fields))
+	require.Equal(t, "req-1", fields["request_uid"])
+	require.InDelta(t, 1, fields["future"], 0, "a field that this gateway does not know stays")
+	require.Equal(t, []any{OpampGatewayDisconnectAgentType}, fields["gateway_capabilities"])
+}

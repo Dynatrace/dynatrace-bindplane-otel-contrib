@@ -36,10 +36,14 @@ type OpampGatewayConnect struct {
 	Headers http.Header `json:"headers"`
 
 	// GatewayCapabilities lists the optional features of the gateway that sends the request,
-	// for example disconnectAgent. A gateway that relays the request to a chained gateway uses
-	// it; the server does not.
+	// for example disconnectAgent. A gateway that relays the request puts its own features
+	// here, and the gateway that receives the relayed request uses them; the server does not.
 	GatewayCapabilities []string `json:"gateway_capabilities,omitempty"`
 }
+
+// gatewayCapabilities are the optional features of this gateway. The gateway lists them in
+// the connect requests that it sends upstream.
+var gatewayCapabilities = []string{OpampGatewayDisconnectAgentType}
 
 // supports reports whether the gateway that sent the request lists the capability.
 func (c OpampGatewayConnect) supports(capability string) bool {

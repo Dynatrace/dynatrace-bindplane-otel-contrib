@@ -327,7 +327,7 @@ func (s *server) acceptOpAMPConnection(ctx context.Context, req *http.Request, u
 		RequestUID:          requestUID,
 		RemoteAddress:       req.RemoteAddr,
 		Headers:             req.Header,
-		GatewayCapabilities: []string{OpampGatewayDisconnectAgentType},
+		GatewayCapabilities: gatewayCapabilities,
 	}
 
 	// Marshal the connect message

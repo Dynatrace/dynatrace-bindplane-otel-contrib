@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
@@ -137,7 +138,7 @@ func (g *Gateway) HandleDownstreamMessage(_ context.Context, connection *downstr
 	// to it. The gateway creates that message itself, so it has no instance_uid and must not
 	// go through the agent ID parsing below. Relay it to the upstream server instead.
 	if connect, ok := chainedConnectRequest(&message); ok {
-		return g.relayChainedConnect(connection, msg, connect)
+		return g.relayChainedConnect(connection, msg, &message, connect)
 	}
 
 	id, err := newAgentID(message.GetInstanceUid())
@@ -374,6 +375,9 @@ func (g *Gateway) disconnectAgent(upstream *upstreamConnection, msg *message, cu
 	// The server sends the request on the upstream connection of the session it ended.
 	conn, ok := g.server.getAgentConnection(upstream, agentID)
 	if !ok {
+		g.logger.Debug("ignoring disconnectAgent for an agent that is not connected",
+			zap.String(keyAgentID, agentID),
+			zap.String(keyUpstreamConnectionID, upstream.id))
 		return nil
 	}
 
@@ -416,9 +420,10 @@ func (g *Gateway) disconnectAgent(upstream *upstreamConnection, msg *message, cu
 }
 
 // relayChainedConnect relays an OpampGatewayConnect request from a downstream gateway to the
-// upstream server. The request is forwarded unchanged on the upstream connection assigned to
-// the downstream gateway, and the request UID is recorded so the result can be routed back.
-func (g *Gateway) relayChainedConnect(connection *downstreamConnection, msg *message, connect OpampGatewayConnect) error {
+// upstream server. The request is forwarded on the upstream connection assigned to the
+// downstream gateway with the capabilities of this gateway, and the request UID is recorded
+// so the result can be routed back.
+func (g *Gateway) relayChainedConnect(connection *downstreamConnection, msg *message, m *protobufs.AgentToServer, connect OpampGatewayConnect) error {
 	requestUID := connect.RequestUID
 	if requestUID == "" {
 		return errors.New("cannot relay gateway connect request without a request_uid")
@@ -426,8 +431,20 @@ func (g *Gateway) relayChainedConnect(connection *downstreamConnection, msg *mes
 
 	upstreamConnection := connection.upstreamConnection
 
-	connection.chainedGateway.Store(true)
-	connection.disconnectAgentSupported.Store(connect.supports(OpampGatewayDisconnectAgentType))
+	connection.recordChainedConnect(connect)
+
+	if !slices.Equal(connect.GatewayCapabilities, gatewayCapabilities) {
+		data, err := withGatewayCapabilities(m.GetCustomMessage().GetData())
+		if err != nil {
+			return fmt.Errorf("relay gateway connect request: %w", err)
+		}
+		m.CustomMessage.Data = data
+		encoded, err := encodeWSMessage(m)
+		if err != nil {
+			return fmt.Errorf("relay gateway connect request: %w", err)
+		}
+		msg = newMessage(msg.number, encoded)
+	}
 
 	// record the request before sending it so the result can never arrive before the request
 	// is known

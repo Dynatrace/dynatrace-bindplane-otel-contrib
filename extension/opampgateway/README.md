@@ -192,8 +192,12 @@ server can keep one accurate session for each agent behind the gateway:
   does not send `disconnectAgent`.
 - When the agent is behind a chained gateway, the gateway passes the request on
   to that gateway. A chained gateway lists `disconnectAgent` in the
-  `gateway_capabilities` field of its `connect` requests. If the chained gateway
-  does not list it, the gateway logs a warning and the agent stays connected.
+  `gateway_capabilities` field of its `connect` requests. When it relays a
+  `connect` request from a gateway behind it, it puts its own capabilities in
+  the field. If one request of the chained gateway does not list
+  `disconnectAgent`, the gateway logs a warning and the agent stays connected.
+  An older chained gateway that relays only the requests of newer gateways
+  behind it cannot be found this way.
 
 ## Telemetry
 

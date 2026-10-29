@@ -15,6 +15,7 @@
 package gateway
 
 import (
+	"fmt"
 	"sync"
 
 	jsoniter "github.com/json-iterator/go"
@@ -96,6 +97,23 @@ func chainedConnectRequest(m *protobufs.AgentToServer) (connect OpampGatewayConn
 		return OpampGatewayConnect{}, true
 	}
 	return connect, true
+}
+
+// withGatewayCapabilities returns the connect request data with the capabilities of this
+// gateway. The gateway that gets the relayed request sends disconnectAgent to this gateway, not
+// to the gateway that made the request, so it must see the capabilities of this gateway. The
+// other fields stay as they are, also fields that this gateway does not know.
+func withGatewayCapabilities(data []byte) ([]byte, error) {
+	var fields map[string]jsoniter.RawMessage
+	if err := jsoniter.Unmarshal(data, &fields); err != nil {
+		return nil, fmt.Errorf("decode connect request: %w", err)
+	}
+	capabilities, err := jsoniter.Marshal(gatewayCapabilities)
+	if err != nil {
+		return nil, fmt.Errorf("encode gateway capabilities: %w", err)
+	}
+	fields["gateway_capabilities"] = capabilities
+	return jsoniter.Marshal(fields)
 }
 
 // connectResultRequestUID returns the request UID of an OpampGatewayConnectResult custom
