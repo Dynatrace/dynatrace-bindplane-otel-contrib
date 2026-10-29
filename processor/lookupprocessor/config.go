@@ -32,15 +32,17 @@ const (
 	sourceTypeJSON  = "json"
 	sourceTypeRedis = "redis"
 	sourceTypeAPI   = "api"
+
+	sourceTypePuppetDB = "puppetdb"
 )
 
 var (
 	errMissingContext     = errors.New("missing required field 'context'")
 	errMissingField       = errors.New("missing required field 'field'")
 	errInvalidContext     = errors.New("invalid context")
-	errMissingSource      = errors.New("must specify one of 'csv', 'json', 'redis', or 'api' configuration")
-	errMultipleSources    = errors.New("only one of 'csv', 'json', 'redis', or 'api' may be configured")
-	errInvalidSourceType  = errors.New("invalid source_type, must be one of 'csv', 'json', 'redis', 'api'")
+	errMissingSource      = errors.New("must specify one of 'csv', 'json', 'redis', 'api', or 'puppetdb' configuration")
+	errMultipleSources    = errors.New("only one of 'csv', 'json', 'redis', 'api', or 'puppetdb' may be configured")
+	errInvalidSourceType  = errors.New("invalid source_type, must be one of 'csv', 'json', 'redis', 'api', 'puppetdb'")
 	errSourceTypeMismatch = errors.New("source_type does not match the configured source block")
 	errMissingRedisAddr   = errors.New("redis address is required")
 	errMissingAPIURL      = errors.New("api url is required")
@@ -55,8 +57,9 @@ type Config struct {
 	SourceType string `mapstructure:"source_type"`
 
 	// ReloadInterval is how often the source is re-checked. Unset uses the
-	// historical 60s cadence. Re-checking an unchanged CSV costs one stat rather
-	// than a full re-read, so the default is cheap to leave alone.
+	// historical 60s cadence, or 30m for PuppetDB. Re-checking an unchanged CSV
+	// costs one stat rather than a full re-read, so the default is cheap to leave
+	// alone.
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 
 	CacheEnabled    bool          `mapstructure:"cache_enabled"`
@@ -64,10 +67,11 @@ type Config struct {
 	CacheMaxEntries int           `mapstructure:"cache_max_entries"`
 	StorageID       *component.ID `mapstructure:"storage"`
 
-	CSV   string       `mapstructure:"csv"`
-	JSON  string       `mapstructure:"json"`
-	Redis *RedisConfig `mapstructure:"redis"`
-	API   *APIConfig   `mapstructure:"api"`
+	CSV      string          `mapstructure:"csv"`
+	JSON     string          `mapstructure:"json"`
+	Redis    *RedisConfig    `mapstructure:"redis"`
+	API      *APIConfig      `mapstructure:"api"`
+	PuppetDB *PuppetDBConfig `mapstructure:"puppetdb"`
 
 	// cacheKeysSet records which cache keys the configuration actually contained.
 	// createDefaultConfig fills all three, so a plain value check cannot tell a
@@ -95,13 +99,6 @@ func (cfg *Config) Unmarshal(conf *confmap.Conf) error {
 	}
 
 	return nil
-}
-
-// isLocalFileSource reports whether the configured source is a local file whose
-// contents are held in memory. Such a source is never fronted by the cache,
-// since the index is already resident; see the processor's start method.
-func (cfg Config) isLocalFileSource() bool {
-	return cfg.CSV != "" || cfg.JSON != ""
 }
 
 // setCacheKeys returns the cache keys this configuration explicitly set, in a
@@ -181,6 +178,9 @@ func (cfg Config) Validate() error {
 	if cfg.API != nil {
 		sourceCount++
 	}
+	if cfg.PuppetDB != nil {
+		sourceCount++
+	}
 
 	if sourceCount == 0 {
 		return errMissingSource
@@ -207,6 +207,10 @@ func (cfg Config) Validate() error {
 			if cfg.API == nil {
 				return errSourceTypeMismatch
 			}
+		case sourceTypePuppetDB:
+			if cfg.PuppetDB == nil {
+				return errSourceTypeMismatch
+			}
 		default:
 			return errInvalidSourceType
 		}
@@ -221,6 +225,9 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.API != nil && cfg.API.URL == "" {
 		return errMissingAPIURL
+	}
+	if cfg.PuppetDB != nil {
+		return cfg.PuppetDB.validate()
 	}
 
 	return nil

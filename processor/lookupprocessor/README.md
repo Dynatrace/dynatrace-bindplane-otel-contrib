@@ -10,14 +10,15 @@ lookup and adding the resulting fields to the configured `context`.
 
 ## How It Works
 1. The processor loads a lookup source. Exactly one of `csv`, `json`, `redis`,
-   or `api` must be configured.
+   `api`, or `puppetdb` must be configured.
 2. When telemetry is received, the processor checks if the configured `field`
    exists in the configured `context`.
 3. If the field exists and the lookup source returns a match, all other key/value
    pairs from the matching row are added to the `context` of the telemetry.
 4. For a `redis` or `api` lookup, an optional cache (enabled by default with a
-   5-minute TTL) stores recent results. A `csv` or `json` file is already held in
-   memory, so it is looked up directly and the cache does not apply. The cache backend is
+   5-minute TTL) stores recent results. A `csv` or `json` file or a PuppetDB
+   inventory is already held in memory, so it is looked up directly and the cache
+   does not apply. The cache backend is
    either an OpenTelemetry storage extension (e.g. `file_storage`,
    `redis_storage`) for persistence across restarts, or a per-instance in-memory
    map when no `storage` is configured.
@@ -42,16 +43,17 @@ lookup and adding the resulting fields to the configured `context`.
 | ---            | ---             | ---     | --- |
 | context        | string          | ` `     | Telemetry context to read/write. One of `attributes`, `body`, `resource.attributes`. |
 | field          | string          | ` `     | Field in `context` whose value is used as the lookup key. |
-| source_type    | string          | ` `     | Optional. One of `csv`, `json`, `redis`, `api`. When unset, the lookup source is inferred from the source block. |
-| reload_interval | duration       | `60s`   | How often the lookup source is re-checked for changes. An unchanged file is skipped without re-reading it. A negative value is rejected. |
-| cache_enabled  | bool            | `true`  | Enable TTL caching of lookup results. Not used with a `csv` or `json` file. |
-| cache_ttl      | duration        | `5m`    | Cache entry lifetime. Not used with a `csv` or `json` file. |
-| cache_max_entries | int          | `100000` | Maximum entries held by the in-memory cache. On overflow, expired entries are evicted first, then arbitrary entries. Ignored when `storage` is set, and not used with a `csv` or `json` file. |
-| storage        | component.ID    | `nil`   | Storage extension to back the cache (e.g. `file_storage`). When unset, the cache is in-memory and discarded on restart. Not used with a `csv` or `json` file. |
+| source_type    | string          | ` `     | Optional. One of `csv`, `json`, `redis`, `api`, `puppetdb`. When unset, the lookup source is inferred from the source block. |
+| reload_interval | duration       | `60s`   | How often the lookup source is re-checked for changes. An unchanged file is skipped without re-reading it. A PuppetDB inventory is re-fetched each time, so PuppetDB defaults to `30m` instead. A negative value is rejected. |
+| cache_enabled  | bool            | `true`  | Enable TTL caching of lookup results. Not used with a `csv` or `json` file or PuppetDB. |
+| cache_ttl      | duration        | `5m`    | Cache entry lifetime. Not used with a `csv` or `json` file or PuppetDB. |
+| cache_max_entries | int          | `100000` | Maximum entries held by the in-memory cache. On overflow, expired entries are evicted first, then arbitrary entries. Ignored when `storage` is set, and not used with a `csv` or `json` file or PuppetDB. |
+| storage        | component.ID    | `nil`   | Storage extension to back the cache (e.g. `file_storage`). When unset, the cache is in-memory and discarded on restart. Not used with a `csv` or `json` file or PuppetDB. |
 | csv            | string          | ` `     | Path to CSV file. See [CSV Lookup Source](#csv-lookup-source). |
 | json           | string          | ` `     | Path to JSON file. See [JSON Lookup Source](#json-lookup-source). |
 | redis          | object          | `nil`   | Redis config. See [Redis Lookup Source](#redis-lookup-source). |
 | api            | object          | `nil`   | API config. See [API Lookup Source](#api-lookup-source). |
+| puppetdb       | object          | `nil`   | PuppetDB or OpenVoxDB config. See [PuppetDB Lookup Source](#puppetdb-lookup-source). |
 
 ### CSV Lookup Source
 | Field | Type   | Default | Description |
@@ -147,6 +149,74 @@ Response bodies are read through an `io.LimitReader` capped at 1 MiB to guard
 against misbehaving or hostile endpoints. Bodies embedded in error strings are
 further truncated to 256 bytes so a burst of failing lookups cannot bloat
 logs.
+
+### PuppetDB Lookup Source
+
+Enriches telemetry with Puppet facts about the host it came from. The lookup
+key (`field`) is matched against each node's certname. The same source works
+with PuppetDB and OpenVoxDB, which share the `/pdb/query/v4` query API.
+
+| Field                | Type              | Default  | Description |
+| ---                  | ---               | ---      | --- |
+| endpoint             | string            | ` `      | Base URL of the server, e.g. `https://puppetdb.example.com:8081`. |
+| tls                  | object            | ` `      | Client TLS settings (`ca_file`, `cert_file`, `key_file`, `server_name_override`, ...). See [configtls](https://github.com/open-telemetry/opentelemetry-collector/blob/main/config/configtls/README.md). |
+| timeout              | duration          | `30s`    | Per-request HTTP timeout. |
+| facts                | map[string]string | ` `      | Required. Maps an inventory path to the attribute name it is written as. |
+| query                | string            | ` `      | Optional AST query, as a JSON array, that limits which nodes are loaded. It is ANDed with the fact selection, e.g. `["=", "environment", "production"]`. |
+| match_short_hostname | bool              | `false`  | Also match the first label of each certname, for telemetry whose host name has no domain. |
+| page_size            | int               | `1000`   | Nodes requested per page. |
+| max_nodes            | int               | `100000` | Upper bound on nodes held in memory. A larger inventory fails the load and the previous inventory stays in use. |
+
+Each `facts` key is `environment`, or a path starting with `facts.` or
+`trusted.` in PuppetDB dot notation, such as `facts.os.family` or
+`trusted.extensions.pp_role`. Double-quote a path segment that contains a dot or
+slash, such as `facts.mountpoints."/".filesystem`. Array indexes (`[0]`) are not
+supported, because PuppetDB rejects them in this query. Strings are written as
+is, numbers and booleans as their JSON text, and structured facts as compact
+JSON. A fact that a node lacks is left out.
+
+There is no default that copies every fact. Facts can hold sensitive data such
+as cloud instance metadata or SSH host keys, so list only the facts you want
+attached to telemetry.
+
+The whole selected inventory is fetched on every `reload_interval` and held in
+memory, so lookups never touch the network. When `reload_interval` is unset,
+PuppetDB reloads every 30 minutes, the Puppet agent's default run interval. A
+node added between reloads is not enriched until the next one, so lower the
+interval if new nodes must be enriched sooner. A failed fetch is logged and the
+previous inventory stays in use. Memory grows with node count and the number of
+facts selected: about 500 bytes per node for five short facts, so roughly 50 MB
+for 100,000 nodes, and up to twice that while a reload is being built. As with
+CSV, the cache settings do not apply.
+
+With `match_short_hostname`, a short name that more than one certname shares
+(`web01.example.com` and `web01.example.net`) is not matched, and a warning
+gives the count. Use full certnames for those hosts.
+
+#### Access and the certificate allowlist
+
+PuppetDB accepts remote queries only over HTTPS with a client certificate
+signed by the Puppet CA. The certificate's name must also be listed in the
+server's `certificate-allowlist` file. PuppetDB 9 turns the allowlist on by
+default and, on new installs, disables the plain HTTP port. A collector on a
+Puppet-managed host can usually present that host's agent certificate, which
+lives under `/etc/puppetlabs/puppet/ssl/`. The Puppet administrator then adds
+the host's certname to the allowlist. A rejected certificate fails the load
+with a message that names the allowlist.
+
+Puppet certificates usually carry the certname rather than an IP address. When
+the endpoint uses an address or alias that the server certificate does not list,
+set `tls.server_name_override` to the server's certname.
+
+#### Supported versions
+
+| Server               | Tested                                                     |
+| ---                  | ---                                                        |
+| PuppetDB 8           | Yes                                                        |
+| OpenVoxDB 8          | Yes                                                        |
+| OpenVoxDB 9          | Yes, with default settings and with PuppetDB 9's defaults  |
+| PuppetDB 9           | Through OpenVoxDB 9, which serves the same query API       |
+| PuppetDB 7 and older | No. These are end of life.                                 |
 
 ### Example: CSV
 ```yaml
@@ -260,4 +330,26 @@ processors:
             tls: true
             dial_timeout: 3s
             lookup_timeout: 2s
+```
+
+### Example: PuppetDB
+
+```yaml
+processors:
+  lookup:
+    context: resource.attributes
+    field: host.name
+    reload_interval: 15m
+    puppetdb:
+      endpoint: https://puppetdb.example.com:8081
+      tls:
+        ca_file: /etc/puppetlabs/puppet/ssl/certs/ca.pem
+        cert_file: /etc/puppetlabs/puppet/ssl/certs/collector.example.com.pem
+        key_file: /etc/puppetlabs/puppet/ssl/private_keys/collector.example.com.pem
+      query: '["=", "environment", "production"]'
+      match_short_hostname: true
+      facts:
+        facts.os.family: puppet.os.family
+        trusted.extensions.pp_role: puppet.role
+        environment: puppet.environment
 ```
