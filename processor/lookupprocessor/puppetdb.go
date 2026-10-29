@@ -228,7 +228,7 @@ func (p *PuppetDBSource) LoadContext(ctx context.Context) error {
 		maxNodes = puppetDBDefaultMaxNodes
 	}
 
-	// ponytail: offset paging is not a snapshot, so a node added or removed
+	// Offset paging is not a snapshot, so a node added or removed
 	// mid-load can shift a row across a page boundary and be missed until the
 	// next reload. Acceptable for enrichment; PuppetDB offers no cursor.
 	byCertname := make(map[string]map[string]string)
