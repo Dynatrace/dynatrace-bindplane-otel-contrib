@@ -29,6 +29,7 @@ const (
 	resourceContext   = "resource.attributes"
 
 	sourceTypeCSV   = "csv"
+	sourceTypeJSON  = "json"
 	sourceTypeRedis = "redis"
 	sourceTypeAPI   = "api"
 )
@@ -37,9 +38,9 @@ var (
 	errMissingContext     = errors.New("missing required field 'context'")
 	errMissingField       = errors.New("missing required field 'field'")
 	errInvalidContext     = errors.New("invalid context")
-	errMissingSource      = errors.New("must specify one of 'csv', 'redis', or 'api' configuration")
-	errMultipleSources    = errors.New("only one of 'csv', 'redis', or 'api' may be configured")
-	errInvalidSourceType  = errors.New("invalid source_type, must be one of 'csv', 'redis', 'api'")
+	errMissingSource      = errors.New("must specify one of 'csv', 'json', 'redis', or 'api' configuration")
+	errMultipleSources    = errors.New("only one of 'csv', 'json', 'redis', or 'api' may be configured")
+	errInvalidSourceType  = errors.New("invalid source_type, must be one of 'csv', 'json', 'redis', 'api'")
 	errSourceTypeMismatch = errors.New("source_type does not match the configured source block")
 	errMissingRedisAddr   = errors.New("redis address is required")
 	errMissingAPIURL      = errors.New("api url is required")
@@ -64,6 +65,7 @@ type Config struct {
 	StorageID       *component.ID `mapstructure:"storage"`
 
 	CSV   string       `mapstructure:"csv"`
+	JSON  string       `mapstructure:"json"`
 	Redis *RedisConfig `mapstructure:"redis"`
 	API   *APIConfig   `mapstructure:"api"`
 
@@ -93,6 +95,13 @@ func (cfg *Config) Unmarshal(conf *confmap.Conf) error {
 	}
 
 	return nil
+}
+
+// isLocalFileSource reports whether the configured source is a local file whose
+// contents are held in memory. Such a source is never fronted by the cache,
+// since the index is already resident; see the processor's start method.
+func (cfg Config) isLocalFileSource() bool {
+	return cfg.CSV != "" || cfg.JSON != ""
 }
 
 // setCacheKeys returns the cache keys this configuration explicitly set, in a
@@ -163,6 +172,9 @@ func (cfg Config) Validate() error {
 	if cfg.CSV != "" {
 		sourceCount++
 	}
+	if cfg.JSON != "" {
+		sourceCount++
+	}
 	if cfg.Redis != nil {
 		sourceCount++
 	}
@@ -181,6 +193,10 @@ func (cfg Config) Validate() error {
 		switch cfg.SourceType {
 		case sourceTypeCSV:
 			if cfg.CSV == "" {
+				return errSourceTypeMismatch
+			}
+		case sourceTypeJSON:
+			if cfg.JSON == "" {
 				return errSourceTypeMismatch
 			}
 		case sourceTypeRedis:

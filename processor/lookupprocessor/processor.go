@@ -93,6 +93,8 @@ func (p *lookupProcessor) buildSource() (LookupSource, error) {
 		return NewAPISource(p.cfg.API, p.logger)
 	case p.cfg.CSV != "":
 		return NewCSVFile(p.cfg.CSV, p.cfg.Field, p.logger), nil
+	case p.cfg.JSON != "":
+		return NewJSONFile(p.cfg.JSON, p.logger), nil
 	default:
 		return nil, errMissingSource
 	}
@@ -105,16 +107,15 @@ func (p *lookupProcessor) start(ctx context.Context, host component.Host) error 
 		return fmt.Errorf("failed to create lookup source: %w", err)
 	}
 
-	// A CSV index is already resident in memory, so fronting it with a cache cannot
-	// reduce work: it only adds a lock per lookup and a second copy of the data.
-	// Bypass structurally rather than by rejecting the config, because
-	// createDefaultConfig enables the cache, so rejecting it would fail every
-	// existing CSV configuration at startup.
-	if p.cfg.CSV != "" {
+	// A file source's index is already resident in memory, so a cache only adds a
+	// lock and a second copy. Bypass structurally rather than rejecting the config,
+	// since createDefaultConfig enables the cache and rejecting it would fail every
+	// existing file-source configuration at startup.
+	if p.cfg.isLocalFileSource() {
 		if keys := p.cfg.setCacheKeys(); len(keys) > 0 {
 			p.logger.Warn(
-				"cache settings do not apply to a csv source and are ignored; "+
-					"setting them with 'csv' becomes a configuration error in a future release",
+				"cache settings do not apply to a file source and are ignored; "+
+					"setting them becomes a configuration error in a future release",
 				zap.String("keys", strings.Join(keys, ", ")),
 			)
 		}
