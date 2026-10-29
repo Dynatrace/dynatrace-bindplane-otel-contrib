@@ -83,6 +83,7 @@ pkg/                Public utility packages
 | [azureloganalyticsexporter](exporter/azureloganalyticsexporter) | Exports logs to Azure Log Analytics via the Log Analytics Ingestion API |
 | [chronicleexporter](exporter/chronicleexporter) | Sends logs to Chronicle using the v2 ingestion API |
 | [chronicleforwarderexporter](exporter/chronicleforwarderexporter) | Forwards logs to a Chronicle Forwarder endpoint using Syslog or file-based methods |
+| [exabeamexporter](exporter/exabeamexporter) | Exports logs to an Exabeam Cloud Collector's GCS bucket in the file format Exabeam ingests *(alpha)* |
 | [googlecloudexporter](exporter/googlecloudexporter) | Sends metrics, traces, and logs to Google Cloud Monitoring |
 | [googlecloudstorageexporter](exporter/googlecloudstorageexporter) | Exports logs, metrics, and traces to Google Cloud Storage in OTLP JSON format |
 | [googlemanagedprometheusexporter](exporter/googlemanagedprometheusexporter) | Sends metrics to Google Cloud Managed Service for Prometheus |
