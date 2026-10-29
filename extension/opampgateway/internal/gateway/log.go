@@ -49,6 +49,7 @@ const (
 	keyDownstreamConnectionID = "opampgateway.downstream.connection.id"
 	keyDownstreamConnectionCt = "opampgateway.downstream.connection_count"
 	keyAgentID                = "opampgateway.agent.id"
+	keyAgentCount             = "opampgateway.agent_count"
 	keyRequestUID             = "opampgateway.request.uid"
 	keyMessageNumber          = "opampgateway.message.number"
 	keyMessageSize            = "opampgateway.message.size"
@@ -83,6 +84,10 @@ var (
 	// errUpstreamConnectionClosed is returned by send when the upstream connection has shut
 	// down before the message could be written.
 	errUpstreamConnectionClosed = errors.New("upstream connection closed")
+
+	// errUpstreamSocketReplaced is returned by send when the message was for an upstream
+	// socket that has been replaced since.
+	errUpstreamSocketReplaced = errors.New("upstream socket replaced")
 
 	// errDownstreamConnectionClosed is returned by send when the downstream connection has
 	// shut down before the message could be written.

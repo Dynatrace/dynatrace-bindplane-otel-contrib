@@ -131,7 +131,7 @@ func TestGatewayHandlesAgentCloseAfterSend(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond, "upstream assignment still registered")
 
 	require.Eventually(t, func() bool {
-		_, ok := h.gateway.server.getAgentConnection(agent.ID())
+		_, ok := routedConnection(h.gateway, agent.ID())
 		return !ok
 	}, 5*time.Second, 50*time.Millisecond, "agent connection still registered")
 }
@@ -717,6 +717,33 @@ func (s *testOpAMPServer) WaitForAgentMessage(t *testing.T, agentID string, time
 	}
 }
 
+// RequireNoAgentMessage fails the test if a message for the agent arrives within the
+// duration. Messages for other agents are buffered for later calls.
+func (s *testOpAMPServer) RequireNoAgentMessage(t *testing.T, agentID string, within time.Duration) {
+	t.Helper()
+
+	s.pendingMu.Lock()
+	for _, m := range s.pending {
+		require.NotEqual(t, agentID, m.AgentID, "unexpected message for agent %s", agentID)
+	}
+	s.pendingMu.Unlock()
+
+	deadline := time.After(within)
+	for {
+		select {
+		case msg := <-s.recvCh:
+			require.NotEqual(t, agentID, msg.AgentID, "unexpected message for agent %s", agentID)
+			s.pendingMu.Lock()
+			s.pending = append(s.pending, msg)
+			s.pendingMu.Unlock()
+		case err := <-s.errCh:
+			require.NoError(t, err)
+		case <-deadline:
+			return
+		}
+	}
+}
+
 // UserAgents returns the User-Agent header of every open upstream connection,
 // keyed by connection id.
 func (s *testOpAMPServer) UserAgents() map[string]string {
@@ -755,6 +782,23 @@ func (s *testOpAMPServer) Send(resp *protobufs.ServerToAgent) error {
 	// Use the most recent connection (last in slice) so that Send works after
 	// a gateway restart where old connections have been removed.
 	return writeWSMessage(s.connections[len(s.connections)-1].conn, payload)
+}
+
+// SendOn sends the message on the upstream connection with the ID.
+func (s *testOpAMPServer) SendOn(connectionID string, resp *protobufs.ServerToAgent) error {
+	payload, err := proto.Marshal(resp)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, c := range s.connections {
+		if c.id == connectionID {
+			return writeWSMessage(c.conn, payload)
+		}
+	}
+	return fmt.Errorf("no upstream connection %s", connectionID)
 }
 
 // Close closes the test OpAMP server. It will close all the connections and the server.
@@ -1088,7 +1132,7 @@ func TestGatewayDownstreamSendFailureDoesNotKillUpstream(t *testing.T) {
 
 	// Close agent1's downstream connection and wait for cleanup so that
 	// send() returns "downstream connection closed" immediately.
-	conn1, ok := h.gateway.server.getAgentConnection(agent1.ID())
+	conn1, ok := routedConnection(h.gateway, agent1.ID())
 	require.True(t, ok, "agent1 downstream connection must be registered")
 	require.NoError(t, conn1.close())
 	require.Eventually(t, func() bool {
@@ -1718,6 +1762,19 @@ func TestGatewayConcurrentAgentStress(t *testing.T) {
 
 	// Verify all agent connection entries are cleaned up (no stale entries).
 	require.Eventually(t, func() bool {
-		return gw.server.agentConnections.size() == 0
+		return gw.server.agentRoutes.size() == 0
 	}, 10*time.Second, 100*time.Millisecond, "agent connections not fully cleaned up")
+}
+
+// routedConnection returns the downstream connection that the agent ID routes to on any
+// upstream connection of the gateway.
+func routedConnection(gw *Gateway, agentID string) (*downstreamConnection, bool) {
+	gw.client.pool.mtx.RLock()
+	defer gw.client.pool.mtx.RUnlock()
+	for _, u := range gw.client.pool.connections {
+		if conn, ok := gw.server.getAgentConnection(u, agentID); ok {
+			return conn, true
+		}
+	}
+	return nil, false
 }
