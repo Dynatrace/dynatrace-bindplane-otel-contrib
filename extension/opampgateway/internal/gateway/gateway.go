@@ -139,20 +139,42 @@ func (g *Gateway) HandleDownstreamMessage(_ context.Context, connection *downstr
 		return g.relayChainedConnect(connection, msg, requestUID)
 	}
 
-	agentID, err := parseAgentID(message.GetInstanceUid())
+	id, err := newAgentID(message.GetInstanceUid())
 	if err != nil {
 		return fmt.Errorf("cannot parse agent ID: %w", err)
 	}
+	agentID := id.String()
 
 	// register the downstream connection for the agent ID so we can forward messages to the
 	// agent from the server. A late message with an ID that the server replaced does not
 	// route that ID to the connection again.
-	if connection.agents.seen(agentID) {
+	route, dropped := connection.agents.seen(id)
+	if dropped != "" {
+		g.server.removeAgentConnection(dropped, connection)
+	}
+	if route {
 		g.server.setAgentConnection(agentID, connection)
 	}
 
 	// find the upstream connection
 	upstreamConnection := connection.upstreamConnection
+
+	// The agent says it is leaving (directly, or through a chained gateway). Stop routing to
+	// it, so the close of its connection does not report it a second time. When another
+	// connection on the upstream connection still uses the agent ID, for example an agent
+	// with a duplicate ID, the session continues there, so do not send the message.
+	if message.GetAgentDisconnect() != nil {
+		if newAgentID, ok := connection.agents.left(agentID); ok {
+			g.server.removeAgentConnection(newAgentID, connection)
+		}
+		g.server.removeAgentConnection(agentID, connection)
+		if _, ok := g.server.getAgentConnection(upstreamConnection, agentID); ok {
+			g.logger.Debug("not forwarding agent disconnect of an agent ID that another connection uses",
+				zap.String(keyAgentID, agentID),
+				zap.String(keyDownstreamConnectionID, connection.id))
+			return nil
+		}
+	}
 
 	// send the message to the upstream connection
 	logMsg := fmt.Sprintf("%s => %s", connection.id, upstreamConnection.id)
@@ -160,16 +182,9 @@ func (g *Gateway) HandleDownstreamMessage(_ context.Context, connection *downstr
 	if err := upstreamConnection.send(msg); err != nil {
 		return fmt.Errorf("send upstream: %w", err)
 	}
-	connection.upstreamGeneration.Store(upstreamConnection.generation.Load())
+	connection.upstreamGeneration.Store(msg.writtenGeneration)
 	g.telemetry.OpampgatewayMessages.Add(context.Background(), 1, directionUpstream)
 	g.telemetry.OpampgatewayMessagesBytes.Add(context.Background(), int64(len(msg.data)), directionUpstream)
-
-	// The agent said it is leaving (directly, or through a chained gateway). Stop routing
-	// to it, so the close of its connection does not report it a second time.
-	if message.GetAgentDisconnect() != nil {
-		connection.agents.left(agentID)
-		g.server.removeAgentConnection(agentID, connection)
-	}
 	return nil
 }
 
@@ -193,7 +208,7 @@ func (g *Gateway) HandleDownstreamClose(_ context.Context, connection *downstrea
 // left. The upstream connection is shared, so the server cannot see when one agent behind
 // the gateway disconnects; without this message it keeps the agent connected until the
 // upstream connection closes.
-func (g *Gateway) sendAgentDisconnects(connection *downstreamConnection, agentIDs []string) {
+func (g *Gateway) sendAgentDisconnects(connection *downstreamConnection, agentIDs []agentID) {
 	upstream := connection.upstreamConnection
 	if upstream == nil || len(agentIDs) == 0 {
 		return
@@ -207,20 +222,16 @@ func (g *Gateway) sendAgentDisconnects(connection *downstreamConnection, agentID
 			zap.Int(keyAgentCount, len(agentIDs)))
 		return
 	}
-	for _, agentID := range agentIDs {
+	for _, id := range agentIDs {
+		agentID := id.String()
 		// Another connection on the upstream connection still uses the agent ID, for
 		// example an agent with a duplicate ID. The session continues on that connection, so
 		// do not report it.
 		if _, ok := g.server.getAgentConnection(upstream, agentID); ok {
 			continue
 		}
-		raw, err := rawAgentID(agentID)
-		if err != nil {
-			g.logger.Warn("cannot report agent disconnect", zap.String(keyAgentID, agentID), zap.Error(err))
-			continue
-		}
 		data, err := encodeWSMessage(&protobufs.AgentToServer{
-			InstanceUid:     raw,
+			InstanceUid:     id.raw,
 			AgentDisconnect: &protobufs.AgentDisconnect{},
 		})
 		if err != nil {
@@ -230,9 +241,9 @@ func (g *Gateway) sendAgentDisconnects(connection *downstreamConnection, agentID
 		msg := newMessage(0, data)
 		msg.generation = generation
 		if err := upstream.send(msg); err != nil {
-			// The upstream socket closed, so the server ends the session itself.
-			g.logger.Debug("cannot send agent disconnect", zap.String(keyAgentID, agentID), zap.Error(err))
-			continue
+			// The upstream socket closed, so the server ends the sessions itself.
+			g.logger.Debug("cannot send agent disconnects", zap.String(keyAgentID, agentID), zap.Error(err))
+			return
 		}
 		g.logger.Debug("reported agent disconnect", zap.String(keyAgentID, agentID), zap.String(keyUpstreamConnectionID, upstream.id))
 		g.telemetry.OpampgatewayMessages.Add(context.Background(), 1, directionUpstream)
@@ -254,15 +265,15 @@ func (g *Gateway) routeAgent(agentID string, conn *downstreamConnection) {
 // UID to the connection of the agent now, so messages for it arrive before the agent sends
 // one, and stops routing the old UID.
 func (g *Gateway) renameAgent(conn *downstreamConnection, agentID string, newUID []byte) {
-	newAgentID, err := parseAgentID(newUID)
+	newID, err := newAgentID(newUID)
 	if err != nil {
 		g.logger.Warn("invalid new_instance_uid in agent identification", zap.String(keyAgentID, agentID), zap.Error(err))
 		return
 	}
-	if newAgentID == agentID || !conn.agents.rename(agentID, newAgentID) {
+	if newID.String() == agentID || !conn.agents.rename(agentID, newID) {
 		return
 	}
-	g.routeAgent(newAgentID, conn)
+	g.routeAgent(newID.String(), conn)
 	g.server.removeAgentConnection(agentID, conn)
 }
 

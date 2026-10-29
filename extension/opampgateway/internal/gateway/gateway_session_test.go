@@ -255,3 +255,47 @@ func TestGatewayReportsADuplicateIDOnItsOwnUpstreamConnection(t *testing.T) {
 	require.NoError(t, h.upstream.SendOn(otherUpstream, &protobufs.ServerToAgent{InstanceUid: id[:], Capabilities: 5}))
 	require.Equal(t, uint64(5), other.WaitForMessage(t, 5*time.Second).GetCapabilities())
 }
+
+func TestGatewayDoesNotForwardAnAgentDisconnectForAnIDThatAnotherConnectionUses(t *testing.T) {
+	t.Parallel()
+
+	h := newGatewayTestHarness(t, 1)
+	id := uuid.New()
+	other := newTestAgent(t, h.agentURL, id[:])
+	other.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	h.upstream.WaitForAgentMessage(t, other.ID(), 5*time.Second)
+	leaving := newTestAgent(t, h.agentURL, id[:])
+	leaving.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	h.upstream.WaitForAgentMessage(t, leaving.ID(), 5*time.Second)
+
+	// The session continues on the other connection, so the server must not end it.
+	leaving.Send(&protobufs.AgentToServer{SequenceNum: 2, AgentDisconnect: &protobufs.AgentDisconnect{}})
+	h.upstream.RequireNoAgentMessage(t, other.ID(), 500*time.Millisecond)
+
+	require.NoError(t, h.upstream.Send(&protobufs.ServerToAgent{InstanceUid: other.RawID(), Capabilities: 3}))
+	require.Equal(t, uint64(3), other.WaitForMessage(t, 5*time.Second).GetCapabilities())
+}
+
+func TestGatewayAgentDisconnectWithTheOldIDIsReportedOnce(t *testing.T) {
+	t.Parallel()
+
+	h := newGatewayTestHarness(t, 1)
+	agent := h.NewAgent(t)
+	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	h.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+
+	newID := uuid.New()
+	require.NoError(t, h.upstream.Send(&protobufs.ServerToAgent{
+		InstanceUid:         agent.RawID(),
+		AgentIdentification: &protobufs.AgentIdentification{NewInstanceUid: newID[:]},
+	}))
+	agent.WaitForMessage(t, 5*time.Second)
+
+	// The agent leaves before it applies the new ID.
+	agent.Send(&protobufs.AgentToServer{InstanceUid: agent.RawID(), SequenceNum: 2, AgentDisconnect: &protobufs.AgentDisconnect{}})
+	msg := h.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+	require.NotNil(t, msg.Message.GetAgentDisconnect())
+
+	require.NoError(t, agent.Close())
+	h.upstream.RequireNoAgentMessage(t, newID.String(), 500*time.Millisecond)
+}

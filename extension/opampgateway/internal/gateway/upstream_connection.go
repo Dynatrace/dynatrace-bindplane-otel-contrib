@@ -51,6 +51,11 @@ type upstreamConnection struct {
 	// time the connection is made again.
 	generation atomic.Uint64
 
+	// socketMtx makes the change of generation and socketDone one step.
+	socketMtx sync.Mutex
+	// socketDone is closed when the WebSocket connection of the current generation closes.
+	socketDone chan struct{}
+
 	// customCapabilities caches the CustomCapabilities received from the
 	// upstream server. The opamp-go server only sends CustomCapabilities
 	// once per WebSocket connection (on the first response), so the gateway
@@ -149,16 +154,40 @@ func (c *upstreamConnection) start(ctx context.Context, callbacks ConnectionCall
 	}
 }
 
+// socketClosed returns a channel that is closed when the WebSocket connection of the
+// generation closes. It returns false when that connection is not the current one.
+func (c *upstreamConnection) socketClosed(generation uint64) (<-chan struct{}, bool) {
+	c.socketMtx.Lock()
+	defer c.socketMtx.Unlock()
+	if c.socketDone == nil || c.generation.Load() != generation {
+		return nil, false
+	}
+	return c.socketDone, true
+}
+
 // send queues the message for writing and blocks until it has been written to
 // the upstream WebSocket or the connection is permanently closed. It returns
 // the write error (if any) so callers get confirmation of delivery.
 func (c *upstreamConnection) send(message *message) error {
+	// A message for one socket does not wait while the writer connects again: the writer
+	// drops it after the reconnect.
+	var socketClosed <-chan struct{}
+	if message.generation != 0 {
+		closed, ok := c.socketClosed(message.generation)
+		if !ok {
+			return errUpstreamSocketReplaced
+		}
+		socketClosed = closed
+	}
+
 	// queue the message. Block until the writer dequeues it or the
 	// connection shuts down for good (writerDone is closed).
 	select {
 	case c.writeChan <- message:
 	case <-c.writerDone:
 		return errUpstreamConnectionClosed
+	case <-socketClosed:
+		return errUpstreamSocketReplaced
 	}
 
 	// wait for the writer to finish the WebSocket write.
@@ -268,7 +297,13 @@ func (c *upstreamConnection) startWriter(ctx context.Context, callbacks Connecti
 // the next message to write and returns the next message to write and an error if one
 // occurs.
 func (c *upstreamConnection) writerLoop(ctx context.Context, conn *websocket.Conn, nextMessage *message) (*message, error) {
+	socketDone := make(chan struct{})
+	c.socketMtx.Lock()
 	generation := c.generation.Add(1)
+	c.socketDone = socketDone
+	c.socketMtx.Unlock()
+	defer close(socketDone)
+
 	c.setConnected(true)
 	defer c.setConnected(false)
 
@@ -279,6 +314,7 @@ func (c *upstreamConnection) writerLoop(ctx context.Context, conn *websocket.Con
 	}
 	if nextMessage != nil {
 		err := writeWSMessage(conn, nextMessage.data)
+		nextMessage.writtenGeneration = generation
 		nextMessage.complete(err)
 		if err != nil {
 			return nextMessage, fmt.Errorf("write message: %w", err)
@@ -313,6 +349,7 @@ func (c *upstreamConnection) writerLoop(ctx context.Context, conn *websocket.Con
 				continue
 			}
 			err := writeWSMessage(conn, message.data)
+			message.writtenGeneration = generation
 			message.complete(err)
 			if err != nil {
 				return message, fmt.Errorf("write message: %w", err)

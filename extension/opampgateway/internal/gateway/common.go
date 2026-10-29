@@ -126,18 +126,6 @@ func (a agentID) String() string {
 	return a.parsed
 }
 
-// rawAgentID returns the instance_uid bytes of an agent ID string made by parseAgentID.
-func rawAgentID(agentID string) ([]byte, error) {
-	if len(agentID) == 26 {
-		return []byte(agentID), nil
-	}
-	u, err := uuid.Parse(agentID)
-	if err != nil {
-		return nil, fmt.Errorf("parse agent ID %q: %w", agentID, err)
-	}
-	return u[:], nil
-}
-
 func parseAgentID(instanceUID []byte) (string, error) {
 	id, err := newAgentID(instanceUID)
 	if err != nil {
