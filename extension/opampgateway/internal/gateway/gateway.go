@@ -168,7 +168,7 @@ func (g *Gateway) HandleDownstreamMessage(_ context.Context, connection *downstr
 	// to it, so the close of its connection does not report it a second time.
 	if message.GetAgentDisconnect() != nil {
 		connection.agents.left(agentID)
-		g.server.agentConnections.removeIfValue(agentID, connection)
+		g.server.removeAgentConnection(agentID, connection)
 	}
 	return nil
 }
@@ -208,12 +208,10 @@ func (g *Gateway) sendAgentDisconnects(connection *downstreamConnection, agentID
 		return
 	}
 	for _, agentID := range agentIDs {
-		// Another connection still uses the agent ID, for example an agent with a duplicate
-		// ID. Route the ID to that connection, and do not report it.
-		if other, ok := g.server.downstreamConnections.find(func(c *downstreamConnection) bool {
-			return c.agents.has(agentID)
-		}); ok {
-			g.routeAgent(agentID, other)
+		// Another connection on the upstream connection still uses the agent ID, for
+		// example an agent with a duplicate ID. The session continues on that connection, so
+		// do not report it.
+		if _, ok := g.server.getAgentConnection(upstream, agentID); ok {
 			continue
 		}
 		raw, err := rawAgentID(agentID)
@@ -248,7 +246,7 @@ func (g *Gateway) sendAgentDisconnects(connection *downstreamConnection, agentID
 func (g *Gateway) routeAgent(agentID string, conn *downstreamConnection) {
 	g.server.setAgentConnection(agentID, conn)
 	if !conn.agents.has(agentID) {
-		g.server.agentConnections.removeIfValue(agentID, conn)
+		g.server.removeAgentConnection(agentID, conn)
 	}
 }
 
@@ -265,7 +263,7 @@ func (g *Gateway) renameAgent(conn *downstreamConnection, agentID string, newUID
 		return
 	}
 	g.routeAgent(newAgentID, conn)
-	g.server.agentConnections.removeIfValue(agentID, conn)
+	g.server.removeAgentConnection(agentID, conn)
 }
 
 // --------------------------------------------------------------------------------------
@@ -312,7 +310,7 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 	}
 
 	// find the downstream connection from the server
-	conn, ok := g.agentConnectionFor(connection, agentID)
+	conn, ok := g.server.getAgentConnection(connection, agentID)
 	if !ok {
 		// downstream connection no longer exists, so there is nowhere to forward the message
 		g.logger.Debug("dropping message for disconnected agent",
@@ -340,24 +338,6 @@ func (g *Gateway) HandleUpstreamMessage(_ context.Context, connection *upstreamC
 	g.telemetry.OpampgatewayMessages.Add(context.Background(), 1, directionDownstream)
 	g.telemetry.OpampgatewayMessagesBytes.Add(context.Background(), int64(len(message.data)), directionDownstream)
 	return nil
-}
-
-// agentConnectionFor returns the downstream connection for a message to the agent from the
-// upstream connection. Agents with a duplicate ID can be on more than one downstream
-// connection. The server sends a message for a session on the upstream connection that
-// carries the session, so a downstream connection on that upstream connection gets the
-// message. Otherwise a reassignment for a silent pending agent goes to the active agent.
-func (g *Gateway) agentConnectionFor(upstream *upstreamConnection, agentID string) (*downstreamConnection, bool) {
-	conn, ok := g.server.getAgentConnection(agentID)
-	if ok && conn.upstreamConnection == upstream {
-		return conn, true
-	}
-	if other, found := g.server.downstreamConnections.find(func(c *downstreamConnection) bool {
-		return c.upstreamConnection == upstream && c.agents.has(agentID)
-	}); found {
-		return other, true
-	}
-	return conn, ok
 }
 
 // relayChainedConnect relays an OpampGatewayConnect request from a downstream gateway to the

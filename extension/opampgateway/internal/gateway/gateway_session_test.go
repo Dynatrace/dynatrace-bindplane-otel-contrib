@@ -78,8 +78,8 @@ func TestGatewayRemapsAgentOnAgentIdentification(t *testing.T) {
 	require.NotNil(t, agent.WaitForMessage(t, 5*time.Second).GetAgentIdentification())
 
 	require.Eventually(t, func() bool {
-		_, oldOK := h.gateway.server.getAgentConnection(agent.ID())
-		_, newOK := h.gateway.server.getAgentConnection(newID.String())
+		_, oldOK := routedConnection(h.gateway, agent.ID())
+		_, newOK := routedConnection(h.gateway, newID.String())
 		return !oldOK && newOK
 	}, 5*time.Second, 50*time.Millisecond, "the route moves to the new instance UID")
 
@@ -104,7 +104,7 @@ func TestGatewayChainedAgentDisconnectIsReportedOnce(t *testing.T) {
 	require.NotNil(t, msg.Message.GetAgentDisconnect())
 
 	require.Eventually(t, func() bool {
-		_, ok := outer.gateway.server.getAgentConnection(agent.ID())
+		_, ok := routedConnection(outer.gateway, agent.ID())
 		return !ok
 	}, 5*time.Second, 50*time.Millisecond, "the outer gateway stops routing to the agent")
 	upstream.RequireNoAgentMessage(t, agent.ID(), 300*time.Millisecond)
@@ -151,7 +151,7 @@ func TestGatewayLateMessageWithOldIDIsNotReported(t *testing.T) {
 	// The agent sends one more message with the old ID before it applies the new one.
 	agent.Send(&protobufs.AgentToServer{InstanceUid: agent.RawID(), SequenceNum: 2})
 	h.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
-	_, ok := h.gateway.server.getAgentConnection(agent.ID())
+	_, ok := routedConnection(h.gateway, agent.ID())
 	require.False(t, ok, "the old ID is not routed to the agent again")
 
 	require.NoError(t, agent.Close())
@@ -226,4 +226,32 @@ func TestGatewayDuplicateIDRoutesToTheAgentOnTheUpstreamConnection(t *testing.T)
 	msg := active.WaitForMessage(t, 5*time.Second)
 	require.Nil(t, msg.GetAgentIdentification())
 	require.Equal(t, uint64(5), msg.GetCapabilities())
+}
+
+func TestGatewayReportsADuplicateIDOnItsOwnUpstreamConnection(t *testing.T) {
+	t.Parallel()
+
+	h := newGatewayTestHarness(t, 2)
+	id := uuid.New()
+
+	closing := newTestAgent(t, h.agentURL, id[:])
+	closing.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	closingUpstream := h.upstream.WaitForAgentMessage(t, closing.ID(), 5*time.Second).ConnectionID
+	other := newTestAgent(t, h.agentURL, id[:])
+	other.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	otherUpstream := h.upstream.WaitForAgentMessage(t, other.ID(), 5*time.Second).ConnectionID
+	require.NotEqual(t, closingUpstream, otherUpstream, "the agents use different upstream connections")
+
+	// The session on the upstream connection of the closing agent has no other agent, so the
+	// gateway reports it, although the agent on the other upstream connection has the same ID.
+	require.NoError(t, closing.Close())
+	msg := h.upstream.WaitForAgentMessage(t, id.String(), 5*time.Second)
+	require.NotNil(t, msg.Message.GetAgentDisconnect())
+	require.Equal(t, closingUpstream, msg.ConnectionID)
+
+	// A late message for the ended session does not go to the agent on the other upstream
+	// connection.
+	require.NoError(t, h.upstream.SendOn(closingUpstream, &protobufs.ServerToAgent{InstanceUid: id[:], Capabilities: 9}))
+	require.NoError(t, h.upstream.SendOn(otherUpstream, &protobufs.ServerToAgent{InstanceUid: id[:], Capabilities: 5}))
+	require.Equal(t, uint64(5), other.WaitForMessage(t, 5*time.Second).GetCapabilities())
 }

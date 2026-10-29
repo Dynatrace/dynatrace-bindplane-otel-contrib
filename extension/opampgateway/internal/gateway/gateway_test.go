@@ -131,7 +131,7 @@ func TestGatewayHandlesAgentCloseAfterSend(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond, "upstream assignment still registered")
 
 	require.Eventually(t, func() bool {
-		_, ok := h.gateway.server.getAgentConnection(agent.ID())
+		_, ok := routedConnection(h.gateway, agent.ID())
 		return !ok
 	}, 5*time.Second, 50*time.Millisecond, "agent connection still registered")
 }
@@ -1132,7 +1132,7 @@ func TestGatewayDownstreamSendFailureDoesNotKillUpstream(t *testing.T) {
 
 	// Close agent1's downstream connection and wait for cleanup so that
 	// send() returns "downstream connection closed" immediately.
-	conn1, ok := h.gateway.server.getAgentConnection(agent1.ID())
+	conn1, ok := routedConnection(h.gateway, agent1.ID())
 	require.True(t, ok, "agent1 downstream connection must be registered")
 	require.NoError(t, conn1.close())
 	require.Eventually(t, func() bool {
@@ -1762,6 +1762,19 @@ func TestGatewayConcurrentAgentStress(t *testing.T) {
 
 	// Verify all agent connection entries are cleaned up (no stale entries).
 	require.Eventually(t, func() bool {
-		return gw.server.agentConnections.size() == 0
+		return gw.server.agentRoutes.size() == 0
 	}, 10*time.Second, 100*time.Millisecond, "agent connections not fully cleaned up")
+}
+
+// routedConnection returns the downstream connection that the agent ID routes to on any
+// upstream connection of the gateway.
+func routedConnection(gw *Gateway, agentID string) (*downstreamConnection, bool) {
+	gw.client.pool.mtx.RLock()
+	defer gw.client.pool.mtx.RUnlock()
+	for _, u := range gw.client.pool.connections {
+		if conn, ok := gw.server.getAgentConnection(u, agentID); ok {
+			return conn, true
+		}
+	}
+	return nil, false
 }
