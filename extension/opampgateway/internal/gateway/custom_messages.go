@@ -16,6 +16,7 @@ package gateway
 
 import (
 	"net/http"
+	"slices"
 )
 
 // OpampGatewayConnect represents an authentication request sent by a gateway on behalf of an
@@ -33,6 +34,20 @@ type OpampGatewayConnect struct {
 	// Headers contains HTTP-style headers the server can use to validate the agent
 	// connection.
 	Headers http.Header `json:"headers"`
+
+	// GatewayCapabilities lists the optional features of the gateway that sends the request,
+	// for example disconnectAgent. A gateway that relays the request puts its own features
+	// here, and the gateway that receives the relayed request uses them; the server does not.
+	GatewayCapabilities []string `json:"gateway_capabilities,omitempty"`
+}
+
+// gatewayCapabilities are the optional features of this gateway. The gateway lists them in
+// the connect requests that it sends upstream.
+var gatewayCapabilities = []string{OpampGatewayDisconnectAgentType}
+
+// supports reports whether the gateway that sent the request lists the capability.
+func (c OpampGatewayConnect) supports(capability string) bool {
+	return slices.Contains(c.GatewayCapabilities, capability)
 }
 
 // OpampGatewayConnectResult represents the server's response to an OpampGatewayConnect request.
@@ -59,4 +74,21 @@ const (
 	// OpampGatewayConnectResultType is sent as a response to the connect message. It will
 	// either allow or deny the agent connection.
 	OpampGatewayConnectResultType = "connectResult"
+
+	// OpampGatewayDisconnectAgentType is sent by the server to make the gateway close the
+	// connection of one downstream agent, for example an agent with a duplicate agent ID.
+	// The server finds support in the AvailableComponents of the gateway collector. A
+	// chained gateway lists it in the GatewayCapabilities of its connect requests.
+	OpampGatewayDisconnectAgentType = "disconnectAgent"
 )
+
+// OpampGatewayDisconnectAgent asks the gateway to close the connection of one downstream
+// agent.
+type OpampGatewayDisconnectAgent struct {
+	// InstanceUID is the instance UID of the agent, as in AgentToServer.instance_uid.
+	InstanceUID []byte `json:"instance_uid"`
+
+	// RetryAfterSeconds is how long the server rejects reconnects of the agent. The server
+	// enforces it; the gateway only passes the value on to a chained gateway.
+	RetryAfterSeconds int `json:"retry_after_seconds"`
+}

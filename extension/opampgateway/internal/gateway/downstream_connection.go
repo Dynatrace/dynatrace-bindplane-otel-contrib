@@ -58,6 +58,27 @@ type downstreamConnection struct {
 	// of the connection. The agents are reported only on that socket: when the socket is
 	// replaced, the server has already ended their sessions.
 	upstreamGeneration atomic.Uint64
+
+	// chainedGateway is true when the connection comes from another gateway, which is known
+	// once it relays a connect request. Such a connection carries many agents.
+	chainedGateway atomic.Bool
+
+	// disconnectAgentSupported is true when a chained gateway listed the disconnectAgent
+	// capability in its connect request. An older chained gateway does not.
+	disconnectAgentSupported atomic.Bool
+}
+
+// recordChainedConnect records a connect request that the chained gateway on the connection
+// relayed. The chained gateway supports disconnectAgent only when all of its requests list
+// it: an older gateway relays the requests of newer gateways unchanged, so a request that
+// lists it can come from a gateway behind an older one.
+func (c *downstreamConnection) recordChainedConnect(connect OpampGatewayConnect) {
+	supported := connect.supports(OpampGatewayDisconnectAgentType)
+	if !c.chainedGateway.Swap(true) {
+		c.disconnectAgentSupported.Store(supported)
+	} else if !supported {
+		c.disconnectAgentSupported.Store(false)
+	}
 }
 
 func newDownstreamConnection(ctx context.Context, conn *websocket.Conn, telemetry *metadata.TelemetryBuilder, upstreamConnection *upstreamConnection, id string, logger *zap.Logger) *downstreamConnection {

@@ -15,6 +15,8 @@
 package gateway
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -256,6 +258,150 @@ func TestGatewayReportsADuplicateIDOnItsOwnUpstreamConnection(t *testing.T) {
 	require.Equal(t, uint64(5), other.WaitForMessage(t, 5*time.Second).GetCapabilities())
 }
 
+func disconnectAgentMessage(t *testing.T, instanceUID []byte) *protobufs.ServerToAgent {
+	t.Helper()
+	data, err := json.Marshal(OpampGatewayDisconnectAgent{InstanceUID: instanceUID, RetryAfterSeconds: 300})
+	require.NoError(t, err)
+	return &protobufs.ServerToAgent{
+		CustomMessage: &protobufs.CustomMessage{
+			Capability: OpampGatewayCapability,
+			Type:       OpampGatewayDisconnectAgentType,
+			Data:       data,
+		},
+	}
+}
+
+func TestGatewayDisconnectAgentClosesOnlyThatAgent(t *testing.T) {
+	t.Parallel()
+
+	h := newGatewayTestHarness(t, 1)
+	agent := h.NewAgent(t)
+	sibling := h.NewAgent(t)
+	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	h.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+	sibling.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	h.upstream.WaitForAgentMessage(t, sibling.ID(), 5*time.Second)
+
+	require.NoError(t, h.upstream.Send(disconnectAgentMessage(t, agent.RawID())))
+	agent.WaitForClose(t, 5*time.Second)
+	h.upstream.RequireNoAgentMessage(t, agent.ID(), 300*time.Millisecond)
+
+	require.NoError(t, h.upstream.Send(&protobufs.ServerToAgent{InstanceUid: sibling.RawID(), Capabilities: 5}))
+	require.Equal(t, uint64(5), sibling.WaitForMessage(t, 5*time.Second).GetCapabilities())
+}
+
+func TestGatewayDisconnectAgentForUnknownAgentIsIgnored(t *testing.T) {
+	t.Parallel()
+
+	h := newGatewayTestHarness(t, 1)
+	agent := h.NewAgent(t)
+	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	h.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+
+	unknown := uuid.New()
+	require.NoError(t, h.upstream.Send(disconnectAgentMessage(t, unknown[:])))
+	require.NoError(t, h.upstream.Send(&protobufs.ServerToAgent{InstanceUid: agent.RawID(), Capabilities: 3}))
+	require.Equal(t, uint64(3), agent.WaitForMessage(t, 5*time.Second).GetCapabilities())
+}
+
+func TestGatewayChainedDisconnectAgentIsForwarded(t *testing.T) {
+	t.Parallel()
+
+	outer := newGatewayTestHarness(t, 1)
+	inner := newChainedGatewayHarness(t, "inner", outer.agentURL, 1)
+
+	agent := inner.NewAgent(t)
+	sibling := inner.NewAgent(t)
+	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	outer.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+	sibling.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	outer.upstream.WaitForAgentMessage(t, sibling.ID(), 5*time.Second)
+
+	// The outer gateway must not close the connection of the inner gateway, which carries
+	// the sibling too. It forwards the request, and the inner gateway closes the agent.
+	require.NoError(t, outer.upstream.Send(disconnectAgentMessage(t, agent.RawID())))
+	agent.WaitForClose(t, 5*time.Second)
+
+	require.NoError(t, outer.upstream.Send(&protobufs.ServerToAgent{InstanceUid: sibling.RawID(), Capabilities: 4}))
+	require.Equal(t, uint64(4), sibling.WaitForMessage(t, 5*time.Second).GetCapabilities())
+}
+
+func TestGatewayChainedDisconnectAgentIsNotReportedLater(t *testing.T) {
+	t.Parallel()
+
+	outer := newGatewayTestHarness(t, 1)
+	inner := newChainedGatewayHarness(t, "inner", outer.agentURL, 1)
+
+	agent := inner.NewAgent(t)
+	sibling := inner.NewAgent(t)
+	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	outer.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+	sibling.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	outer.upstream.WaitForAgentMessage(t, sibling.ID(), 5*time.Second)
+
+	require.NoError(t, outer.upstream.Send(disconnectAgentMessage(t, agent.RawID())))
+	agent.WaitForClose(t, 5*time.Second)
+	_, ok := routedConnection(outer.gateway, agent.ID())
+	require.False(t, ok, "the outer gateway stops routing to the agent")
+
+	// When the connection of the inner gateway closes, only the sibling is reported. The
+	// server already ended the session of the agent.
+	require.NoError(t, inner.gateway.Shutdown(context.Background()))
+	msg := outer.upstream.WaitForAgentMessage(t, sibling.ID(), 5*time.Second)
+	require.NotNil(t, msg.Message.GetAgentDisconnect())
+	outer.upstream.RequireNoAgentMessage(t, agent.ID(), 300*time.Millisecond)
+}
+
+func TestGatewayDisconnectAgentIsNotForwardedToAGatewayWithoutSupport(t *testing.T) {
+	t.Parallel()
+
+	outer := newGatewayTestHarness(t, 1)
+	inner := newChainedGatewayHarness(t, "inner", outer.agentURL, 1)
+
+	agent := inner.NewAgent(t)
+	agent.Send(&protobufs.AgentToServer{SequenceNum: 1})
+	outer.upstream.WaitForAgentMessage(t, agent.ID(), 5*time.Second)
+
+	// An older inner gateway does not list the capability in its connect request.
+	conn, ok := routedConnection(outer.gateway, agent.ID())
+	require.True(t, ok)
+	require.True(t, conn.disconnectAgentSupported.Load(), "the inner gateway lists the capability in its connect request")
+	conn.disconnectAgentSupported.Store(false)
+
+	require.NoError(t, outer.upstream.Send(disconnectAgentMessage(t, agent.RawID())))
+	require.NoError(t, outer.upstream.Send(&protobufs.ServerToAgent{InstanceUid: agent.RawID(), Capabilities: 6}))
+	require.Equal(t, uint64(6), agent.WaitForMessage(t, 5*time.Second).GetCapabilities(),
+		"the request is not forwarded, so the agent stays connected and routed")
+}
+
+func TestChainedConnectRequest(t *testing.T) {
+	connectMessage := func(t *testing.T, connect OpampGatewayConnect) *protobufs.AgentToServer {
+		data, err := json.Marshal(connect)
+		require.NoError(t, err)
+		return &protobufs.AgentToServer{CustomMessage: &protobufs.CustomMessage{
+			Capability: OpampGatewayCapability,
+			Type:       OpampGatewayConnectType,
+			Data:       data,
+		}}
+	}
+
+	connect, ok := chainedConnectRequest(connectMessage(t, OpampGatewayConnect{
+		RequestUID:          "req-1",
+		GatewayCapabilities: []string{"other", OpampGatewayDisconnectAgentType},
+	}))
+	require.True(t, ok)
+	require.Equal(t, "req-1", connect.RequestUID)
+	require.True(t, connect.supports(OpampGatewayDisconnectAgentType))
+
+	// An older gateway sends no capabilities.
+	connect, ok = chainedConnectRequest(connectMessage(t, OpampGatewayConnect{RequestUID: "req-2"}))
+	require.True(t, ok)
+	require.False(t, connect.supports(OpampGatewayDisconnectAgentType))
+
+	_, ok = chainedConnectRequest(&protobufs.AgentToServer{InstanceUid: []byte("agent")})
+	require.False(t, ok)
+}
+
 func TestGatewayDoesNotForwardAnAgentDisconnectForAnIDThatAnotherConnectionUses(t *testing.T) {
 	t.Parallel()
 
@@ -298,4 +444,37 @@ func TestGatewayAgentDisconnectWithTheOldIDIsReportedOnce(t *testing.T) {
 
 	require.NoError(t, agent.Close())
 	h.upstream.RequireNoAgentMessage(t, newID.String(), 500*time.Millisecond)
+}
+
+func TestDownstreamConnectionDisconnectAgentSupportNeedsEveryConnectRequest(t *testing.T) {
+	supported := OpampGatewayConnect{GatewayCapabilities: []string{OpampGatewayDisconnectAgentType}}
+	conn := &downstreamConnection{}
+
+	conn.recordChainedConnect(supported)
+	require.True(t, conn.chainedGateway.Load())
+	require.True(t, conn.disconnectAgentSupported.Load())
+
+	// An older gateway relays requests of newer gateways unchanged, so one request without
+	// the capability shows that the gateway on the connection does not support it.
+	conn.recordChainedConnect(OpampGatewayConnect{})
+	require.False(t, conn.disconnectAgentSupported.Load())
+	conn.recordChainedConnect(supported)
+	require.False(t, conn.disconnectAgentSupported.Load())
+}
+
+func TestRelayedConnectRequestListsTheCapabilitiesOfTheRelayingGateway(t *testing.T) {
+	m := &protobufs.AgentToServer{CustomMessage: &protobufs.CustomMessage{
+		Capability: OpampGatewayCapability,
+		Type:       OpampGatewayConnectType,
+		Data:       []byte(`{"request_uid":"req-1","remote_address":"a","headers":null,"future":1}`),
+	}}
+
+	data, err := withGatewayCapabilities(m.GetCustomMessage().GetData())
+	require.NoError(t, err)
+
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal(data, &fields))
+	require.Equal(t, "req-1", fields["request_uid"])
+	require.InDelta(t, 1, fields["future"], 0, "a field that this gateway does not know stays")
+	require.Equal(t, []any{OpampGatewayDisconnectAgentType}, fields["gateway_capabilities"])
 }
