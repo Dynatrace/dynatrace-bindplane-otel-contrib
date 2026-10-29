@@ -40,10 +40,19 @@ const defaultCacheMaxEntries = 100_000
 // defaultReloadInterval preserves the cadence the processor has always used.
 const defaultReloadInterval = time.Minute
 
-// resolveReloadInterval falls back to the default when the interval is unset.
+// puppetDBDefaultReloadInterval matches the Puppet agent's default run
+// interval, since facts cannot change faster than agents report them. Each
+// PuppetDB reload fetches the whole inventory, so the CSV default is too often.
+const puppetDBDefaultReloadInterval = 30 * time.Minute
+
+// resolveReloadInterval falls back to the source's default when the interval
+// is unset.
 func resolveReloadInterval(cfg *Config) time.Duration {
 	if cfg.ReloadInterval > 0 {
 		return cfg.ReloadInterval
+	}
+	if cfg.PuppetDB != nil {
+		return puppetDBDefaultReloadInterval
 	}
 	return defaultReloadInterval
 }

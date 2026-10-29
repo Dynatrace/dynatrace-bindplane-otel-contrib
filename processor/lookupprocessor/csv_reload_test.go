@@ -244,4 +244,7 @@ func TestResolveReloadInterval(t *testing.T) {
 	require.Equal(t, defaultReloadInterval, resolveReloadInterval(&Config{}),
 		"unset must fall back to the historical 60s cadence")
 	require.Equal(t, 5*time.Second, resolveReloadInterval(&Config{ReloadInterval: 5 * time.Second}))
+	require.Equal(t, 30*time.Minute, resolveReloadInterval(&Config{PuppetDB: &PuppetDBConfig{}}),
+		"unset PuppetDB must match the Puppet agent's 30m run interval")
+	require.Equal(t, 5*time.Second, resolveReloadInterval(&Config{PuppetDB: &PuppetDBConfig{}, ReloadInterval: 5 * time.Second}))
 }

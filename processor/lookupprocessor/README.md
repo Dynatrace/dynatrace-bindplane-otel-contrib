@@ -44,7 +44,7 @@ lookup and adding the resulting fields to the configured `context`.
 | context        | string          | ` `     | Telemetry context to read/write. One of `attributes`, `body`, `resource.attributes`. |
 | field          | string          | ` `     | Field in `context` whose value is used as the lookup key. |
 | source_type    | string          | ` `     | Optional. One of `csv`, `json`, `redis`, `api`, `puppetdb`. When unset, the lookup source is inferred from the source block. |
-| reload_interval | duration       | `60s`   | How often the lookup source is re-checked for changes. An unchanged file is skipped without re-reading it. A PuppetDB inventory is re-fetched each time. A negative value is rejected. |
+| reload_interval | duration       | `60s`   | How often the lookup source is re-checked for changes. An unchanged file is skipped without re-reading it. A PuppetDB inventory is re-fetched each time, so PuppetDB defaults to `30m` instead. A negative value is rejected. |
 | cache_enabled  | bool            | `true`  | Enable TTL caching of lookup results. Not used with a `csv` or `json` file or PuppetDB. |
 | cache_ttl      | duration        | `5m`    | Cache entry lifetime. Not used with a `csv` or `json` file or PuppetDB. |
 | cache_max_entries | int          | `100000` | Maximum entries held by the in-memory cache. On overflow, expired entries are evicted first, then arbitrary entries. Ignored when `storage` is set, and not used with a `csv` or `json` file or PuppetDB. |
@@ -180,7 +180,10 @@ as cloud instance metadata or SSH host keys, so list only the facts you want
 attached to telemetry.
 
 The whole selected inventory is fetched on every `reload_interval` and held in
-memory, so lookups never touch the network. A failed fetch is logged and the
+memory, so lookups never touch the network. When `reload_interval` is unset,
+PuppetDB reloads every 30 minutes, the Puppet agent's default run interval. A
+node added between reloads is not enriched until the next one, so lower the
+interval if new nodes must be enriched sooner. A failed fetch is logged and the
 previous inventory stays in use. Memory grows with node count and the number of
 facts selected: about 500 bytes per node for five short facts, so roughly 50 MB
 for 100,000 nodes, and up to twice that while a reload is being built. As with

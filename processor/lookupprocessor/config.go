@@ -57,8 +57,9 @@ type Config struct {
 	SourceType string `mapstructure:"source_type"`
 
 	// ReloadInterval is how often the source is re-checked. Unset uses the
-	// historical 60s cadence. Re-checking an unchanged CSV costs one stat rather
-	// than a full re-read, so the default is cheap to leave alone.
+	// historical 60s cadence, or 30m for PuppetDB. Re-checking an unchanged CSV
+	// costs one stat rather than a full re-read, so the default is cheap to leave
+	// alone.
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 
 	CacheEnabled    bool          `mapstructure:"cache_enabled"`
