@@ -19,6 +19,7 @@ package measurements
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"sync/atomic"
 
@@ -283,11 +284,18 @@ func (ctmr *ResettableThroughputMeasurementsRegistry) OTLPMeasurements(extraAttr
 	rm := m.ResourceMetrics().AppendEmpty()
 	sm := rm.ScopeMetrics().AppendEmpty()
 
+	attrs := maps.Clone(extraAttributes)
+	if attrs == nil {
+		attrs = make(map[string]string, 1)
+	}
+	// Set after cloning so a caller-supplied key cannot override the process identity.
+	attrs[InstanceIDAttribute] = InstanceID
+
 	ctmr.measurements.Range(func(_, value any) bool {
 		pm := value.(*processorMeasurements)
 		// Only include metrics collected after the last reported sequence
 		if pm.measurements.SequenceNumber() > pm.lastCollectedSequence {
-			OTLPThroughputMeasurements(pm.measurements, ctmr.emitCountMetrics, extraAttributes).MoveAndAppendTo(sm.Metrics())
+			OTLPThroughputMeasurements(pm.measurements, ctmr.emitCountMetrics, attrs).MoveAndAppendTo(sm.Metrics())
 
 			// Update the max sequence number if the current sequence number is greater
 			// This keeps a high water mark of the sequence number that has been reported
