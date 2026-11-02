@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"os"
 	"reflect"
 	"slices"
 	"time"
@@ -37,8 +38,11 @@ const (
 	// logRecordOriginalAttribute holds the original raw log when a source parsed the body.
 	logRecordOriginalAttribute = "log.record.original"
 
-	// hostNameResourceAttribute is the default source of hostname.
+	// hostNameResourceAttribute is the source of origin.hostname: the host the log was collected on.
 	hostNameResourceAttribute = "host.name"
+
+	// logFilePathAttribute is the source of origin.path, set by the filelog receiver's include_file_path.
+	logFilePathAttribute = "log.file.path"
 
 	// Log record attributes that override the configured metadata for that record.
 	hostnameAttribute       = "exabeam_hostname"
@@ -53,6 +57,9 @@ const timestampLayout = "2006-01-02T15:04:05.000Z"
 
 // collectorType is the collector type Exabeam assigned to Bindplane, written to every record.
 const collectorType = "bindplane-logs"
+
+// osHostname is the default source of hostname: the host the collector that sends to Exabeam runs on.
+var osHostname = os.Hostname
 
 // recordMetadata holds the configured fields written to every record.
 type recordMetadata struct {
@@ -72,20 +79,29 @@ type envelope struct {
 }
 
 // record is the event Exabeam ingests. Fields follow the order of Exabeam's sample, with
-// the fields it doesn't list before message.
+// sitename, which the sample leaves out, after siteid.
 // Empty fields are left out, as Exabeam recommends. Message is always written.
 type record struct {
 	Timestamp      string            `json:"@timestamp"`
 	CollectorType  string            `json:"collector_type"`
 	CollectorName  string            `json:"collector_name,omitempty"`
 	CollectorID    string            `json:"collector_id"`
-	SiteName       string            `json:"sitename,omitempty"`
-	SiteID         string            `json:"siteid,omitempty"`
+	Message        string            `json:"message"`
 	TimezoneOffset string            `json:"timezone_offset,omitempty"`
 	Hostname       string            `json:"hostname,omitempty"`
 	Forwarder      string            `json:"forwarder,omitempty"`
+	SiteID         string            `json:"siteid,omitempty"`
+	SiteName       string            `json:"sitename,omitempty"`
 	LogTags        map[string]string `json:"logtags,omitempty"`
-	Message        string            `json:"message"`
+	Origin         *origin           `json:"origin,omitempty"`
+}
+
+// origin describes where the log was first collected, when an agent collector sent it on
+// through another collector. It is left out when none of its fields are known.
+type origin struct {
+	Hostname  string `json:"hostname,omitempty"`
+	Timestamp string `json:"@timestamp,omitempty"`
+	Path      string `json:"path,omitempty"`
 }
 
 // encodedFile is a gzipped NDJSON file and the index of its first log record in the encoded logs.
@@ -118,6 +134,14 @@ func newEncoder(cfg *Config, s connectionSettings, set component.TelemetrySettin
 		maxFileSize: cfg.MaxFileSize,
 		now:         time.Now,
 		logger:      set.Logger,
+	}
+
+	if e.meta.Hostname == "" {
+		hostname, err := osHostname()
+		if err != nil {
+			set.Logger.Warn("could not get the hostname; records have no hostname unless attributes[\"exabeam_hostname\"] is set", zap.Error(err))
+		}
+		e.meta.Hostname = hostname
 	}
 
 	if cfg.RawLogField != "" {
@@ -205,24 +229,40 @@ func (e *encoder) record(ctx context.Context, timestamp string, rl plog.Resource
 	}
 
 	attrs := lr.Attributes()
-	hostname := e.meta.Hostname
-	if hostname == "" {
-		hostname = stringAttribute(rl.Resource().Attributes(), hostNameResourceAttribute, "")
-	}
-
 	return record{
 		Timestamp:      timestamp,
 		CollectorType:  collectorType,
 		CollectorName:  e.meta.CollectorName,
 		CollectorID:    e.meta.CollectorID,
-		SiteName:       e.meta.SiteName,
-		SiteID:         stringAttribute(attrs, siteIDAttribute, e.meta.SiteID),
-		TimezoneOffset: e.timezoneOffset(attrs),
-		Hostname:       stringAttribute(attrs, hostnameAttribute, hostname),
-		Forwarder:      stringAttribute(attrs, forwarderAttribute, e.meta.Forwarder),
-		LogTags:        e.logTags(attrs),
 		Message:        message,
+		TimezoneOffset: e.timezoneOffset(attrs),
+		Hostname:       stringAttribute(attrs, hostnameAttribute, e.meta.Hostname),
+		Forwarder:      stringAttribute(attrs, forwarderAttribute, e.meta.Forwarder),
+		SiteID:         stringAttribute(attrs, siteIDAttribute, e.meta.SiteID),
+		SiteName:       e.meta.SiteName,
+		LogTags:        e.logTags(attrs),
+		Origin:         recordOrigin(rl, lr),
 	}, err
+}
+
+// recordOrigin returns the origin of a log record: the host.name resource attribute, the time
+// the record was observed, or else its event time, and the log.file.path attribute.
+func recordOrigin(rl plog.ResourceLogs, lr plog.LogRecord) *origin {
+	o := origin{
+		Hostname: stringAttribute(rl.Resource().Attributes(), hostNameResourceAttribute, ""),
+		Path:     stringAttribute(lr.Attributes(), logFilePathAttribute, ""),
+	}
+	ts := lr.ObservedTimestamp()
+	if ts == 0 {
+		ts = lr.Timestamp()
+	}
+	if ts != 0 {
+		o.Timestamp = ts.AsTime().UTC().Format(timestampLayout)
+	}
+	if o == (origin{}) {
+		return nil
+	}
+	return &o
 }
 
 // message returns the raw log: the raw_log_field expression when configured, otherwise

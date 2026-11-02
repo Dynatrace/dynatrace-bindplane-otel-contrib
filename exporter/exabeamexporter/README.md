@@ -34,7 +34,7 @@ This exporter writes logs to the Google Cloud Storage bucket that Exabeam create
 | siteid             | string |                                  | `false`  | Copied into every record. Overrides the connection string. `attributes["exabeam_siteid"]` overrides it per record.                                                                   |
 | timezone_offset    | string |                                  | `false`  | Copied into every record, in the form `+HHMM` or `-HHMM`. Overrides the connection string. `attributes["exabeam_timezone_offset"]` overrides it per record.                         |
 | collector_name     | string |                                  | `false`  | Copied into every record. Overrides the connection string.                                                                                                                             |
-| hostname           | string | `host.name` resource attribute   | `false`  | Copied into every record. `attributes["exabeam_hostname"]` overrides it per record.                                                                                                   |
+| hostname           | string | the collector's hostname         | `false`  | The host that sends logs to Exabeam, copied into every record. `attributes["exabeam_hostname"]` overrides it per record. The source host goes in `origin.hostname`.                   |
 | forwarder          | string |                                  | `false`  | Copied into every record. `attributes["exabeam_forwarder"]` overrides it per record.                                                                                                  |
 | logtags            | map    |                                  | `false`  | Up to 10 key/value pairs with non-empty names, copied into every record. Merged with `attributes["exabeam_logtags"]`. Exabeam makes each one searchable as `m_c_logtags_<name>`.     |
 | raw_log_field      | string |                                  | `false`  | An OTTL expression for the raw log written to `message`, for example `body` or `attributes["raw"]`. Defaults to `attributes["log.record.original"]` when present, otherwise `body`. Maps and lists are written as JSON. If the expression fails for a record, that record uses the default and a warning is logged for the batch. |
@@ -68,10 +68,12 @@ Standard and URL-safe base64 are accepted, with or without padding.
 
 ### Keeping Site Settings in Sync
 
-The connection string holds the site name and timezone offset as they were when it was copied, and the exporter writes those values into every record. If a site name or timezone offset is changed in Exabeam's Site Management UI, make the same change in the exporter configuration, or records keep the old values. Either:
+The connection string holds the site name, site ID and timezone offset as they were when it was copied, and the exporter writes those values into every record. Exabeam uses the site ID for data segregation, and both the site ID and timezone offset must match the advanced settings in the Cloud Collectors management app. If a site name, site ID or timezone offset is changed in Exabeam's Site Management UI, make the same change in the exporter configuration, or records keep the old values. Either:
 
-- set `sitename` or `timezone_offset` to the new value, which overrides the connection string, or
+- set `sitename`, `siteid` or `timezone_offset` to the new value, which overrides the connection string, or
 - replace `connection_string` with one that has the new values.
+
+Values set per record with `exabeam_siteid` or `exabeam_timezone_offset` (see [Per-Record Metadata](#per-record-metadata)) must also match a site configured in Exabeam.
 
 ### File Rollover
 
@@ -125,13 +127,19 @@ exa-bindplane-logs_a0d78162-e407-4079-b06c-62df4ed0e71a_1_2023_06_29_20182000000
 Each file is gzipped newline-delimited JSON, with one line per log record. Exabeam reads the event from the top-level `message` key:
 
 ```json
-{"message":{"@timestamp":"2023-04-19T11:38:12.501Z","collector_type":"bindplane-logs","collector_name":"<collector_name>","collector_id":"<collector_id>","sitename":"<sitename>","siteid":"<siteid>","timezone_offset":"-0700","hostname":"<hostname>","forwarder":"<forwarder>","logtags":{"department":"HR"},"message":"<raw log>"}}
+{"message":{"@timestamp":"2026-01-27T12:30:05.112Z","collector_type":"bindplane-logs","collector_name":"<collector_name>","collector_id":"<collector_id>","message":"<raw log>","timezone_offset":"+0200","hostname":"<gateway-host>","forwarder":"<forwarder>","siteid":"<siteid>","sitename":"<sitename>","logtags":{"department":"HR"},"origin":{"hostname":"<source-host>","@timestamp":"2026-01-27T12:30:01.279Z","path":"C:\\Program Files\\logs.txt"}}}
 ```
 
 - `@timestamp` is the time the file is written, in UTC with millisecond precision. It is not the event time.
+- `hostname` is the host that sends the log to Exabeam: the collector running this exporter, such as a gateway. It is the collector's hostname unless `hostname` or `exabeam_hostname` sets it.
+- `origin` describes where the log was first collected, for example by an agent that forwards to a gateway:
+  - `origin.hostname` is the `host.name` resource attribute, set by the agent's resource detection.
+  - `origin.@timestamp` is when the agent collected the log: the record's observed timestamp, or its event timestamp when that is not set. It is in UTC with millisecond precision.
+  - `origin.path` is the `log.file.path` attribute, set by the filelog receiver when `include_file_path` is enabled.
 - `message` is the raw log, from `raw_log_field` when it is set. Otherwise it is the string value of the `log.record.original` attribute when present, or else the log body: string and bytes bodies are written as is, and other body types as JSON.
 - `collector_type` is `bindplane-logs`.
-- Empty fields are left out rather than written blank, as Exabeam recommends, except `message`.
+- Empty fields are left out rather than written blank, as Exabeam recommends, except `message`. `origin` is left out when none of its fields are known.
+- Metadata goes in these fields only. `message` holds just the raw log.
 
 ### Per-Record Metadata
 

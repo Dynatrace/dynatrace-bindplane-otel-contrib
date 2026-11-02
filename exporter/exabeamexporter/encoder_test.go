@@ -20,6 +20,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -126,8 +127,12 @@ func encodeOne(t *testing.T, enc *encoder, setup func(rl plog.ResourceLogs, lr p
 
 func TestEncoderRecordFormat(t *testing.T) {
 	raw := `<34>1 2003-10-11T22:14:15.003Z host app - ID47 - "quoted" & <tagged> \u00e9`
-	rec, line := encodeOne(t, newTestEncoder(defaultMaxFileSize), func(rl plog.ResourceLogs, lr plog.LogRecord) {
+	enc := newTestEncoder(defaultMaxFileSize)
+	enc.meta.Hostname = "gw-01"
+	rec, line := encodeOne(t, enc, func(rl plog.ResourceLogs, lr plog.LogRecord) {
 		rl.Resource().Attributes().PutStr("host.name", "web-01")
+		lr.SetObservedTimestamp(pcommon.NewTimestampFromTime(time.Date(2023, 4, 19, 18, 38, 10, 250_000_000, time.UTC)))
+		lr.Attributes().PutStr("log.file.path", `C:\Program Files\app\logs.txt`)
 		lr.Body().SetStr(raw)
 	})
 
@@ -138,16 +143,22 @@ func TestEncoderRecordFormat(t *testing.T) {
 		"collector_id":    testCollectorID,
 		"message":         raw,
 		"timezone_offset": "-0700",
-		"hostname":        "web-01",
+		"hostname":        "gw-01",
 		"forwarder":       "bindplane",
 		"siteid":          "site-1",
 		"sitename":        "abcorp",
 		"logtags":         map[string]any{"department": "HR", "servertype": "PCI"},
+		"origin": map[string]any{
+			"hostname":   "web-01",
+			"@timestamp": "2023-04-19T18:38:10.250Z",
+			"path":       `C:\Program Files\app\logs.txt`,
+		},
 	}, rec)
 
-	// Field order follows Exabeam's sample, with the fields it doesn't list before message.
+	// Field order follows Exabeam's sample, with sitename, which the sample leaves out, after siteid.
 	require.True(t, strings.HasPrefix(line, `{"message":{"@timestamp":"2023-04-19T18:38:12.501Z","collector_type":"bindplane-logs",`), line)
-	keys := []string{"@timestamp", "collector_type", "collector_name", "collector_id", "sitename", "siteid", "timezone_offset", "hostname", "forwarder", "logtags", "message"}
+	require.True(t, strings.HasSuffix(line, `"origin":{"hostname":"web-01","@timestamp":"2023-04-19T18:38:10.250Z","path":"C:\\Program Files\\app\\logs.txt"}}}`), line)
+	keys := []string{"@timestamp", "collector_type", "collector_name", "collector_id", "message", "timezone_offset", "hostname", "forwarder", "siteid", "sitename", "logtags", "origin"}
 	inner := strings.TrimPrefix(line, `{"message":`)
 	last := -1
 	for _, k := range keys {
@@ -202,13 +213,14 @@ func TestEncoderAttributeOverrides(t *testing.T) {
 		require.Equal(t, map[string]any{"department": "Finance", "servertype": "PCI", "tier": "1"}, rec["logtags"])
 	})
 
-	t.Run("config hostname beats resource host.name", func(t *testing.T) {
+	t.Run("resource host.name goes to origin, not hostname", func(t *testing.T) {
 		enc := newTestEncoder(defaultMaxFileSize)
 		enc.meta.Hostname = "config-host"
 		rec, _ := encodeOne(t, enc, func(rl plog.ResourceLogs, _ plog.LogRecord) {
 			rl.Resource().Attributes().PutStr("host.name", "web-01")
 		})
 		require.Equal(t, "config-host", rec["hostname"])
+		require.Equal(t, map[string]any{"hostname": "web-01"}, rec["origin"])
 	})
 
 	t.Run("non-string and empty attributes are ignored", func(t *testing.T) {
@@ -501,6 +513,99 @@ func TestNewEncoderFromConfig(t *testing.T) {
 		"sitename":        "abcorp",
 		"logtags":         map[string]any{"env": "prod"},
 	}, rec)
+}
+
+func TestEncoderOrigin(t *testing.T) {
+	observed := time.Date(2026, 1, 27, 12, 30, 1, 279_000_000, time.UTC)
+	event := time.Date(2026, 1, 27, 12, 29, 0, 0, time.UTC)
+
+	testCases := []struct {
+		desc     string
+		setup    func(rl plog.ResourceLogs, lr plog.LogRecord)
+		expected any
+	}{
+		{
+			desc:     "nothing known leaves origin out",
+			setup:    func(plog.ResourceLogs, plog.LogRecord) {},
+			expected: nil,
+		},
+		{
+			desc: "observed timestamp wins over event timestamp",
+			setup: func(_ plog.ResourceLogs, lr plog.LogRecord) {
+				lr.SetObservedTimestamp(pcommon.NewTimestampFromTime(observed))
+				lr.SetTimestamp(pcommon.NewTimestampFromTime(event))
+			},
+			expected: map[string]any{"@timestamp": "2026-01-27T12:30:01.279Z"},
+		},
+		{
+			desc: "event timestamp when not observed",
+			setup: func(_ plog.ResourceLogs, lr plog.LogRecord) {
+				lr.SetTimestamp(pcommon.NewTimestampFromTime(event))
+			},
+			expected: map[string]any{"@timestamp": "2026-01-27T12:29:00.000Z"},
+		},
+		{
+			desc: "path from log.file.path",
+			setup: func(_ plog.ResourceLogs, lr plog.LogRecord) {
+				lr.Attributes().PutStr("log.file.path", "/var/log/app.log")
+			},
+			expected: map[string]any{"path": "/var/log/app.log"},
+		},
+		{
+			desc: "non-string and empty values are ignored",
+			setup: func(rl plog.ResourceLogs, lr plog.LogRecord) {
+				rl.Resource().Attributes().PutInt("host.name", 1)
+				lr.Attributes().PutStr("log.file.path", "")
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			rec, _ := encodeOne(t, newTestEncoder(defaultMaxFileSize), tc.setup)
+			require.Equal(t, tc.expected, rec["origin"])
+		})
+	}
+}
+
+func TestNewEncoderHostname(t *testing.T) {
+	setHostname := func(t *testing.T, hostname string, err error) {
+		t.Helper()
+		orig := osHostname
+		osHostname = func() (string, error) { return hostname, err }
+		t.Cleanup(func() { osHostname = orig })
+	}
+	newEnc := func(t *testing.T, hostname string, logger *zap.Logger) *encoder {
+		t.Helper()
+		cfg := createDefaultConfig().(*Config)
+		cfg.ConnectionString = testConnectionStringOpaque(t)
+		cfg.Hostname = hostname
+		s, err := cfg.resolve()
+		require.NoError(t, err)
+		set := componenttest.NewNopTelemetrySettings()
+		set.Logger = logger
+		enc, err := newEncoder(cfg, s, set)
+		require.NoError(t, err)
+		return enc
+	}
+
+	t.Run("defaults to the collector's hostname", func(t *testing.T) {
+		setHostname(t, "gw-01", nil)
+		require.Equal(t, "gw-01", newEnc(t, "", zap.NewNop()).meta.Hostname)
+	})
+
+	t.Run("config wins", func(t *testing.T) {
+		setHostname(t, "gw-01", nil)
+		require.Equal(t, "configured", newEnc(t, "configured", zap.NewNop()).meta.Hostname)
+	})
+
+	t.Run("lookup failure leaves it empty and warns", func(t *testing.T) {
+		setHostname(t, "", errors.New("no hostname"))
+		core, logs := observer.New(zap.WarnLevel)
+		require.Empty(t, newEnc(t, "", zap.New(core)).meta.Hostname)
+		require.Equal(t, 1, logs.Len())
+	})
 }
 
 func TestNewEncoderCollectorNameFromConnectionString(t *testing.T) {

@@ -71,8 +71,8 @@ type Config struct {
 	// CollectorName is copied into every record. It overrides the connection string.
 	CollectorName string `mapstructure:"collector_name"`
 
-	// Hostname is written to every record. It defaults to the host.name resource attribute
-	// and is overridden by attributes["exabeam_hostname"].
+	// Hostname is written to every record as the host that sent the log to Exabeam. It defaults to
+	// the hostname of the collector's host and is overridden by attributes["exabeam_hostname"].
 	Hostname string `mapstructure:"hostname"`
 
 	// Forwarder is written to every record. It is overridden by attributes["exabeam_forwarder"].
