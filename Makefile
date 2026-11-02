@@ -42,7 +42,7 @@ OUTDIR ?= build
 EXT = $(if $(filter windows,$(GOOS)),.exe,)
 
 #OCB binary info
-OCB_VERSION ?= v0.163.0
+OCB_VERSION ?= v0.164.0
 OCB ?= $(shell command -v $${OCB:-builder} 2>/dev/null || echo $${GOBIN:-$$HOME/go/bin}/builder)
 
 # ocb manifest copy that points every contrib module at the local working tree.
@@ -490,7 +490,7 @@ add-license:
 # Usage: make update-otel OTEL_VERSION=vx.x.x CONTRIB_VERSION=vx.x.x PDATA_VERSION=vx.x.x-rcx
 .PHONY: update-otel
 update-otel:
-	./scripts/update-otel.sh "$(OTEL_VERSION)" "$(CONTRIB_VERSION)" "$(PDATA_VERSION)"
+	./scripts/update-otel.sh "$(OTEL_VERSION)" "$(CONTRIB_VERSION)" "$(PDATA_VERSION)" "$(CONTRIB_STABLE_VERSION)"
 	$(MAKE) tidy
 # Double make tidy - this unfortunately is needed due to the order in which modules are tidied.
 	$(MAKE) tidy
