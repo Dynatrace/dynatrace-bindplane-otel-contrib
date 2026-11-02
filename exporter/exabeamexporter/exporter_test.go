@@ -137,7 +137,7 @@ func TestLogsDataPusher(t *testing.T) {
 
 	require.Len(t, up.keys, 1)
 	require.Regexp(t, objectNamePattern, up.keys[0])
-	require.True(t, strings.HasPrefix(up.keys[0], "exa-cribl-logs_"+testCollectorID+"_1_"))
+	require.True(t, strings.HasPrefix(up.keys[0], "exa-bindplane-logs_"+testCollectorID+"_1_"))
 
 	lines := gunzipLines(t, up.bodies[0])
 	require.Len(t, lines, 5)

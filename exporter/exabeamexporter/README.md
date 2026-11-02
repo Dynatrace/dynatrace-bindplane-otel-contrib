@@ -32,7 +32,7 @@ This exporter writes logs to the Google Cloud Storage bucket that Exabeam create
 | sitename           | string |                                  | `false`  | Copied into every record. Overrides the connection string.                                                                                                                             |
 | siteid             | string |                                  | `false`  | Copied into every record. Overrides the connection string. `attributes["exabeam_siteid"]` overrides it per record.                                                                   |
 | timezone_offset    | string |                                  | `false`  | Copied into every record, in the form `+HHMM` or `-HHMM`. Overrides the connection string. `attributes["exabeam_timezone_offset"]` overrides it per record.                         |
-| collector_name     | string |                                  | `false`  | Copied into every record.                                                                                                                                                              |
+| collector_name     | string |                                  | `false`  | Copied into every record. Overrides the connection string.                                                                                                                             |
 | hostname           | string | `host.name` resource attribute   | `false`  | Copied into every record. `attributes["exabeam_hostname"]` overrides it per record.                                                                                                   |
 | forwarder          | string |                                  | `false`  | Copied into every record. `attributes["exabeam_forwarder"]` overrides it per record.                                                                                                  |
 | logtags            | map    |                                  | `false`  | Up to 10 key/value pairs with non-empty names, copied into every record. Merged with `attributes["exabeam_logtags"]`. Exabeam makes each one searchable as `m_c_logtags_<name>`.     |
@@ -52,6 +52,7 @@ The connection string is the base64 encoding of a JSON object like this one:
 ```json
 {
   "collector_id": "b557e4fc-...",
+  "collector_name": "<collector-name>",
   "access_key": "<access-key>",
   "secret_key": "<secret-key>",
   "bucket_name": "dl-topic-ops-dist-cc-mgrtn-e2e",
@@ -102,13 +103,13 @@ Shutdown waits for these uploads to finish and has no time limit of its own. Eac
 Objects are written to the root of the bucket and named:
 
 ```
-exa-cribl-logs_<collector_id>_1_YYYY_MM_DD_<HHMMSS><nanoseconds>_<random>.log.gz
+exa-bindplane-logs_<collector_id>_1_YYYY_MM_DD_<HHMMSS><nanoseconds>_<random>.log.gz
 ```
 
 The time is the upload time in UTC, and `<random>` is 16 random digits. For example:
 
 ```
-exa-cribl-logs_a0d78162-e407-4079-b06c-62df4ed0e71a_1_2023_06_29_201820000000126_8520776225844066.log.gz
+exa-bindplane-logs_a0d78162-e407-4079-b06c-62df4ed0e71a_1_2023_06_29_201820000000126_8520776225844066.log.gz
 ```
 
 ### Record Format
@@ -116,13 +117,13 @@ exa-cribl-logs_a0d78162-e407-4079-b06c-62df4ed0e71a_1_2023_06_29_201820000000126
 Each file is gzipped newline-delimited JSON, with one line per log record. Exabeam reads the event from the top-level `message` key:
 
 ```json
-{"message":{"@timestamp":"2023-04-19T11:38:12.501Z","collector_type":"cribl-logs","collector_name":"<collector_name>","collector_id":"<collector_id>","message":"<raw log>","timezone_offset":"-0700","hostname":"<hostname>","forwarder":"<forwarder>","siteid":"<siteid>","sitename":"<sitename>","logtags":{"department":"HR"}}}
+{"message":{"@timestamp":"2023-04-19T11:38:12.501Z","collector_type":"bindplane-logs","collector_name":"<collector_name>","collector_id":"<collector_id>","sitename":"<sitename>","siteid":"<siteid>","timezone_offset":"-0700","hostname":"<hostname>","forwarder":"<forwarder>","logtags":{"department":"HR"},"message":"<raw log>"}}
 ```
 
 - `@timestamp` is the time the file is written, in UTC with millisecond precision. It is not the event time.
 - `message` is the raw log, from `raw_log_field` when it is set. Otherwise it is the string value of the `log.record.original` attribute when present, or else the log body: string and bytes bodies are written as is, and other body types as JSON.
-- `collector_type` is `cribl-logs`, the type Exabeam ingests from Cribl today. It will change once Exabeam defines a collector type for Bindplane.
-- Empty fields are left out, except `message`.
+- `collector_type` is `bindplane-logs`.
+- Empty fields are left out rather than written blank, as Exabeam recommends, except `message`.
 
 ### Per-Record Metadata
 
@@ -153,7 +154,6 @@ processors:
 ```yaml
 exabeam:
   connection_string: ${env:EXABEAM_CONNECTION_STRING}
-  collector_name: bindplane-gateway
   logtags:
     env: prod
 ```

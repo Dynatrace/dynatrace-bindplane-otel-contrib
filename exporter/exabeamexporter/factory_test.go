@@ -216,7 +216,6 @@ func TestExporterEndToEnd(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	cfg.ConnectionString = configopaque.String(testConnectionString(t, fullConnectionFields()))
 	cfg.Endpoint = srv.URL
-	cfg.CollectorName = "bindplane-gateway"
 	require.NoError(t, cfg.Validate())
 
 	exp, err := NewFactory().CreateLogs(context.Background(), exportertest.NewNopSettings(metadata.Type), cfg)
@@ -240,7 +239,8 @@ func TestExporterEndToEnd(t *testing.T) {
 	lines := gunzipLines(t, reqs[0].Body)
 	require.Len(t, lines, 5)
 	rec := decodeRecord(t, lines[0])
-	require.Equal(t, "bindplane-gateway", rec["collector_name"])
+	require.Equal(t, "bindplane-logs", rec["collector_type"])
+	require.Equal(t, testCollectorName, rec["collector_name"])
 	require.Equal(t, "abcorp", rec["sitename"])
 	require.Equal(t, "xdfsdfw99999sfsdf", rec["siteid"])
 	require.Equal(t, "-0700", rec["timezone_offset"])

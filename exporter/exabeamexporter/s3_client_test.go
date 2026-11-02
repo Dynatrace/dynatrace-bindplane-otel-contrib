@@ -115,14 +115,14 @@ func TestS3UploaderPutObject(t *testing.T) {
 	up := newS3Uploader(testSettings(), srv.URL)
 
 	body := []byte("gzipped file contents")
-	require.NoError(t, up.PutObject(context.Background(), "exa-cribl-logs_x.log.gz", body))
+	require.NoError(t, up.PutObject(context.Background(), "exa-bindplane-logs_x.log.gz", body))
 
 	reqs := srv.recorded()
 	require.Len(t, reqs, 1, "only the PutObject request is sent; no bucket checks or creation")
 	req := reqs[0]
 
 	require.Equal(t, http.MethodPut, req.Method)
-	require.Equal(t, "/exabeam-bucket/exa-cribl-logs_x.log.gz", req.Path, "path-style addressing at the bucket root")
+	require.Equal(t, "/exabeam-bucket/exa-bindplane-logs_x.log.gz", req.Path, "path-style addressing at the bucket root")
 	require.Equal(t, "x-id=PutObject", req.Query, "only the SDK's operation marker")
 	require.Equal(t, body, req.Body)
 

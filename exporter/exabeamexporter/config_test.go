@@ -34,6 +34,8 @@ const (
 	testCollectorID = "b557e4fc-1234-4567-89ab-cdef01234567"
 	testAccessKey   = "GOOGTESTACCESSKEY"
 	testSecretKey   = "test-secret-key"
+
+	testCollectorName = "exabeam-cc-01"
 )
 
 // testConnectionString returns a connection string encoding the given fields.
@@ -52,6 +54,7 @@ func testConnectionStringOpaque(t *testing.T) configopaque.String {
 func fullConnectionFields() map[string]string {
 	return map[string]string{
 		"collector_id":    testCollectorID,
+		"collector_name":  testCollectorName,
 		"access_key":      testAccessKey,
 		"secret_key":      testSecretKey,
 		"bucket_name":     "dl-topic-ops-dist-cc-mgrtn-e2e",
@@ -127,6 +130,7 @@ func TestConfigResolve(t *testing.T) {
 		s, err := cfg.resolve()
 		require.NoError(t, err)
 		require.Equal(t, testCollectorID, s.CollectorID)
+		require.Equal(t, testCollectorName, s.CollectorName)
 		require.Equal(t, testAccessKey, string(s.AccessKey))
 		require.Equal(t, testSecretKey, string(s.SecretKey))
 		require.Equal(t, "dl-topic-ops-dist-cc-mgrtn-e2e", s.BucketName)
@@ -140,6 +144,7 @@ func TestConfigResolve(t *testing.T) {
 		cfg := createDefaultConfig().(*Config)
 		cfg.ConnectionString = configopaque.String(testConnectionString(t, fullConnectionFields()))
 		cfg.CollectorID = "override-id"
+		cfg.CollectorName = "override-name"
 		cfg.AccessKey = "override-access"
 		cfg.SecretKey = "override-secret"
 		cfg.BucketName = "override-bucket"
@@ -151,6 +156,7 @@ func TestConfigResolve(t *testing.T) {
 		s, err := cfg.resolve()
 		require.NoError(t, err)
 		require.Equal(t, "override-id", s.CollectorID)
+		require.Equal(t, "override-name", s.CollectorName)
 		require.Equal(t, "override-access", string(s.AccessKey))
 		require.Equal(t, "override-secret", string(s.SecretKey))
 		require.Equal(t, "override-bucket", s.BucketName)

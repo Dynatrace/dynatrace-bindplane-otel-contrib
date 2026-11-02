@@ -22,12 +22,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var objectNamePattern = regexp.MustCompile(`^exa-cribl-logs_[0-9a-f-]{36}_1_\d{4}_\d{2}_\d{2}_\d{15}_\d{16}\.log\.gz$`)
+var objectNamePattern = regexp.MustCompile(`^exa-bindplane-logs_[0-9a-f-]{36}_1_\d{4}_\d{2}_\d{2}_\d{15}_\d{16}\.log\.gz$`)
 
 func TestObjectName(t *testing.T) {
 	ts := time.Date(2023, 6, 29, 13, 18, 20, 126, time.FixedZone("x", -7*3600))
 	require.Equal(t,
-		"exa-cribl-logs_a0d78162-e407-4079-b06c-62df4ed0e71a_1_2023_06_29_201820000000126_0000008520776225.log.gz",
+		"exa-bindplane-logs_a0d78162-e407-4079-b06c-62df4ed0e71a_1_2023_06_29_201820000000126_0000008520776225.log.gz",
 		objectName("a0d78162-e407-4079-b06c-62df4ed0e71a", ts, 8520776225),
 	)
 }
