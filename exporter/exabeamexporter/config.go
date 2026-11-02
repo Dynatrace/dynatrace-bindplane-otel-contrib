@@ -68,7 +68,7 @@ type Config struct {
 	// It is overridden by attributes["exabeam_timezone_offset"].
 	TimezoneOffset string `mapstructure:"timezone_offset"`
 
-	// CollectorName is copied into every record.
+	// CollectorName is copied into every record. It overrides the connection string.
 	CollectorName string `mapstructure:"collector_name"`
 
 	// Hostname is written to every record. It defaults to the host.name resource attribute
@@ -105,6 +105,7 @@ type Config struct {
 // connectionSettings holds the settings from the connection string merged with the explicit overrides.
 type connectionSettings struct {
 	CollectorID    string              `json:"collector_id"`
+	CollectorName  string              `json:"collector_name"`
 	AccessKey      configopaque.String `json:"access_key"`
 	SecretKey      configopaque.String `json:"secret_key"`
 	BucketName     string              `json:"bucket_name"`
@@ -179,6 +180,7 @@ func (c *Config) resolve() (connectionSettings, error) {
 	}
 
 	overrideString(&s.CollectorID, c.CollectorID)
+	overrideString(&s.CollectorName, c.CollectorName)
 	overrideString(&s.BucketName, c.BucketName)
 	overrideString(&s.BucketLocation, c.BucketLocation)
 	overrideString(&s.SiteName, c.SiteName)

@@ -21,12 +21,8 @@ import (
 	"time"
 )
 
-// collectorType is written to every record, and objectPrefix starts every object name.
-// They are placeholders until Exabeam defines a collector type for Bindplane.
-const (
-	collectorType = "cribl-logs"
-	objectPrefix  = "exa-" + collectorType
-)
+// objectPrefix starts every object name.
+const objectPrefix = "exa-" + collectorType
 
 // maxRandomSuffix bounds the random number at the end of the object name to 16 digits.
 var maxRandomSuffix = big.NewInt(10_000_000_000_000_000)
@@ -41,7 +37,7 @@ func newObjectName(collectorID string, t time.Time) (string, error) {
 }
 
 // objectName formats an object name in the form Exabeam expects:
-// exa-cribl-logs_<collector_id>_1_YYYY_MM_DD_<HHMMSS><nanoseconds>_<random>.log.gz
+// exa-bindplane-logs_<collector_id>_1_YYYY_MM_DD_<HHMMSS><nanoseconds>_<random>.log.gz
 // Objects are always written to the bucket root.
 func objectName(collectorID string, t time.Time, random uint64) string {
 	t = t.UTC()

@@ -51,6 +51,9 @@ const (
 // timestampLayout is the UTC millisecond timestamp Exabeam expects in @timestamp.
 const timestampLayout = "2006-01-02T15:04:05.000Z"
 
+// collectorType is the collector type Exabeam assigned to Bindplane, written to every record.
+const collectorType = "bindplane-logs"
+
 // recordMetadata holds the configured fields written to every record.
 type recordMetadata struct {
 	CollectorName  string
@@ -68,20 +71,21 @@ type envelope struct {
 	Message record `json:"message"`
 }
 
-// record is the event Exabeam ingests.
-// Empty fields are left out. Message is always written.
+// record is the event Exabeam ingests. Fields follow the order of Exabeam's sample, with
+// the fields it doesn't list before message.
+// Empty fields are left out, as Exabeam recommends. Message is always written.
 type record struct {
 	Timestamp      string            `json:"@timestamp"`
 	CollectorType  string            `json:"collector_type"`
 	CollectorName  string            `json:"collector_name,omitempty"`
 	CollectorID    string            `json:"collector_id"`
-	Message        string            `json:"message"`
+	SiteName       string            `json:"sitename,omitempty"`
+	SiteID         string            `json:"siteid,omitempty"`
 	TimezoneOffset string            `json:"timezone_offset,omitempty"`
 	Hostname       string            `json:"hostname,omitempty"`
 	Forwarder      string            `json:"forwarder,omitempty"`
-	SiteID         string            `json:"siteid,omitempty"`
-	SiteName       string            `json:"sitename,omitempty"`
 	LogTags        map[string]string `json:"logtags,omitempty"`
+	Message        string            `json:"message"`
 }
 
 // encodedFile is a gzipped NDJSON file and the index of its first log record in the encoded logs.
@@ -102,7 +106,7 @@ type encoder struct {
 func newEncoder(cfg *Config, s connectionSettings, set component.TelemetrySettings) (*encoder, error) {
 	e := &encoder{
 		meta: recordMetadata{
-			CollectorName:  cfg.CollectorName,
+			CollectorName:  s.CollectorName,
 			CollectorID:    s.CollectorID,
 			SiteName:       s.SiteName,
 			SiteID:         s.SiteID,
@@ -211,13 +215,13 @@ func (e *encoder) record(ctx context.Context, timestamp string, rl plog.Resource
 		CollectorType:  collectorType,
 		CollectorName:  e.meta.CollectorName,
 		CollectorID:    e.meta.CollectorID,
-		Message:        message,
+		SiteName:       e.meta.SiteName,
+		SiteID:         stringAttribute(attrs, siteIDAttribute, e.meta.SiteID),
 		TimezoneOffset: e.timezoneOffset(attrs),
 		Hostname:       stringAttribute(attrs, hostnameAttribute, hostname),
 		Forwarder:      stringAttribute(attrs, forwarderAttribute, e.meta.Forwarder),
-		SiteID:         stringAttribute(attrs, siteIDAttribute, e.meta.SiteID),
-		SiteName:       e.meta.SiteName,
 		LogTags:        e.logTags(attrs),
+		Message:        message,
 	}, err
 }
 

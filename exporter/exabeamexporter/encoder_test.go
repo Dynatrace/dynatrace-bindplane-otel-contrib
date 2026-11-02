@@ -133,7 +133,7 @@ func TestEncoderRecordFormat(t *testing.T) {
 
 	require.Equal(t, map[string]any{
 		"@timestamp":      "2023-04-19T18:38:12.501Z",
-		"collector_type":  "cribl-logs",
+		"collector_type":  "bindplane-logs",
 		"collector_name":  "bindplane-gateway",
 		"collector_id":    testCollectorID,
 		"message":         raw,
@@ -145,9 +145,9 @@ func TestEncoderRecordFormat(t *testing.T) {
 		"logtags":         map[string]any{"department": "HR", "servertype": "PCI"},
 	}, rec)
 
-	// Field order follows Exabeam's sample.
-	require.True(t, strings.HasPrefix(line, `{"message":{"@timestamp":"2023-04-19T18:38:12.501Z","collector_type":"cribl-logs",`), line)
-	keys := []string{"@timestamp", "collector_type", "collector_name", "collector_id", "message", "timezone_offset", "hostname", "forwarder", "siteid", "sitename", "logtags"}
+	// Field order follows Exabeam's sample, with the fields it doesn't list before message.
+	require.True(t, strings.HasPrefix(line, `{"message":{"@timestamp":"2023-04-19T18:38:12.501Z","collector_type":"bindplane-logs",`), line)
+	keys := []string{"@timestamp", "collector_type", "collector_name", "collector_id", "sitename", "siteid", "timezone_offset", "hostname", "forwarder", "logtags", "message"}
 	inner := strings.TrimPrefix(line, `{"message":`)
 	last := -1
 	for _, k := range keys {
@@ -169,7 +169,7 @@ func TestEncoderOmitsEmptyFields(t *testing.T) {
 	})
 	require.Equal(t, map[string]any{
 		"@timestamp":     "2023-04-19T18:38:12.501Z",
-		"collector_type": "cribl-logs",
+		"collector_type": "bindplane-logs",
 		"collector_id":   testCollectorID,
 		"message":        "line",
 	}, rec)
@@ -490,7 +490,7 @@ func TestNewEncoderFromConfig(t *testing.T) {
 	rec, _ := encodeOne(t, enc, func(_ plog.ResourceLogs, lr plog.LogRecord) { lr.Body().SetStr("x") })
 	require.Equal(t, map[string]any{
 		"@timestamp":      "2023-04-19T18:38:12.501Z",
-		"collector_type":  "cribl-logs",
+		"collector_type":  "bindplane-logs",
 		"collector_name":  "gw",
 		"collector_id":    testCollectorID,
 		"message":         "x",
@@ -501,6 +501,12 @@ func TestNewEncoderFromConfig(t *testing.T) {
 		"sitename":        "abcorp",
 		"logtags":         map[string]any{"env": "prod"},
 	}, rec)
+}
+
+func TestNewEncoderCollectorNameFromConnectionString(t *testing.T) {
+	enc := newTestEncoderWithConfig(t, nil)
+	rec, _ := encodeOne(t, enc, func(_ plog.ResourceLogs, lr plog.LogRecord) { lr.Body().SetStr("x") })
+	require.Equal(t, testCollectorName, rec["collector_name"])
 }
 
 func TestEncoderAllRecords(t *testing.T) {
