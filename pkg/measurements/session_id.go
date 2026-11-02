@@ -16,12 +16,12 @@ package measurements
 
 import "github.com/google/uuid"
 
-// InstanceID identifies this collector process. It is generated once per
+// SessionID identifies this collector process. It is generated once per
 // process start so a Bindplane server can separate time series reported by
 // collectors that share an agent ID.
-var InstanceID = uuid.Must(uuid.NewV7()).String()
+var SessionID = uuid.Must(uuid.NewV7()).String()
 
-// InstanceIDAttribute is the data point attribute that carries InstanceID on
+// SessionIDAttribute is the data point attribute that carries SessionID on
 // every reported throughput metric. The name matches the label Bindplane
 // allowlists.
-const InstanceIDAttribute = "bindplane_instance_id"
+const SessionIDAttribute = "session_id"

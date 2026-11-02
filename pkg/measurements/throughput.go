@@ -289,7 +289,7 @@ func (ctmr *ResettableThroughputMeasurementsRegistry) OTLPMeasurements(extraAttr
 		attrs = make(map[string]string, 1)
 	}
 	// Set after cloning so a caller-supplied key cannot override the process identity.
-	attrs[InstanceIDAttribute] = InstanceID
+	attrs[SessionIDAttribute] = SessionID
 
 	ctmr.measurements.Range(func(_, value any) bool {
 		pm := value.(*processorMeasurements)
