@@ -18,6 +18,7 @@ This exporter writes logs to the Google Cloud Storage bucket that Exabeam create
 2. The bucket only accepts HMAC credentials. Service account authentication is not supported.
 3. The credentials can only write objects to the root of the bucket. The exporter never checks for the bucket or tries to create it.
 4. Exabeam's parsers expect the original, unmodified log in `message`. If a pipeline parses or rewrites the log body, keep the original text in the `log.record.original` attribute, which the exporter uses by default, or point `raw_log_field` at it.
+5. Changes to the site name or timezone offset in Exabeam's Site Management UI don't reach the collector. Make the same change in the exporter configuration, as described in [Keeping Site Settings in Sync](#keeping-site-settings-in-sync).
 
 ## Configuration
 
@@ -64,6 +65,13 @@ The connection string is the base64 encoding of a JSON object like this one:
 ```
 
 Standard and URL-safe base64 are accepted, with or without padding.
+
+### Keeping Site Settings in Sync
+
+The connection string holds the site name and timezone offset as they were when it was copied, and the exporter writes those values into every record. If a site name or timezone offset is changed in Exabeam's Site Management UI, make the same change in the exporter configuration, or records keep the old values. Either:
+
+- set `sitename` or `timezone_offset` to the new value, which overrides the connection string, or
+- replace `connection_string` with one that has the new values.
 
 ### File Rollover
 
