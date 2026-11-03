@@ -123,7 +123,22 @@ records collected for it, so a 30 s search sees a sample of the stream, not a
 continuous tail; continuous mode admits ~100 records per second, so the
 volume per poll is the same.
 
-### 3.4 Behaviour changes
+### 3.4 Request stats
+
+`ConstructPayloadWithStats` serves a request exactly as `ConstructPayload` does
+and also returns a `RequestStats`: the buffer's mode when the request arrived
+(`continuous` or `on_demand`), whether a just-in-time fill completed (`Filled`
+is false when the fill wait expired and the last known snapshot was served),
+the time spent waiting for fresh records, the total time until the payload was
+ready, and the number of items in the payload. The processors attach these to
+the snapshot report as a `metadata` object so Bindplane can see which mode its
+agents are in and how long on-demand collection takes. Gathering them costs one
+clock read per request plus a count of the sampled payload; the hot path is
+untouched. `TestRequestSoakHeapStaysFlat` (set `SNAPSHOT_SOAK_SECONDS`) hammers
+a buffer with requests while a pipeline feeds it and checks the live heap does
+not grow.
+
+### 3.5 Behaviour changes
 
 - A batch larger than `idealSize` retains its newest `idealSize` records, not
   the whole batch. This is user-visible: the shipped buffer replaced its store
