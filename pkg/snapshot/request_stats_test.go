@@ -140,6 +140,47 @@ func TestRequestStatsMetricsAndTraces(t *testing.T) {
 	require.Equal(t, 5, tstats.Records)
 }
 
+func TestRequestStatsEmptyBuffer(t *testing.T) {
+	buf := NewLogBuffer(10)
+	payload, stats, err := buf.ConstructPayloadWithStats(&plog.ProtoMarshaler{}, nil, nil, statsPayloadLimit)
+	require.NoError(t, err)
+	require.NotNil(t, payload)
+	require.Equal(t, ModeContinuous, stats.Mode)
+	require.True(t, stats.Filled)
+	require.Zero(t, stats.Records)
+}
+
+func TestRequestStatsConcurrentRequestsShareOneFill(t *testing.T) {
+	buf := NewLogBuffer(10)
+	forceOnDemand(t, buf)
+	stop := make(chan struct{})
+	done := benchProducer(buf, 5, 1_000, stop)
+	defer func() {
+		close(stop)
+		<-done
+	}()
+
+	const n = 4
+	results := make(chan RequestStats, n)
+	for i := 0; i < n; i++ {
+		go func() {
+			_, stats, err := buf.ConstructPayloadWithStats(&plog.ProtoMarshaler{}, nil, nil, statsPayloadLimit)
+			require.NoError(t, err)
+			results <- stats
+		}()
+	}
+	for i := 0; i < n; i++ {
+		stats := <-results
+		// Every concurrent request is served by the same fill: on-demand,
+		// filled, and nobody waited longer than the fill wait.
+		require.Equal(t, ModeOnDemand, stats.Mode)
+		require.True(t, stats.Filled)
+		require.Less(t, stats.FillWait, fillWait)
+		require.Equal(t, 10, stats.Records)
+	}
+	require.False(t, buf.admit.collecting.Load(), "buffer is idle again once the last request has left")
+}
+
 // TestRequestSoakHeapStaysFlat hammers a buffer with requests while a pipeline
 // feeds it and checks that the live heap does not grow. It runs only when
 // SNAPSHOT_SOAK_SECONDS is set, because it takes that many seconds.
