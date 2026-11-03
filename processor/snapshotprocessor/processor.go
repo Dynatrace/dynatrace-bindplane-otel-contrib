@@ -149,38 +149,45 @@ func (sp *snapshotProcessor) processSnapshotRequest(cm *protobufs.CustomMessage)
 	var report snapshotReport
 	switch req.PipelineType {
 	case "logs":
-		telemetryPayload, err := sp.logBuffer.ConstructPayload(&plog.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
+		telemetryPayload, stats, err := sp.logBuffer.ConstructPayloadWithStats(&plog.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
 		if err != nil {
 			sp.logger.Error("Failed to construct snapshot payload.", zap.Error(err))
 			return
 		}
 
-		report = logsReport(req.SessionID, telemetryPayload)
+		report = logsReport(req.SessionID, telemetryPayload, stats)
 
 	case "metrics":
-		telemetryPayload, err := sp.metricBuffer.ConstructPayload(&pmetric.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
+		telemetryPayload, stats, err := sp.metricBuffer.ConstructPayloadWithStats(&pmetric.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
 		if err != nil {
 			sp.logger.Error("Failed to construct metrics snapshot payload.", zap.Error(err))
 			return
 		}
 
-		report = metricsReport(req.SessionID, telemetryPayload)
+		report = metricsReport(req.SessionID, telemetryPayload, stats)
 
 	case "traces":
-		telemetryPayload, err := sp.traceBuffer.ConstructPayload(&ptrace.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
+		telemetryPayload, stats, err := sp.traceBuffer.ConstructPayloadWithStats(&ptrace.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
 		if err != nil {
 			sp.logger.Error("Failed to construct traces payload.", zap.Error(err))
 			return
 		}
 
-		report = tracesReport(req.SessionID, telemetryPayload)
+		report = tracesReport(req.SessionID, telemetryPayload, stats)
 
 	default:
 		sp.logger.Error("Invalid pipeline type in snapshot request.", zap.String("PipelineType", req.PipelineType))
 		return
 	}
 
-	sp.logger.Info("responding to report request", zap.String("session", req.SessionID))
+	sp.logger.Info("responding to report request",
+		zap.String("session", req.SessionID),
+		zap.String("mode", report.Metadata.Mode),
+		zap.Bool("filled", report.Metadata.Filled),
+		zap.Int64("fill_wait_ms", report.Metadata.FillWaitMs),
+		zap.Int64("duration_ms", report.Metadata.DurationMs),
+		zap.Int("records", report.Metadata.Records),
+	)
 
 	response, err := json.Marshal(report)
 	if err != nil {

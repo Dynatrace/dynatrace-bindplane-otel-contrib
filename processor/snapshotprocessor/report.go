@@ -16,6 +16,8 @@ package snapshotprocessor
 
 import (
 	"encoding/json"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/snapshot"
 )
 
 type snapshotReport struct {
@@ -23,28 +25,54 @@ type snapshotReport struct {
 	TelemetryType string `json:"telemetry_type"`
 	// TelemetryPayload is the logs/metrics/traces in OTLP/JSON format
 	TelemetryPayload json.RawMessage `json:"telemetry_payload"`
+	// Metadata is omitted from the wire format when nil so older decoders
+	// keep working unchanged.
+	Metadata *snapshotReportMetadata `json:"metadata,omitempty"`
 }
 
-func logsReport(sessionID string, logsPayload []byte) snapshotReport {
+// snapshotReportMetadata tells the server how the request was served, so it can
+// see which mode the buffer is in and how long a just-in-time collection took.
+type snapshotReportMetadata struct {
+	Mode       string `json:"mode"`   // "continuous" or "on_demand"
+	Filled     bool   `json:"filled"` // false: the on-demand fill wait expired and the last known records were served
+	FillWaitMs int64  `json:"fill_wait_ms"`
+	DurationMs int64  `json:"duration_ms"`
+	Records    int    `json:"records"`
+}
+
+func newReportMetadata(stats snapshot.RequestStats) *snapshotReportMetadata {
+	return &snapshotReportMetadata{
+		Mode:       string(stats.Mode),
+		Filled:     stats.Filled,
+		FillWaitMs: stats.FillWait.Milliseconds(),
+		DurationMs: stats.Duration.Milliseconds(),
+		Records:    stats.Records,
+	}
+}
+
+func logsReport(sessionID string, logsPayload []byte, stats snapshot.RequestStats) snapshotReport {
 	return snapshotReport{
 		SessionID:        sessionID,
 		TelemetryType:    "logs",
 		TelemetryPayload: logsPayload,
+		Metadata:         newReportMetadata(stats),
 	}
 }
 
-func metricsReport(sessionID string, metricsPayload []byte) snapshotReport {
+func metricsReport(sessionID string, metricsPayload []byte, stats snapshot.RequestStats) snapshotReport {
 	return snapshotReport{
 		SessionID:        sessionID,
 		TelemetryType:    "metrics",
 		TelemetryPayload: metricsPayload,
+		Metadata:         newReportMetadata(stats),
 	}
 }
 
-func tracesReport(sessionID string, tracesPayload []byte) snapshotReport {
+func tracesReport(sessionID string, tracesPayload []byte, stats snapshot.RequestStats) snapshotReport {
 	return snapshotReport{
 		SessionID:        sessionID,
 		TelemetryType:    "traces",
 		TelemetryPayload: tracesPayload,
+		Metadata:         newReportMetadata(stats),
 	}
 }
