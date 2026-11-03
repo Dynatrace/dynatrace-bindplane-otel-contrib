@@ -704,6 +704,22 @@ func TestRecordRejectedTraces(t *testing.T) {
 	require.Equal(t, int64(0), tmp.SequenceNumber())
 }
 
+func TestOTLPThroughputMeasurements_TraceCountIsSpans(t *testing.T) {
+	tmp, _ := newTestMeasurements(t)
+
+	tmp.RecordTraces(context.Background(), Measurement{Size: 16767, Count: 178})
+
+	sums := map[string]int64{}
+	ms := OTLPThroughputMeasurements(tmp, true, nil)
+	for i := 0; i < ms.Len(); i++ {
+		m := ms.At(i)
+		require.Equal(t, 1, m.Sum().DataPoints().Len(), m.Name())
+		sums[m.Name()] = m.Sum().DataPoints().At(0).IntValue()
+	}
+	require.Equal(t, int64(16767), sums["otelcol_processor_throughputmeasurement_trace_data_size"])
+	require.Equal(t, int64(178), sums["otelcol_processor_throughputmeasurement_trace_count"], "trace_count must be spans, not bytes")
+}
+
 func TestRecordLogs_SequenceNumber(t *testing.T) {
 	tmp, _ := newTestMeasurements(t)
 

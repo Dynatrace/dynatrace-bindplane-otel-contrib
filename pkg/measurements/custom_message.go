@@ -60,7 +60,7 @@ func OTLPThroughputMeasurements(tm *ThroughputMeasurements, includeCountMetrics 
 	if includeCountMetrics {
 		addOTLPSum(s, "otelcol_processor_throughputmeasurement_log_count", tm.LogCount(), attrs, ts)
 		addOTLPSum(s, "otelcol_processor_throughputmeasurement_metric_count", tm.DatapointCount(), attrs, ts)
-		addOTLPSum(s, "otelcol_processor_throughputmeasurement_trace_count", tm.TraceSize(), attrs, ts)
+		addOTLPSum(s, "otelcol_processor_throughputmeasurement_trace_count", tm.SpanCount(), attrs, ts)
 	}
 
 	return s

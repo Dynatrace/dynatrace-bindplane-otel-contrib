@@ -77,7 +77,7 @@ resourceMetrics:
           - name: otelcol_processor_throughputmeasurement_trace_count
             sum:
               dataPoints:
-                - asInt: "16767"
+                - asInt: "178"
                   attributes:
                     - key: session_id
                       value:
