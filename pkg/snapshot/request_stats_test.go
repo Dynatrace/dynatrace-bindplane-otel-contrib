@@ -158,6 +158,9 @@ func TestRequestSoakHeapStaysFlat(t *testing.T) {
 	time.Sleep(4 * time.Second) // let it reach on-demand mode
 
 	heap := func() uint64 {
+		// Two cycles: sync.Pool keeps a victim cache for one GC, and the
+		// pooled gzip writers are not live memory.
+		runtime.GC()
 		runtime.GC()
 		var m runtime.MemStats
 		runtime.ReadMemStats(&m)
