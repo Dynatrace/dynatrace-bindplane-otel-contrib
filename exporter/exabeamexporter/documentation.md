@@ -10,8 +10,8 @@
 sending_queue:
     enabled: true              # OVERRIDE
     wait_for_result: false     # default
-    sizer: requests            # default
-    queue_size: 1000           # default
+    sizer: bytes               # OVERRIDE
+    queue_size: 200000000      # OVERRIDE
     block_on_overflow: false   # default
     storage: null              # default
     num_consumers: 10          # default

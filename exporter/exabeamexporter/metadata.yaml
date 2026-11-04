@@ -95,8 +95,13 @@ sending_queue:
   support: has_overrides
   # Batches are sized in bytes and flushed after Exabeam's recommended max file size (10 MB)
   # or max open time (300s), so each batch becomes one file.
+  # The queue is also sized in bytes. A queued request holds its share of queue_size until the
+  # batch it is in has been uploaded, so a queue sized in requests fills up with small requests
+  # long before a 10 MB batch forms.
   overrides:
     enabled: true
+    sizer: bytes
+    queue_size: 200000000
     batch:
       enabled: true
       sizer: bytes

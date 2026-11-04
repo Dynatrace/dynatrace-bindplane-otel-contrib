@@ -82,7 +82,8 @@ Exabeam recommends rolling files over at 10 MB, 300 seconds open or 30 seconds i
 ```yaml
 sending_queue:
   num_consumers: 10   # batches uploading at once
-  queue_size: 1000
+  sizer: bytes
+  queue_size: 200000000   # 200 MB
   batch:
     sizer: bytes
     min_size: 10000000   # 10 MB
@@ -94,6 +95,7 @@ sending_queue:
 - **Open time:** a batch is flushed at most `flush_timeout` after it opens, so the 300s default matches Exabeam's max open time. Adding data to a batch does not restart the timer.
 - **Idle time:** the batcher has no idle timeout. A batch that stops receiving data is flushed when `flush_timeout` expires, so it can wait up to 300s instead of 30s. Lower `flush_timeout` to get data to Exabeam sooner, at the cost of smaller files.
 - **Open files:** only one batch is filled at a time, which is within Exabeam's limit of 100 open files. `num_consumers` sets how many full batches can be uploading at once, so up to about `num_consumers` × `max_size` bytes of batches are held in memory while they upload.
+- **Queue size:** data counts against `queue_size` from when it is queued until the batch it is in has been uploaded, so the queue holds the batch being filled and the batches uploading as well as data waiting to be batched. Keep the queue `sizer` at `bytes` and `queue_size` at least (`num_consumers` + 1) × `max_size`, with room left for incoming data. With the `requests` sizer, each small request takes a whole slot. The queue then fills up before a batch reaches `min_size`, and incoming data is rejected until `flush_timeout` flushes the batch.
 
 A batch is often larger than `max_file_size` once encoded, because each record's metadata is added to it, so it is split into several files. If one of those uploads fails while the collector is running, only the records from that file onward are retried. Files that were already uploaded are not sent again.
 
