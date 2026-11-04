@@ -137,6 +137,10 @@ type admission struct {
 	waiters      int
 	filled       chan struct{}
 	filledClosed bool
+	// armedAtNs is when the current request cycle armed the buffer, in
+	// monotonic nanoseconds, so every request the cycle serves can report
+	// how long the fill took.
+	armedAtNs atomic.Int64
 	// fillWait is the package constant unless a test shortens it.
 	fillWait time.Duration
 }
@@ -305,6 +309,7 @@ func (a *admission) beginRequest() <-chan struct{} {
 		// from zero.
 		a.filled = make(chan struct{})
 		a.filledClosed = false
+		a.armedAtNs.Store(monoNow())
 		a.windowNs.Store(monoNow())
 		a.used.Store(0)
 		a.batches.Store(0)
@@ -350,6 +355,26 @@ func (a *admission) awaitFill(filled <-chan struct{}) bool {
 	case <-timer.C:
 		return false
 	}
+}
+
+// request serves the admission side of a snapshot request. In continuous mode
+// it returns at once. In on-demand mode it arms the buffer and waits until a
+// full store's worth of fresh records has arrived or the wait expires. The
+// stats describe how the request was served; done must be called once the
+// caller has taken its copy of the store.
+func (a *admission) request() (stats RequestStats, done func()) {
+	stats = RequestStats{Mode: ModeContinuous, Filled: true}
+	filled := a.beginRequest()
+	if filled == nil {
+		return stats, func() {}
+	}
+	stats.Mode = ModeOnDemand
+	stats.Filled = a.awaitFill(filled)
+	// Measured from when the cycle armed the buffer, so concurrent requests
+	// served by one fill all report how long that fill took, not how long
+	// each of them happened to block.
+	stats.FillWait = time.Duration(monoNow() - a.armedAtNs.Load())
+	return stats, func() { a.endRequest(stats.Filled) }
 }
 
 // Option configures a buffer at construction.

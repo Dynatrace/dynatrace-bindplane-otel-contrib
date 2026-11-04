@@ -129,8 +129,9 @@ volume per poll is the same.
 and also returns a `RequestStats`: the buffer's mode when the request arrived
 (`continuous` or `on_demand`), whether a just-in-time fill completed (`Filled`
 is false when the fill wait expired and the last known snapshot was served),
-the time spent waiting for fresh records, the total time until the payload was
-ready, and the number of items in the payload. The processors attach these to
+how long the just-in-time fill took (measured from when the buffer was armed,
+so concurrent requests served by one fill report the same wait), the total
+time until the payload was ready, and the number of items in the payload. The processors attach these to
 the snapshot report as a `metadata` object so Bindplane can see which mode its
 agents are in and how long on-demand collection takes. Gathering them costs one
 clock read per request plus a count of the sampled payload; the hot path is

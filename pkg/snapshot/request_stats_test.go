@@ -172,9 +172,11 @@ func TestRequestStatsConcurrentRequestsShareOneFill(t *testing.T) {
 	for i := 0; i < n; i++ {
 		stats := <-results
 		// Every concurrent request is served by the same fill: on-demand,
-		// filled, and nobody waited longer than the fill wait.
+		// filled, and each reports how long that fill took, even one that
+		// arrived after the store had already filled.
 		require.Equal(t, ModeOnDemand, stats.Mode)
 		require.True(t, stats.Filled)
+		require.Positive(t, stats.FillWait)
 		require.Less(t, stats.FillWait, fillWait)
 		require.Equal(t, 10, stats.Records)
 	}

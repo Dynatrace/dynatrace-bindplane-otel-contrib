@@ -126,20 +126,11 @@ func (l *LogBuffer) Add(ld plog.Logs) {
 // fresh records if the pipeline is flowing and the last known ones if it went
 // quiet. The last in-flight request disarms the buffer; the store is kept.
 func (l *LogBuffer) copyStore() (plog.Logs, RequestStats) {
-	stats := RequestStats{Mode: ModeContinuous, Filled: true}
-	filled := l.admit.beginRequest()
-	if filled != nil {
-		stats.Mode = ModeOnDemand
-		waitStart := time.Now()
-		stats.Filled = l.admit.awaitFill(filled)
-		stats.FillWait = time.Since(waitStart)
-	}
+	stats, done := l.admit.request()
 
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	if filled != nil {
-		defer l.admit.endRequest(stats.Filled)
-	}
+	defer done()
 	payloadCopy := plog.NewLogs()
 	l.store.CopyTo(payloadCopy)
 	return payloadCopy, stats
@@ -197,7 +188,11 @@ func (l *LogBuffer) ConstructPayloadWithStats(logsMarshaler plog.Marshaler, sear
 		}
 
 		if size <= maximumPayloadSize {
-			stats.Records = logsToMarshal.LogRecordCount()
+			// Count the sampled payload only when it was sampled.
+			stats.Records = recordCount
+			if retentionPercent < 100 {
+				stats.Records = logsToMarshal.LogRecordCount()
+			}
 			stats.Duration = time.Since(start)
 			return payload, stats, nil
 		}
@@ -309,20 +304,11 @@ func (l *MetricBuffer) Add(md pmetric.Metrics) {
 // fresh records if the pipeline is flowing and the last known ones if it went
 // quiet. The last in-flight request disarms the buffer; the store is kept.
 func (l *MetricBuffer) copyStore() (pmetric.Metrics, RequestStats) {
-	stats := RequestStats{Mode: ModeContinuous, Filled: true}
-	filled := l.admit.beginRequest()
-	if filled != nil {
-		stats.Mode = ModeOnDemand
-		waitStart := time.Now()
-		stats.Filled = l.admit.awaitFill(filled)
-		stats.FillWait = time.Since(waitStart)
-	}
+	stats, done := l.admit.request()
 
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	if filled != nil {
-		defer l.admit.endRequest(stats.Filled)
-	}
+	defer done()
 	payloadCopy := pmetric.NewMetrics()
 	l.store.CopyTo(payloadCopy)
 	return payloadCopy, stats
@@ -380,7 +366,11 @@ func (l *MetricBuffer) ConstructPayloadWithStats(metricMarshaler pmetric.Marshal
 		}
 
 		if size <= maximumPayloadSize {
-			stats.Records = metricsToMarshal.DataPointCount()
+			// Count the sampled payload only when it was sampled.
+			stats.Records = dataPointCount
+			if retentionPercent < 100 {
+				stats.Records = metricsToMarshal.DataPointCount()
+			}
 			stats.Duration = time.Since(start)
 			return payload, stats, nil
 		}
@@ -492,20 +482,11 @@ func (l *TraceBuffer) Add(td ptrace.Traces) {
 // fresh records if the pipeline is flowing and the last known ones if it went
 // quiet. The last in-flight request disarms the buffer; the store is kept.
 func (l *TraceBuffer) copyStore() (ptrace.Traces, RequestStats) {
-	stats := RequestStats{Mode: ModeContinuous, Filled: true}
-	filled := l.admit.beginRequest()
-	if filled != nil {
-		stats.Mode = ModeOnDemand
-		waitStart := time.Now()
-		stats.Filled = l.admit.awaitFill(filled)
-		stats.FillWait = time.Since(waitStart)
-	}
+	stats, done := l.admit.request()
 
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	if filled != nil {
-		defer l.admit.endRequest(stats.Filled)
-	}
+	defer done()
 	payloadCopy := ptrace.NewTraces()
 	l.store.CopyTo(payloadCopy)
 	return payloadCopy, stats
@@ -563,7 +544,11 @@ func (l *TraceBuffer) ConstructPayloadWithStats(traceMarshaler ptrace.Marshaler,
 		}
 
 		if size <= maximumPayloadSize {
-			stats.Records = tracesToMarshal.SpanCount()
+			// Count the sampled payload only when it was sampled.
+			stats.Records = spanCount
+			if retentionPercent < 100 {
+				stats.Records = tracesToMarshal.SpanCount()
+			}
 			stats.Duration = time.Since(start)
 			return payload, stats, nil
 		}

@@ -39,8 +39,10 @@ type RequestStats struct {
 	// on-demand mode it is false when the fill wait expired and the last known
 	// snapshot was served instead; the buffer then returns to continuous mode.
 	Filled bool
-	// FillWait is the time the request spent waiting for fresh records: zero
-	// in continuous mode, at most the fill wait in on-demand mode.
+	// FillWait is how long the just-in-time fill took, from the moment the
+	// buffer was armed until the store filled or the wait expired. It is zero
+	// in continuous mode. Concurrent requests are served by one fill and
+	// report the same wait.
 	FillWait time.Duration
 	// Duration is the time from the request's arrival until its payload was
 	// ready: the fill wait plus the copy, filter, sampling and marshal.
