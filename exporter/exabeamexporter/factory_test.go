@@ -40,6 +40,8 @@ func TestCreateDefaultConfig(t *testing.T) {
 
 	require.True(t, cfg.QueueConfig.HasValue())
 	queue := cfg.QueueConfig.Get()
+	require.Equal(t, exporterhelper.RequestSizerTypeBytes, queue.Sizer)
+	require.Equal(t, int64(200_000_000), queue.QueueSize)
 	require.True(t, queue.Batch.HasValue())
 	batch := queue.Batch.Get()
 	require.Equal(t, exporterhelper.RequestSizerTypeBytes, batch.Sizer)
