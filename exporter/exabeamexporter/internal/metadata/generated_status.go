@@ -22,6 +22,8 @@ const (
 // NewDefaultSendingQueueConfig returns the sending queue default declared in metadata.yaml.
 func NewDefaultSendingQueueConfig() configoptional.Optional[exporterhelper.QueueBatchConfig] {
 	cfg := exporterhelper.NewDefaultQueueConfig()
+	cfg.Sizer = exporterhelper.RequestSizerTypeBytes
+	cfg.QueueSize = 200000000
 	batchCfg := *cfg.Batch.GetOrInsertDefault()
 	batchCfg.FlushTimeout = 300000000000
 	batchCfg.Sizer = exporterhelper.RequestSizerTypeBytes
