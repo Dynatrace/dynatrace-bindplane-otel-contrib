@@ -16,8 +16,10 @@ package snapshotprocessor
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/snapshot"
+	"go.uber.org/zap"
 )
 
 type snapshotReport struct {
@@ -33,46 +35,49 @@ type snapshotReport struct {
 // snapshotReportMetadata tells the server how the request was served, so it can
 // see which mode the buffer is in and how long a just-in-time collection took.
 type snapshotReportMetadata struct {
-	Mode       string `json:"mode"`   // "continuous" or "on_demand"
-	Filled     bool   `json:"filled"` // false: the on-demand fill wait expired and the last known records were served
-	FillWaitMs int64  `json:"fill_wait_ms"`
-	DurationMs int64  `json:"duration_ms"`
-	Records    int    `json:"records"`
+	Mode   string `json:"mode"`   // "continuous" or "on_demand"
+	Filled bool   `json:"filled"` // false: the on-demand fill wait expired and the last known records were served
+	// Timings are fractional milliseconds: a continuous-mode request is
+	// usually served in well under one.
+	FillWaitMs float64 `json:"fill_wait_ms"`
+	DurationMs float64 `json:"duration_ms"`
+	Records    int     `json:"records"`
 }
 
 func newReportMetadata(stats snapshot.RequestStats) *snapshotReportMetadata {
 	return &snapshotReportMetadata{
 		Mode:       string(stats.Mode),
 		Filled:     stats.Filled,
-		FillWaitMs: stats.FillWait.Milliseconds(),
-		DurationMs: stats.Duration.Milliseconds(),
+		FillWaitMs: millis(stats.FillWait),
+		DurationMs: millis(stats.Duration),
 		Records:    stats.Records,
 	}
 }
 
-func logsReport(sessionID string, logsPayload []byte, stats snapshot.RequestStats) snapshotReport {
+func millis(d time.Duration) float64 {
+	return float64(d) / float64(time.Millisecond)
+}
+
+// newReport builds the reportSnapshot message for one request. telemetryType
+// is the request's pipeline type: "logs", "metrics" or "traces".
+func newReport(sessionID, telemetryType string, payload []byte, stats snapshot.RequestStats) snapshotReport {
 	return snapshotReport{
 		SessionID:        sessionID,
-		TelemetryType:    "logs",
-		TelemetryPayload: logsPayload,
+		TelemetryType:    telemetryType,
+		TelemetryPayload: payload,
 		Metadata:         newReportMetadata(stats),
 	}
 }
 
-func metricsReport(sessionID string, metricsPayload []byte, stats snapshot.RequestStats) snapshotReport {
-	return snapshotReport{
-		SessionID:        sessionID,
-		TelemetryType:    "metrics",
-		TelemetryPayload: metricsPayload,
-		Metadata:         newReportMetadata(stats),
-	}
-}
-
-func tracesReport(sessionID string, tracesPayload []byte, stats snapshot.RequestStats) snapshotReport {
-	return snapshotReport{
-		SessionID:        sessionID,
-		TelemetryType:    "traces",
-		TelemetryPayload: tracesPayload,
-		Metadata:         newReportMetadata(stats),
+// logFields describes the report for the processor's logs.
+func (r snapshotReport) logFields() []zap.Field {
+	return []zap.Field{
+		zap.String("session", r.SessionID),
+		zap.String("telemetry_type", r.TelemetryType),
+		zap.String("mode", r.Metadata.Mode),
+		zap.Bool("filled", r.Metadata.Filled),
+		zap.Float64("fill_wait_ms", r.Metadata.FillWaitMs),
+		zap.Float64("duration_ms", r.Metadata.DurationMs),
+		zap.Int("records", r.Metadata.Records),
 	}
 }

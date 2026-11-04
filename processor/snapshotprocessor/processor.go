@@ -146,48 +146,31 @@ func (sp *snapshotProcessor) processSnapshotRequest(cm *protobufs.CustomMessage)
 		req.MaximumPayloadSizeBytes = 10485760 //10MiB
 	}
 
-	var report snapshotReport
+	var (
+		telemetryPayload []byte
+		stats            snapshot.RequestStats
+	)
 	switch req.PipelineType {
 	case "logs":
-		telemetryPayload, stats, err := sp.logBuffer.ConstructPayloadWithStats(&plog.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
-		if err != nil {
-			sp.logger.Error("Failed to construct snapshot payload.", zap.Error(err))
-			return
-		}
-
-		report = logsReport(req.SessionID, telemetryPayload, stats)
-
+		telemetryPayload, stats, err = sp.logBuffer.ConstructPayloadWithStats(&plog.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
 	case "metrics":
-		telemetryPayload, stats, err := sp.metricBuffer.ConstructPayloadWithStats(&pmetric.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
-		if err != nil {
-			sp.logger.Error("Failed to construct metrics snapshot payload.", zap.Error(err))
-			return
-		}
-
-		report = metricsReport(req.SessionID, telemetryPayload, stats)
-
+		telemetryPayload, stats, err = sp.metricBuffer.ConstructPayloadWithStats(&pmetric.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
 	case "traces":
-		telemetryPayload, stats, err := sp.traceBuffer.ConstructPayloadWithStats(&ptrace.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
-		if err != nil {
-			sp.logger.Error("Failed to construct traces payload.", zap.Error(err))
-			return
-		}
-
-		report = tracesReport(req.SessionID, telemetryPayload, stats)
-
+		telemetryPayload, stats, err = sp.traceBuffer.ConstructPayloadWithStats(&ptrace.JSONMarshaler{}, req.SearchQuery, req.MinimumTimestamp, req.MaximumPayloadSizeBytes)
 	default:
 		sp.logger.Error("Invalid pipeline type in snapshot request.", zap.String("PipelineType", req.PipelineType))
 		return
 	}
 
-	sp.logger.Info("responding to report request",
-		zap.String("session", req.SessionID),
-		zap.String("mode", report.Metadata.Mode),
-		zap.Bool("filled", report.Metadata.Filled),
-		zap.Int64("fill_wait_ms", report.Metadata.FillWaitMs),
-		zap.Int64("duration_ms", report.Metadata.DurationMs),
-		zap.Int("records", report.Metadata.Records),
-	)
+	report := newReport(req.SessionID, req.PipelineType, telemetryPayload, stats)
+	if err != nil {
+		// The stats are valid on failure too; they say what the buffer was
+		// doing when the request could not be served.
+		sp.logger.Error("Failed to construct snapshot payload.", append(report.logFields(), zap.Error(err))...)
+		return
+	}
+
+	sp.logger.Info("responding to report request", report.logFields()...)
 
 	response, err := json.Marshal(report)
 	if err != nil {
