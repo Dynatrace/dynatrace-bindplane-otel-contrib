@@ -40,9 +40,10 @@ type RequestStats struct {
 	// snapshot was served instead; the buffer then returns to continuous mode.
 	Filled bool
 	// FillWait is how long the just-in-time fill took, from the moment the
-	// buffer was armed until the store filled or the wait expired. It is zero
-	// in continuous mode. Concurrent requests are served by one fill and
-	// report the same wait.
+	// buffer was armed until the store filled; every request that fill
+	// served reports the same value, including one that joined after the
+	// store had filled. When the wait expired instead, it is the wait. It is
+	// zero in continuous mode.
 	FillWait time.Duration
 	// Duration is the time from the request's arrival until its payload was
 	// ready: the fill wait plus the copy, filter, sampling and marshal.

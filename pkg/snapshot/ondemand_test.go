@@ -39,7 +39,7 @@ func logsN(n int, prefix string) plog.Logs {
 // batchesPerSecond batches of recordsPerBatch records, then offers one more
 // single-record payload, which rolls the window over and samples it.
 func simulateWindow(buf *LogBuffer, batchesPerSecond, recordsPerBatch int) {
-	buf.admit.windowNs.Store(monoNow() - int64(time.Second))
+	buf.admit.windowNs.Store(buf.admit.now() - int64(time.Second))
 	buf.admit.used.Store(buf.admit.budget)
 	buf.admit.batches.Store(int64(batchesPerSecond))
 	buf.admit.offered.Store(int64(batchesPerSecond * recordsPerBatch))
@@ -111,7 +111,7 @@ func TestOnDemandDetection(t *testing.T) {
 		buf := NewLogBuffer(100)
 		// 14 one-record batches and one 100-record batch per second: 114 rec/s.
 		for i := 0; i < 10; i++ {
-			buf.admit.windowNs.Store(monoNow() - int64(time.Second))
+			buf.admit.windowNs.Store(buf.admit.now() - int64(time.Second))
 			buf.admit.used.Store(buf.admit.budget)
 			buf.admit.batches.Store(15)
 			buf.admit.offered.Store(114)
@@ -164,7 +164,7 @@ func TestOnDemandHeartbeatKeepsStoreCurrent(t *testing.T) {
 	// batch per second refreshes the store on its first batch after the
 	// interval, not after some number of batches. The payload after it is
 	// not admitted.
-	buf.admit.lastHeartbeatNs.Store(monoNow() - int64(heartbeatInterval))
+	buf.admit.lastHeartbeatNs.Store(buf.admit.now() - int64(heartbeatInterval))
 	buf.Add(logsN(1, "hb"))
 	require.Equal(t, before+1, buf.Len())
 	require.Contains(t, logBodiesNoRequest(buf), "hb-0")
