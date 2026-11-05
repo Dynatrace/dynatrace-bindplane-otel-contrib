@@ -39,6 +39,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor/processortest"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/snapshot"
 )
@@ -376,6 +378,59 @@ func requireContinuousMetadata(t *testing.T, m *snapshotReportMetadata, records 
 	require.Zero(t, m.FillWaitMs)
 	require.GreaterOrEqual(t, m.DurationMs, float64(0))
 	require.Equal(t, records, m.Records)
+}
+
+// TestProcess_Logs_PayloadCannotFit covers the failure path: a payload that
+// cannot be made to fit even at the lowest retention is logged with the
+// request's stats, and no report is sent.
+func TestProcess_Logs_PayloadCannotFit(t *testing.T) {
+	factory := NewFactory()
+	sink := &consumertest.LogsSink{}
+
+	core, logs := observer.New(zap.ErrorLevel)
+	pSet := processortest.NewNopSettings(componentType)
+	pSet.Logger = zap.New(core)
+	p, err := factory.CreateLogs(context.Background(), pSet, factory.CreateDefaultConfig(), sink)
+	require.NoError(t, err)
+
+	mockOpamp := &mockOpAMPExtension{
+		msgChan: make(chan *protobufs.CustomMessage, 1),
+	}
+	mockHost := &mockHost{
+		extensions: map[component.ID]component.Component{
+			component.MustNewID("opamp"): mockOpamp,
+		},
+	}
+	require.NoError(t, p.Start(context.Background(), mockHost))
+	t.Cleanup(func() {
+		require.NoError(t, p.Shutdown(context.Background()))
+	})
+
+	l, err := golden.ReadLogs(filepath.Join("testdata", "logs", "w3c-logs.yaml"))
+	require.NoError(t, err)
+	require.NoError(t, p.ConsumeLogs(context.Background(), l))
+
+	// One byte cannot hold even an empty gzip stream, so every retention fails.
+	reqPayload := fmt.Sprintf(`{"processor":%q,"pipeline_type":"logs","session_id":"too-small","maximum_payload_size":1}`, pSet.ID)
+	mockOpamp.msgChan <- &protobufs.CustomMessage{
+		Capability: "com.bindplane.snapshot",
+		Type:       "requestSnapshot",
+		Data:       []byte(reqPayload),
+	}
+
+	const msg = "Failed to construct snapshot payload."
+	require.Eventually(t, func() bool {
+		return logs.FilterMessage(msg).Len() == 1
+	}, 5*time.Second, 50*time.Millisecond)
+	fields := logs.FilterMessage(msg).All()[0].ContextMap()
+	require.Equal(t, "too-small", fields["session"])
+	require.Equal(t, "logs", fields["telemetry_type"])
+	require.Equal(t, "continuous", fields["mode"])
+	require.Equal(t, true, fields["filled"])
+	require.Contains(t, fields, "fill_wait_ms")
+	require.Contains(t, fields, "duration_ms")
+	require.Contains(t, fields["error"], "too large")
+	require.False(t, mockOpamp.GotMessage(), "no report is sent for a request that failed")
 }
 
 // TestReportMetadata checks the metadata for a request that waited the whole
