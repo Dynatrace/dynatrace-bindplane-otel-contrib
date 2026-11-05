@@ -18,6 +18,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/jonboulle/clockwork"
 )
 
 // DefaultRefreshInterval is the window over which a buffer admits at most its
@@ -68,9 +70,9 @@ const (
 // steps, which would otherwise freeze a window until the clock caught up.
 var epoch = time.Now()
 
-// monoNow returns nanoseconds since epoch on the monotonic clock.
-func monoNow() int64 {
-	return int64(time.Since(epoch))
+// now returns nanoseconds since epoch on the buffer's clock.
+func (a *admission) now() int64 {
+	return int64(a.clock.Since(epoch))
 }
 
 // admission decides which payloads Add looks at.
@@ -100,10 +102,12 @@ func monoNow() int64 {
 // on-demand mode. An interval of zero admits everything and disables
 // on-demand detection.
 type admission struct {
+	// clock is real unless a test replaces it to drive time by hand.
+	clock    clockwork.Clock
 	interval time.Duration
 	budget   int64
 	// windowNs is the start of the current window in monotonic nanoseconds
-	// (see monoNow).
+	// (see now).
 	windowNs atomic.Int64
 	// used is the number of items admitted in the current window.
 	used atomic.Int64
@@ -137,6 +141,11 @@ type admission struct {
 	waiters      int
 	filled       chan struct{}
 	filledClosed bool
+	// armedAtNs is when the current request cycle armed the buffer and
+	// filledAtNs when its store filled, in monotonic nanoseconds, so every
+	// request the cycle serves reports the same fill time.
+	armedAtNs  atomic.Int64
+	filledAtNs atomic.Int64
 	// fillWait is the package constant unless a test shortens it.
 	fillWait time.Duration
 }
@@ -159,7 +168,10 @@ const (
 func (a *admission) init(interval time.Duration, budget int) {
 	a.interval = interval
 	a.budget = int64(budget)
-	a.windowNs.Store(monoNow())
+	if a.clock == nil {
+		a.clock = clockwork.NewRealClock()
+	}
+	a.windowNs.Store(a.now())
 	a.used.Store(0)
 	a.collecting.Store(true)
 	a.fillWait = fillWait
@@ -182,7 +194,7 @@ func (a *admission) decide(records int) decision {
 	}
 	// Reached once the budget is spent in continuous mode, and on every
 	// payload of an idle on-demand buffer. The clock read costs ~30ns.
-	now := monoNow()
+	now := a.now()
 	start := a.windowNs.Load()
 	if now-start >= int64(a.interval) {
 		// Exactly one caller rolls the window over; the rest are rejected
@@ -260,7 +272,7 @@ func (a *admission) sampleWindow(batches, offered, durationNs int64) bool {
 	a.onDemand = true
 	a.fastWindows = 0
 	a.slowWindows = 0
-	a.lastHeartbeatNs.Store(monoNow())
+	a.lastHeartbeatNs.Store(a.now())
 	a.collecting.Store(false)
 	return true
 }
@@ -280,6 +292,7 @@ func (a *admission) full() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.filled != nil && !a.filledClosed {
+		a.filledAtNs.Store(a.now())
 		close(a.filled)
 		a.filledClosed = true
 	}
@@ -305,7 +318,9 @@ func (a *admission) beginRequest() <-chan struct{} {
 		// from zero.
 		a.filled = make(chan struct{})
 		a.filledClosed = false
-		a.windowNs.Store(monoNow())
+		now := a.now()
+		a.armedAtNs.Store(now)
+		a.windowNs.Store(now)
 		a.used.Store(0)
 		a.batches.Store(0)
 		a.offered.Store(0)
@@ -334,7 +349,7 @@ func (a *admission) endRequest(filledInTime bool) {
 	a.filled = nil
 	a.armed.Store(false)
 	if a.onDemand {
-		a.lastHeartbeatNs.Store(monoNow())
+		a.lastHeartbeatNs.Store(a.now())
 		a.collecting.Store(false)
 	}
 }
@@ -342,14 +357,38 @@ func (a *admission) endRequest(filledInTime bool) {
 // awaitFill waits for an armed buffer to fill or for the wait to expire and
 // reports which happened.
 func (a *admission) awaitFill(filled <-chan struct{}) bool {
-	timer := time.NewTimer(a.fillWait)
+	timer := a.clock.NewTimer(a.fillWait)
 	defer timer.Stop()
 	select {
 	case <-filled:
 		return true
-	case <-timer.C:
+	case <-timer.Chan():
 		return false
 	}
+}
+
+// request serves the admission side of a snapshot request. In continuous mode
+// it returns at once. In on-demand mode it arms the buffer and waits until a
+// full store's worth of fresh records has arrived or the wait expires. The
+// stats describe how the request was served; done must be called once the
+// caller has taken its copy of the store.
+func (a *admission) request() (stats RequestStats, done func()) {
+	stats = RequestStats{Mode: ModeContinuous, Filled: true}
+	filled := a.beginRequest()
+	if filled == nil {
+		return stats, func() {}
+	}
+	stats.Mode = ModeOnDemand
+	stats.Filled = a.awaitFill(filled)
+	if stats.Filled {
+		// How long the fill took, from arming the buffer to the store
+		// filling: the same for every request the fill served, including
+		// one that joined after the store had already filled.
+		stats.FillWait = time.Duration(a.filledAtNs.Load() - a.armedAtNs.Load())
+	} else {
+		stats.FillWait = a.fillWait
+	}
+	return stats, func() { a.endRequest(stats.Filled) }
 }
 
 // Option configures a buffer at construction.
@@ -360,4 +399,12 @@ type Option func(*admission)
 // pre-rate-limit behavior.
 func WithRefreshInterval(d time.Duration) Option {
 	return func(a *admission) { a.interval = d }
+}
+
+// withClock replaces the real clock, for tests that advance time by hand.
+func withClock(c clockwork.Clock) Option {
+	return func(a *admission) {
+		a.clock = c
+		a.windowNs.Store(a.now())
+	}
 }

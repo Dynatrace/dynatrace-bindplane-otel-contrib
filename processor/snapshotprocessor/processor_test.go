@@ -21,8 +21,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -33,7 +35,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/consumertest"
+	"go.opentelemetry.io/collector/pdata/plog"
+	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor/processortest"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/snapshot"
 )
 
 func TestProcess_Logs(t *testing.T) {
@@ -92,10 +101,32 @@ func TestProcess_Logs(t *testing.T) {
 	err = json.Unmarshal(by, &expectedMessageContents)
 	require.NoError(t, err)
 
+	raw := gunzipBytes(t, mockOpamp.sentMessage)
 	var actualMessageContents map[string]any
-	err = json.Unmarshal(gunzipBytes(t, mockOpamp.sentMessage), &actualMessageContents)
+	err = json.Unmarshal(raw, &actualMessageContents)
 	require.NoError(t, err)
 
+	// The wire format is exactly these keys, and a decoder that predates
+	// metadata still reads the report.
+	require.Equal(t, []string{"metadata", "session_id", "telemetry_payload", "telemetry_type"}, slices.Sorted(maps.Keys(actualMessageContents)))
+	var legacy struct {
+		SessionID        string          `json:"session_id"`
+		TelemetryType    string          `json:"telemetry_type"`
+		TelemetryPayload json.RawMessage `json:"telemetry_payload"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &legacy))
+	require.Equal(t, "my-session-id", legacy.SessionID)
+	require.Equal(t, "logs", legacy.TelemetryType)
+	require.NotEmpty(t, legacy.TelemetryPayload)
+
+	var report snapshotReport
+	require.NoError(t, json.Unmarshal(raw, &report))
+	payload, err := (&plog.JSONUnmarshaler{}).UnmarshalLogs(report.TelemetryPayload)
+	require.NoError(t, err)
+	requireContinuousMetadata(t, report.Metadata, payload.LogRecordCount())
+
+	// The golden file holds the payload only; metadata timings vary per run.
+	delete(actualMessageContents, "metadata")
 	require.Equal(t, expectedMessageContents, actualMessageContents)
 	require.Equal(t, "reportSnapshot", mockOpamp.sentMessageType)
 }
@@ -156,10 +187,19 @@ func TestProcess_Metrics(t *testing.T) {
 	err = json.Unmarshal(by, &expectedMessageContents)
 	require.NoError(t, err)
 
+	raw := gunzipBytes(t, mockOpamp.sentMessage)
 	var actualMessageContents map[string]any
-	err = json.Unmarshal(gunzipBytes(t, mockOpamp.sentMessage), &actualMessageContents)
+	err = json.Unmarshal(raw, &actualMessageContents)
 	require.NoError(t, err)
 
+	var report snapshotReport
+	require.NoError(t, json.Unmarshal(raw, &report))
+	payload, err := (&pmetric.JSONUnmarshaler{}).UnmarshalMetrics(report.TelemetryPayload)
+	require.NoError(t, err)
+	requireContinuousMetadata(t, report.Metadata, payload.DataPointCount())
+
+	// The golden file holds the payload only; metadata timings vary per run.
+	delete(actualMessageContents, "metadata")
 	require.Equal(t, expectedMessageContents, actualMessageContents)
 	require.Equal(t, "reportSnapshot", mockOpamp.sentMessageType)
 }
@@ -220,10 +260,19 @@ func TestProcess_Traces(t *testing.T) {
 	err = json.Unmarshal(by, &expectedMessageContents)
 	require.NoError(t, err)
 
+	raw := gunzipBytes(t, mockOpamp.sentMessage)
 	var actualMessageContents map[string]any
-	err = json.Unmarshal(gunzipBytes(t, mockOpamp.sentMessage), &actualMessageContents)
+	err = json.Unmarshal(raw, &actualMessageContents)
 	require.NoError(t, err)
 
+	var report snapshotReport
+	require.NoError(t, json.Unmarshal(raw, &report))
+	payload, err := (&ptrace.JSONUnmarshaler{}).UnmarshalTraces(report.TelemetryPayload)
+	require.NoError(t, err)
+	requireContinuousMetadata(t, report.Metadata, payload.SpanCount())
+
+	// The golden file holds the payload only; metadata timings vary per run.
+	delete(actualMessageContents, "metadata")
 	require.Equal(t, expectedMessageContents, actualMessageContents)
 	require.Equal(t, "reportSnapshot", mockOpamp.sentMessageType)
 }
@@ -317,6 +366,93 @@ func TestProcess_Metrics_PreservesTemporalityWithFiltering(t *testing.T) {
 		}
 	}
 	require.True(t, foundTransmit, "Filtered metric should contain 'transmit' attribute")
+}
+
+// requireContinuousMetadata asserts the metadata of a report served from a
+// buffer that was collecting between requests.
+func requireContinuousMetadata(t *testing.T, m *snapshotReportMetadata, records int) {
+	t.Helper()
+	require.NotNil(t, m)
+	require.Equal(t, "continuous", m.Mode)
+	require.True(t, m.Filled)
+	require.Zero(t, m.FillWaitMs)
+	require.GreaterOrEqual(t, m.DurationMs, float64(0))
+	require.Equal(t, records, m.Records)
+}
+
+// TestProcess_Logs_PayloadCannotFit covers the failure path: a payload that
+// cannot be made to fit even at the lowest retention is logged with the
+// request's stats, and no report is sent.
+func TestProcess_Logs_PayloadCannotFit(t *testing.T) {
+	factory := NewFactory()
+	sink := &consumertest.LogsSink{}
+
+	core, logs := observer.New(zap.ErrorLevel)
+	pSet := processortest.NewNopSettings(componentType)
+	pSet.Logger = zap.New(core)
+	p, err := factory.CreateLogs(context.Background(), pSet, factory.CreateDefaultConfig(), sink)
+	require.NoError(t, err)
+
+	mockOpamp := &mockOpAMPExtension{
+		msgChan: make(chan *protobufs.CustomMessage, 1),
+	}
+	mockHost := &mockHost{
+		extensions: map[component.ID]component.Component{
+			component.MustNewID("opamp"): mockOpamp,
+		},
+	}
+	require.NoError(t, p.Start(context.Background(), mockHost))
+	t.Cleanup(func() {
+		require.NoError(t, p.Shutdown(context.Background()))
+	})
+
+	l, err := golden.ReadLogs(filepath.Join("testdata", "logs", "w3c-logs.yaml"))
+	require.NoError(t, err)
+	require.NoError(t, p.ConsumeLogs(context.Background(), l))
+
+	// One byte cannot hold even an empty gzip stream, so every retention fails.
+	reqPayload := fmt.Sprintf(`{"processor":%q,"pipeline_type":"logs","session_id":"too-small","maximum_payload_size":1}`, pSet.ID)
+	mockOpamp.msgChan <- &protobufs.CustomMessage{
+		Capability: "com.bindplane.snapshot",
+		Type:       "requestSnapshot",
+		Data:       []byte(reqPayload),
+	}
+
+	const msg = "Failed to construct snapshot payload."
+	require.Eventually(t, func() bool {
+		return logs.FilterMessage(msg).Len() == 1
+	}, 5*time.Second, 50*time.Millisecond)
+	fields := logs.FilterMessage(msg).All()[0].ContextMap()
+	require.Equal(t, "too-small", fields["session"])
+	require.Equal(t, "logs", fields["telemetry_type"])
+	require.Equal(t, "continuous", fields["mode"])
+	require.Equal(t, true, fields["filled"])
+	require.Contains(t, fields, "fill_wait_ms")
+	require.Contains(t, fields, "duration_ms")
+	require.Contains(t, fields["error"], "too large")
+	require.False(t, mockOpamp.GotMessage(), "no report is sent for a request that failed")
+}
+
+// TestReportMetadata checks the metadata for a request that waited the whole
+// fill wait and was served the last known records, and that sub-millisecond
+// timings are kept rather than truncated.
+func TestReportMetadata(t *testing.T) {
+	m := newReportMetadata(snapshot.RequestStats{
+		Mode:     snapshot.ModeOnDemand,
+		Filled:   false,
+		FillWait: 1002 * time.Millisecond,
+		Duration: 1002*time.Millisecond + 312*time.Microsecond,
+		Records:  100,
+	})
+	require.Equal(t, "on_demand", m.Mode)
+	require.False(t, m.Filled)
+	require.InDelta(t, 1002, m.FillWaitMs, 1e-9)
+	require.InDelta(t, 1002.312, m.DurationMs, 1e-9)
+	require.Equal(t, 100, m.Records)
+
+	m = newReportMetadata(snapshot.RequestStats{Mode: snapshot.ModeContinuous, Filled: true, Duration: 312 * time.Microsecond, Records: 7})
+	require.Zero(t, m.FillWaitMs)
+	require.InDelta(t, 0.312, m.DurationMs, 1e-9)
 }
 
 // mockHost for component.Host
