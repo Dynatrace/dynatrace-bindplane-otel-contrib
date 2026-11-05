@@ -15,10 +15,11 @@
 package snapshot
 
 import (
-	"github.com/jonboulle/clockwork"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/jonboulle/clockwork"
 )
 
 // DefaultRefreshInterval is the window over which a buffer admits at most its
