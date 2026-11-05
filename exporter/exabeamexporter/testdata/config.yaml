@@ -1,0 +1,26 @@
+exabeam:
+exabeam/connection_string:
+  connection_string: eyJjb2xsZWN0b3JfaWQiOiJiNTU3ZTRmYy0xMjM0LTQ1NjctODlhYi1jZGVmMDEyMzQ1NjciLCJhY2Nlc3Nfa2V5IjoiR09PR1RFU1RBQ0NFU1NLRVkiLCJzZWNyZXRfa2V5IjoidGVzdC1zZWNyZXQta2V5IiwiYnVja2V0X25hbWUiOiJkbC10b3BpYy1vcHMtZGlzdC1jYy1tZ3J0bi1lMmUiLCJidWNrZXRfbG9jYXRpb24iOiJVUyIsInNpdGVuYW1lIjoiYWJjb3JwIiwic2l0ZWlkIjoieGRmc2Rmdzk5OTk5c2ZzZGYiLCJ0aW1lem9uZV9vZmZzZXQiOiItMDcwMCJ9
+  collector_name: bindplane-gateway
+  hostname: gw-01
+  forwarder: bindplane
+  raw_log_field: attributes["raw"]
+  logtags:
+    department: HR
+    servertype: PCI
+exabeam/fields:
+  collector_id: b557e4fc-1234-4567-89ab-cdef01234567
+  access_key: GOOGTESTACCESSKEY
+  secret_key: test-secret-key
+  bucket_name: my-bucket
+  bucket_location: US
+  sitename: abcorp
+  siteid: site-1
+  timezone_offset: "+0100"
+  endpoint: https://storage.example.com
+  max_file_size: 1048576
+  timeout: 10s
+  sending_queue:
+    num_consumers: 4
+  retry_on_failure:
+    enabled: false
