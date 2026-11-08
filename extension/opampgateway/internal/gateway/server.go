@@ -324,9 +324,10 @@ func (s *server) acceptOpAMPConnection(ctx context.Context, req *http.Request, u
 
 	// Create the OpampGatewayConnect message with RequestUid for correlation
 	connectMsg := OpampGatewayConnect{
-		RequestUID:    requestUID,
-		RemoteAddress: req.RemoteAddr,
-		Headers:       req.Header,
+		RequestUID:          requestUID,
+		RemoteAddress:       req.RemoteAddr,
+		Headers:             req.Header,
+		GatewayCapabilities: gatewayCapabilities,
 	}
 
 	// Marshal the connect message
