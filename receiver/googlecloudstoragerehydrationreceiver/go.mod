@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/storage v1.69.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume v1.3.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.3.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent v1.3.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.70.0
 	go.opentelemetry.io/collector/component/componenttest v0.164.0
@@ -88,3 +89,5 @@ replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsu
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient
 
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils => ../../internal/testutils
+
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent => ../../internal/useragent

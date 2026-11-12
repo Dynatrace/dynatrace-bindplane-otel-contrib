@@ -4,6 +4,7 @@ go 1.26.10
 
 require (
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.3.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent v1.3.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.3.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo v1.3.0
 	github.com/goccy/go-json v0.11.2
@@ -110,3 +111,5 @@ replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo => ../../pkg/osinfo
 
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr => ../../pkg/expr
+
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent => ../../internal/useragent

@@ -72,7 +72,7 @@ func TestNewSoapClient(t *testing.T) {
 
 	for _, tc := range testCase {
 		t.Run(tc.desc, func(t *testing.T) {
-			sc, err := newSoapClient(context.Background(), tc.cfg, tc.host, tc.settings)
+			sc, err := newSoapClient(context.Background(), tc.cfg, tc.host, tc.settings, component.BuildInfo{})
 			if tc.expectError != nil {
 				require.Nil(t, sc)
 				require.Contains(t, err.Error(), tc.expectError.Error())

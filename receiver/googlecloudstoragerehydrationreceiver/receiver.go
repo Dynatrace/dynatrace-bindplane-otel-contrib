@@ -63,8 +63,8 @@ type rehydrationReceiver struct {
 }
 
 // newMetricsReceiver creates a new metrics specific receiver.
-func newMetricsReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextConsumer consumer.Metrics) (*rehydrationReceiver, error) {
-	r, err := newRehydrationReceiver(id, logger, cfg)
+func newMetricsReceiver(id component.ID, logger *zap.Logger, buildInfo component.BuildInfo, cfg *Config, nextConsumer consumer.Metrics) (*rehydrationReceiver, error) {
+	r, err := newRehydrationReceiver(id, logger, buildInfo, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -76,8 +76,8 @@ func newMetricsReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextCo
 }
 
 // newLogsReceiver creates a new logs specific receiver.
-func newLogsReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextConsumer consumer.Logs) (*rehydrationReceiver, error) {
-	r, err := newRehydrationReceiver(id, logger, cfg)
+func newLogsReceiver(id component.ID, logger *zap.Logger, buildInfo component.BuildInfo, cfg *Config, nextConsumer consumer.Logs) (*rehydrationReceiver, error) {
+	r, err := newRehydrationReceiver(id, logger, buildInfo, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +89,8 @@ func newLogsReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextConsu
 }
 
 // newTracesReceiver creates a new traces specific receiver.
-func newTracesReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextConsumer consumer.Traces) (*rehydrationReceiver, error) {
-	r, err := newRehydrationReceiver(id, logger, cfg)
+func newTracesReceiver(id component.ID, logger *zap.Logger, buildInfo component.BuildInfo, cfg *Config, nextConsumer consumer.Traces) (*rehydrationReceiver, error) {
+	r, err := newRehydrationReceiver(id, logger, buildInfo, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +102,8 @@ func newTracesReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextCon
 }
 
 // newRehydrationReceiver creates a new rehydration receiver
-func newRehydrationReceiver(id component.ID, logger *zap.Logger, cfg *Config) (*rehydrationReceiver, error) {
-	storageClient, err := newStorageClient(cfg)
+func newRehydrationReceiver(id component.ID, logger *zap.Logger, buildInfo component.BuildInfo, cfg *Config) (*rehydrationReceiver, error) {
+	storageClient, err := newStorageClient(cfg, buildInfo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage client: %w", err)
 	}

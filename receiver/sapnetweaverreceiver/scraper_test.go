@@ -26,6 +26,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/pmetrictest"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtls"
@@ -144,7 +145,7 @@ func TestScraperScrape(t *testing.T) {
 	cfg.Password = "password"
 	cfg.Profile = "/sapmnt/EPP/profile/EPP_D00_sap-app-1"
 
-	testClient, err := newSoapClient(context.Background(), cfg, componenttest.NewNopHost(), componenttest.NewNopTelemetrySettings())
+	testClient, err := newSoapClient(context.Background(), cfg, componenttest.NewNopHost(), componenttest.NewNopTelemetrySettings(), component.BuildInfo{})
 	require.NoError(t, err)
 
 	scraper := newSapNetweaverScraper(receivertest.NewNopSettings(typ), cfg)
@@ -221,7 +222,7 @@ func TestScraperScrapeEmpty(t *testing.T) {
 	cfg.Password = "password"
 	cfg.Profile = "/sapmnt/EPP/profile/EPP_D00_sap-app-1"
 
-	testClient, err := newSoapClient(context.Background(), cfg, componenttest.NewNopHost(), componenttest.NewNopTelemetrySettings())
+	testClient, err := newSoapClient(context.Background(), cfg, componenttest.NewNopHost(), componenttest.NewNopTelemetrySettings(), component.BuildInfo{})
 	require.NoError(t, err)
 
 	scraper := newSapNetweaverScraper(receivertest.NewNopSettings(typ), cfg)
@@ -296,7 +297,7 @@ func TestScraperScrapeAPIError(t *testing.T) {
 	cfg.Password = "password"
 	cfg.Profile = "/sapmnt/EPP/profile/EPP_D00_sap-app-1"
 
-	testClient, err := newSoapClient(context.Background(), cfg, componenttest.NewNopHost(), componenttest.NewNopTelemetrySettings())
+	testClient, err := newSoapClient(context.Background(), cfg, componenttest.NewNopHost(), componenttest.NewNopTelemetrySettings(), component.BuildInfo{})
 	require.NoError(t, err)
 
 	scraper := newSapNetweaverScraper(receivertest.NewNopSettings(typ), cfg)

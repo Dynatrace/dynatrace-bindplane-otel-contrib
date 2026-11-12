@@ -23,12 +23,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
+	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent/azure"
 )
 
 // IsRangeNotSatisfiable reports whether err is an Azure "invalid range" response,
@@ -138,9 +142,12 @@ type AzureClient struct {
 	pageSize          int32
 }
 
-// NewAzureBlobClient creates a new azureBlobClient with the given connection string
-func NewAzureBlobClient(connectionString string, batchSize, pageSize int, logger *zap.Logger) (BlobClient, error) {
-	azClient, err := azblob.NewClientFromConnectionString(connectionString, nil)
+// NewAzureBlobClient creates a new azureBlobClient with the given connection string.
+// Requests name the collector distribution from buildInfo in their User-Agent.
+func NewAzureBlobClient(connectionString string, batchSize, pageSize int, logger *zap.Logger, buildInfo component.BuildInfo) (BlobClient, error) {
+	azClient, err := azblob.NewClientFromConnectionString(connectionString, &azblob.ClientOptions{
+		ClientOptions: azcore.ClientOptions{PerCallPolicies: azure.Policies(buildInfo)},
+	})
 	if err != nil {
 		return nil, err
 	}

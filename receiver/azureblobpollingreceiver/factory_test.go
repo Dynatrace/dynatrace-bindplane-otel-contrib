@@ -20,8 +20,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/receiver/receivertest"
+	"go.uber.org/zap"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob"
 )
 
 func TestFactory_createReceivers(t *testing.T) {
@@ -63,4 +67,26 @@ func TestFactory_createReceivers(t *testing.T) {
 		_, err = createTracesReceiver(context.Background(), params, badCfg(), consumertest.NewNop())
 		require.ErrorContains(t, err, "filename pattern")
 	})
+}
+
+func TestFactory_createLogsReceiverPassesBuildInfo(t *testing.T) {
+	oldfunc := newAzureBlobClient
+	t.Cleanup(func() { newAzureBlobClient = oldfunc })
+
+	var gotBuildInfo component.BuildInfo
+	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger, buildInfo component.BuildInfo) (azureblob.BlobClient, error) {
+		gotBuildInfo = buildInfo
+		return new(azureblob.MockBlobClient), nil
+	}
+
+	params := receivertest.NewNopSettings(receivertest.NopType)
+	params.BuildInfo = component.BuildInfo{Command: "test-collector", Version: "1.2.3"}
+	cfg := createDefaultConfig().(*Config)
+	cfg.ConnectionString = "DefaultEndpointsProtocol=https;AccountName=acct;AccountKey=+idLkHYcL0MUWIKYHm2j4Q==;EndpointSuffix=core.windows.net"
+	cfg.Container = "c"
+	cfg.PollInterval = time.Minute
+
+	_, err := createLogsReceiver(context.Background(), params, cfg, consumertest.NewNop())
+	require.NoError(t, err)
+	require.Equal(t, params.BuildInfo, gotBuildInfo)
 }

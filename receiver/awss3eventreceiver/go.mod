@@ -12,6 +12,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws v1.3.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.3.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent v1.3.0
 	github.com/google/go-cmp v0.7.0
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/stretchr/testify v1.12.1
@@ -111,3 +112,5 @@ replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws => ..
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient
 
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream => ../../internal/blobstream
+
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent => ../../internal/useragent
