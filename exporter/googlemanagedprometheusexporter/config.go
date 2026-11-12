@@ -21,14 +21,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version"
 	gmp "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlemanagedprometheusexporter"
 	"go.opentelemetry.io/collector/component"
 	"google.golang.org/api/option"
 )
 
 const (
-	defaultUserAgent = "StanzaLogAgent"
+	defaultUserAgent = "StanzaLogAgent/{{version}}"
 )
 
 // Config is the config the google managed prometheus exporter
@@ -109,17 +108,16 @@ func (c *Config) updateProjectFromFile(fileName string) error {
 
 // createDefaultConfig creates the default config for the exporter
 func createDefaultConfig() component.Config {
-	collectorVersion := version.Version()
 	return &Config{
-		GMPConfig: createDefaultGCPConfig(collectorVersion),
+		GMPConfig: createDefaultGCPConfig(),
 	}
 }
 
 // createDefaultGCPConfig creates a default GCP config
-func createDefaultGCPConfig(collectorVersion string) *gmp.Config {
+func createDefaultGCPConfig() *gmp.Config {
 	factory := gmp.NewFactory()
 	config := factory.CreateDefaultConfig().(*gmp.Config)
-	config.GMPConfig.UserAgent = fmt.Sprintf("%s/%s", defaultUserAgent, collectorVersion)
+	config.GMPConfig.UserAgent = defaultUserAgent
 
 	return config
 }

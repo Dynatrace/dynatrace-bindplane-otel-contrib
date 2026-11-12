@@ -15,25 +15,19 @@
 package googlemanagedprometheusexporter
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version"
 	gmp "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlemanagedprometheusexporter"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 )
 
 func TestCreateDefaultConfig(t *testing.T) {
-	collectorVersion := version.Version()
-
 	cfg := createDefaultConfig()
 	googleCfg, ok := cfg.(*Config)
 	require.True(t, ok)
 
-	expectedUserAgent := fmt.Sprintf("%s/%s", defaultUserAgent, collectorVersion)
-
-	require.Equal(t, expectedUserAgent, googleCfg.GMPConfig.GMPConfig.UserAgent)
+	require.Equal(t, "StanzaLogAgent/{{version}}", googleCfg.GMPConfig.GMPConfig.UserAgent)
 	require.Nil(t, googleCfg.Validate())
 }
 

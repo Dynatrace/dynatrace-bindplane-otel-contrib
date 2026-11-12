@@ -3,7 +3,6 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/googlemana
 go 1.26.10
 
 require (
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version v1.3.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlemanagedprometheusexporter v0.164.1
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.70.0
@@ -147,5 +146,3 @@ require (
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
 )
-
-replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version => ../../pkg/version

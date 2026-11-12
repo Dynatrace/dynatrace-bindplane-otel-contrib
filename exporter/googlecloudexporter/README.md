@@ -13,7 +13,7 @@ This exporter can be used to send metrics, traces, and logs to Google Cloud Moni
 | `credentials`      |                  | `false`  | The credentials JSON used to authenticate the GCP client.                                                                                                                                                    |
 | `credentials_file` |                  | `false`  | The credentials file used to authenticate the GCP client. Ignored if `credentials` is set.                                                                                                                   |
 | `project`          |                  | `false`  | The GCP project used when exporting telemetry data. If not set, the exporter will attempt to extract the value from the specified credentials.                                                               |
-| `user_agent`       | `StanzaLogAgent` | `false`  | Overrides the user agent used when making requests.                                                                                                                                                          |
+| `user_agent`       | `StanzaLogAgent/{{version}}` | `false`  | Overrides the user agent used when making requests.                                                                                                                                                          |
 | `timeout`          | `12s`            | `false`  | The timeout for API calls.                                                                                                                                                                                   |
 | `sending_queue`    |                  | `false`  | Determines how telemetry data is buffered before exporting.                                                                                                                                                  |
 | `batch`            |                  | `false`  | The config of the exporter's [batch processor](https://github.com/open-telemetry/opentelemetry-collector/blob/v0.164.0/processor/batchprocessor).                                                            |
@@ -91,12 +91,6 @@ When trace data is received by the Google Cloud Exporter, it is processed in the
 
 Unlike the official Google Cloud Exporter, this extension transforms all resource attributes into metric labels by default. Users may still use the `resource_filters` field in the metric config to overwrite this behavior.
 
-## OCB
+## User Agent
 
-This component relies on the `github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version` package to get a version value. This version is used to construct a User-Agent header value.
-
-When using this component with the OpenTelemetry Collector Builder (OCB), use the `--ldflags` CLI argument to set the version value at build time. For example:
-
-```sh
-builder --config "manifest.yaml" --ldflags "-s -w -X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.version=v1.2.3"
-```
+The default `user_agent` is `StanzaLogAgent/{{version}}`. The `{{version}}` placeholder is replaced with the collector version from the component's build info (`component.BuildInfo.Version`), so no build-time linker flags are needed. When building with the OpenTelemetry Collector Builder (OCB), this is the `dist.version` value of the manifest. A custom `user_agent` may also contain `{{version}}`.

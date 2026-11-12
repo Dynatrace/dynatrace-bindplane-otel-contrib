@@ -4,7 +4,6 @@ go 1.26.10
 
 require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/collector v0.62.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version v1.3.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlecloudexporter v0.164.1
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.70.0
@@ -107,5 +106,3 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260715232425-e75dac1f907d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260921155816-b14227669459 // indirect
 )
-
-replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version => ../../pkg/version

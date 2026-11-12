@@ -23,7 +23,7 @@ This exporter can be used to send metrics to Google Cloud Managed Service for Pr
 | `metric`           | object  |                  | `false`  | The metric settings of the exporter.                                                                                                                                                                                                         |
 | `project`          | string  |                  | `false`  | The GCP project used when exporting telemetry data. If not set, the exporter will attempt to extract the value from the specified credentials.                                                                                               |
 | `use_insecure`     | boolean | `false`          | `false`  | Uses gRPC communication if true. Only has an effect if the endpoint is set.                                                                                                                                                                  |
-| `user_agent`       | string  | `StanzaLogAgent` | `false`  | Overrides the user agent used when making requests.                                                                                                                                                                                          |
+| `user_agent`       | string  | `StanzaLogAgent/{{version}}` | `false`  | Overrides the user agent used when making requests.                                                                                                                                                                                          |
 | `sending_queue`    | object  |                  | `false`  | Determines how telemetry data is buffered before exporting. See the documentation for the [exporter helper](https://github.com/open-telemetry/opentelemetry-collector/blob/v0.164.0/exporter/exporterhelper/README.md) for more information. |
 
 ## Example configuration
@@ -64,12 +64,6 @@ service:
       exporters: [googlemanagedprometheus]
 ```
 
-## OCB
+## User Agent
 
-This component relies on the `github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version` package to get a version value. This version is used to construct a User-Agent header value.
-
-When using this component with the OpenTelemetry Collector Builder (OCB), use the `--ldflags` CLI argument to set the version value at build time. For example:
-
-```sh
-builder --config "manifest.yaml" --ldflags "-s -w -X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.version=v1.2.3"
-```
+The default `user_agent` is `StanzaLogAgent/{{version}}`. The `{{version}}` placeholder is replaced with the collector version from the component's build info (`component.BuildInfo.Version`), so no build-time linker flags are needed. When building with the OpenTelemetry Collector Builder (OCB), this is the `dist.version` value of the manifest. A custom `user_agent` may also contain `{{version}}`.
