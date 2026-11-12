@@ -1,6 +1,61 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:best-practices",
+    "schedule:weekly"
+  ],
+  "ignorePresets": [":semanticPrefixFixDepsChoreOthers"],
+  "labels": ["dependencies"],
+  "semanticCommits": "enabled",
+  "semanticCommitType": "deps",
+  "semanticCommitScope": null,
+  "prConcurrentLimit": 25,
+  "minimumReleaseAge": "3 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
+  "timezone": "Europe/Vienna",
+  "postUpdateOptions": ["gomodTidyAll"],
+  "packageRules": [
+    {
+      "matchPackageNames": [
+        "/^github\\.com/open-telemetry/opentelemetry-collector/",
+        "/^go\\.opentelemetry\\.io//",
+        "github.com/open-telemetry/opamp-go",
+        "/^github\\.com/dynatrace/dynatrace-bindplane-otel-(contrib|collector)//",
+        "/^github\\.com/Dynatrace/dt-otelcol-edge-processing-components//"
+      ],
+      "description": "OpenTelemetry and inter-module updates are done manually via make update-otel / make update-modules",
+      "enabled": false
+    },
+    {
+      "matchPackageNames": ["github.com/securego/gosec/v2"],
+      "matchFileNames": ["internal/tools/go.mod"],
+      "description": "Keep gosec at v2.18.2",
+      "enabled": false
+    },
+    {
+      "matchFileNames": ["internal/tools/go.mod"],
+      "matchUpdateTypes": ["patch"],
+      "description": "Ignore patch updates for tools",
+      "enabled": false
+    },
+    {
+      "matchDatasources": ["golang-version"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "matchDatasources": ["golang-version"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false,
+      "description": "Major and minor updates to Golang should be handled manually"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions deps"
+    },
+    {
+      "description": "replace directives are deliberate pins/forks",
+      "matchDepTypes": ["replace"],
+      "enabled": false
+    }
   ]
 }
