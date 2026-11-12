@@ -21,6 +21,8 @@ import (
 	"os"
 
 	"cloud.google.com/go/storage"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
+	"go.opentelemetry.io/collector/component"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -54,8 +56,9 @@ type GoogleCloudStorageClient struct {
 	config *Config
 }
 
-// NewStorageClient creates a new Google Cloud Storage client
-func NewStorageClient(cfg *Config) (StorageClient, error) {
+// NewStorageClient creates a new Google Cloud Storage client.
+// buildInfo identifies the collector distribution in the client's User-Agent.
+func NewStorageClient(cfg *Config, buildInfo component.BuildInfo) (StorageClient, error) {
 	ctx := context.Background()
 	var opts []option.ClientOption
 
@@ -99,6 +102,8 @@ func NewStorageClient(cfg *Config) (StorageClient, error) {
 		return nil, fmt.Errorf("project_id not set in config and could not be read from credentials")
 	}
 
+	opts = append(opts, userAgentOptions(buildInfo)...)
+
 	client, err := storage.NewClient(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("storage.NewClient: %w", err)
@@ -108,6 +113,16 @@ func NewStorageClient(cfg *Config) (StorageClient, error) {
 		client: client,
 		config: cfg,
 	}, nil
+}
+
+// userAgentOptions returns the client options that identify the collector
+// distribution in the User-Agent, or none when the build info does not name it.
+func userAgentOptions(buildInfo component.BuildInfo) []option.ClientOption {
+	ua := useragent.String(buildInfo)
+	if ua == "" {
+		return nil
+	}
+	return []option.ClientOption{option.WithUserAgent(ua)}
 }
 
 // StreamObjects streams objects from the bucket within the given time range

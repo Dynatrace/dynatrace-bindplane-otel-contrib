@@ -44,7 +44,7 @@ func Test_newMetricsReceiver(t *testing.T) {
 		EndingTime:   "2023-10-02T17:01",
 	}
 	co := consumertest.NewNop()
-	r, err := newMetricsReceiver(id, testLogger, cfg, co)
+	r, err := newMetricsReceiver(id, testLogger, component.BuildInfo{}, cfg, co)
 	require.NoError(t, err)
 
 	require.Equal(t, testLogger, r.logger)
@@ -66,7 +66,7 @@ func Test_newLogsReceiver(t *testing.T) {
 		EndingTime:   "2023-10-02T17:01",
 	}
 	co := consumertest.NewNop()
-	r, err := newLogsReceiver(id, testLogger, cfg, co)
+	r, err := newLogsReceiver(id, testLogger, component.BuildInfo{}, cfg, co)
 	require.NoError(t, err)
 
 	require.Equal(t, testLogger, r.logger)
@@ -88,7 +88,7 @@ func Test_newTracesReceiver(t *testing.T) {
 		EndingTime:   "2023-10-02T17:01",
 	}
 	co := consumertest.NewNop()
-	r, err := newTracesReceiver(id, testLogger, cfg, co)
+	r, err := newTracesReceiver(id, testLogger, component.BuildInfo{}, cfg, co)
 	require.NoError(t, err)
 
 	require.Equal(t, testLogger, r.logger)
@@ -134,7 +134,7 @@ func Test_fullRehydration(t *testing.T) {
 
 		// Create new receiver
 		testConsumer := &consumertest.MetricsSink{}
-		r, err := newMetricsReceiver(id, testLogger, cfg, testConsumer)
+		r, err := newMetricsReceiver(id, testLogger, component.BuildInfo{}, cfg, testConsumer)
 		require.NoError(t, err)
 
 		// Setup mocks
@@ -181,7 +181,7 @@ func Test_fullRehydration(t *testing.T) {
 
 		// Create new receiver
 		testConsumer := &consumertest.TracesSink{}
-		r, err := newTracesReceiver(id, testLogger, cfg, testConsumer)
+		r, err := newTracesReceiver(id, testLogger, component.BuildInfo{}, cfg, testConsumer)
 		require.NoError(t, err)
 
 		// Setup mocks
@@ -228,7 +228,7 @@ func Test_fullRehydration(t *testing.T) {
 
 		// Create new receiver
 		testConsumer := &consumertest.LogsSink{}
-		r, err := newLogsReceiver(id, testLogger, cfg, testConsumer)
+		r, err := newLogsReceiver(id, testLogger, component.BuildInfo{}, cfg, testConsumer)
 		require.NoError(t, err)
 
 		// Setup mocks
@@ -276,7 +276,7 @@ func Test_fullRehydration(t *testing.T) {
 
 		// Create new receiver
 		testConsumer := &consumertest.LogsSink{}
-		r, err := newLogsReceiver(id, testLogger, cfg, testConsumer)
+		r, err := newLogsReceiver(id, testLogger, component.BuildInfo{}, cfg, testConsumer)
 		require.NoError(t, err)
 
 		// Setup mocks
@@ -328,7 +328,7 @@ func Test_fullRehydration(t *testing.T) {
 
 		// Create new receiver
 		testConsumer := &consumertest.LogsSink{}
-		r, err := newLogsReceiver(id, testLogger, cfg, testConsumer)
+		r, err := newLogsReceiver(id, testLogger, component.BuildInfo{}, cfg, testConsumer)
 		require.NoError(t, err)
 
 		// Setup mocks
@@ -382,7 +382,7 @@ func Test_fullRehydration(t *testing.T) {
 
 		// Create new receiver
 		testConsumer := &consumertest.LogsSink{}
-		r, err := newLogsReceiver(id, testLogger, cfg, testConsumer)
+		r, err := newLogsReceiver(id, testLogger, component.BuildInfo{}, cfg, testConsumer)
 		require.NoError(t, err)
 
 		// Setup mocks
@@ -430,7 +430,7 @@ func setNewAWSClient(t *testing.T) *mocks.MockS3Client {
 
 	mockClient := mocks.NewMockS3Client(t)
 
-	newAWSS3Client = func(_ *zap.Logger, _ string, _, _ int) (aws.S3Client, error) {
+	newAWSS3Client = func(_ *zap.Logger, _ component.BuildInfo, _ string, _, _ int) (aws.S3Client, error) {
 		return mockClient, nil
 	}
 

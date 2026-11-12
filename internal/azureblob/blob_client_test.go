@@ -19,6 +19,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +32,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 )
 
@@ -105,7 +109,7 @@ func TestNewAzureBlobClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := NewAzureBlobClient(tt.connectionStr, tt.batchSize, tt.pageSize, zap.NewNop())
+			client, err := NewAzureBlobClient(tt.connectionStr, tt.batchSize, tt.pageSize, zap.NewNop(), component.BuildInfo{})
 			if tt.expectedError {
 				require.Error(t, err)
 				require.Nil(t, client)
@@ -115,6 +119,25 @@ func TestNewAzureBlobClient(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewAzureBlobClientUserAgent(t *testing.T) {
+	userAgents := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userAgents <- r.Header.Get("User-Agent")
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	connectionStr := "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=" + server.URL + "/devstoreaccount1;"
+	buildInfo := component.BuildInfo{Command: "test-collector", Version: "1.2.3"}
+
+	client, err := NewAzureBlobClient(connectionStr, 100, 1000, zap.NewNop(), buildInfo)
+	require.NoError(t, err)
+	require.NoError(t, client.DeleteBlob(context.Background(), "container", "blob.txt"))
+
+	userAgent := <-userAgents
+	require.True(t, strings.HasPrefix(userAgent, "test-collector/1.2.3 azsdk-go-azblob/"), "User-Agent %q", userAgent)
 }
 
 func TestDownloadBlob(t *testing.T) {

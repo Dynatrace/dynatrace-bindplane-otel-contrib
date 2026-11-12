@@ -22,6 +22,7 @@ import (
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter/internal/metadata"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter/protos/api"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
@@ -46,6 +47,7 @@ type grpcExporter struct {
 	cfg        *Config
 	set        component.TelemetrySettings
 	exporterID string
+	userAgent  string
 	marshaler  *protoMarshaler
 
 	client  api.IngestionServiceV2Client
@@ -67,6 +69,7 @@ func newGRPCExporter(cfg *Config, params exporter.Settings, telemetry *metadata.
 		cfg:        cfg,
 		set:        params.TelemetrySettings,
 		exporterID: params.ID.String(),
+		userAgent:  useragent.String(params.BuildInfo),
 		marshaler:  marshaler,
 		telemetry:  telemetry,
 		metricAttributes: attribute.NewSet(
@@ -96,6 +99,10 @@ func (exp *grpcExporter) Start(ctx context.Context, _ component.Host) error {
 		return fmt.Errorf("load Google credentials: %w", err)
 	}
 	endpoint, dialOpts := grpcClientParams(exp.cfg.Endpoint, ts)
+	if exp.userAgent != "" {
+		// Identify the collector distribution; grpc-go appends its own product.
+		dialOpts = append(dialOpts, grpc.WithUserAgent(exp.userAgent))
+	}
 	conn, err := grpc.NewClient(endpoint, dialOpts...)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)

@@ -31,6 +31,8 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent/azure"
 )
 
 // azureLogAnalyticsExporter exports logs to Azure Log Analytics
@@ -55,7 +57,7 @@ func newExporter(cfg *Config, params exporter.Settings) (*azureLogAnalyticsExpor
 	}
 
 	// Create Azure logs client
-	client, err := azlogs.NewClient(cfg.Endpoint, cred, nil)
+	client, err := azlogs.NewClient(cfg.Endpoint, cred, newClientOptions(params.BuildInfo))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure Log Analytics client: %w", err)
 	}
@@ -74,6 +76,14 @@ func newExporter(cfg *Config, params exporter.Settings) (*azureLogAnalyticsExpor
 		streamName: cfg.StreamName,
 		marshaler:  marshaler,
 	}, nil
+}
+
+// newClientOptions returns the Azure Log Analytics client options, which name
+// the collector distribution from buildInfo in the User-Agent.
+func newClientOptions(buildInfo component.BuildInfo) *azlogs.ClientOptions {
+	return &azlogs.ClientOptions{
+		ClientOptions: azcore.ClientOptions{PerCallPolicies: azure.Policies(buildInfo)},
+	}
 }
 
 // Capabilities returns the capabilities of the exporter

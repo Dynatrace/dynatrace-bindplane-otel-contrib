@@ -31,6 +31,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
@@ -76,7 +77,7 @@ func TestNewRESTAPIClient(t *testing.T) {
 			host := componenttest.NewNopHost()
 			settings := componenttest.NewNopTelemetrySettings()
 
-			client, err := newRESTAPIClient(ctx, settings, tc.cfg, host)
+			client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, tc.cfg, host)
 			if tc.wantErr {
 				require.Error(t, err)
 				require.Nil(t, client)
@@ -118,7 +119,7 @@ func TestRESTAPIClient_NoAuth(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -156,7 +157,7 @@ func TestRESTAPIClient_NoAuthMode(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -195,7 +196,7 @@ func TestRESTAPIClient_APIKeyAuth(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -231,7 +232,7 @@ func TestRESTAPIClient_BearerAuth(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -293,7 +294,7 @@ func TestRESTAPIClient_BearerAuth_HeaderPrefix(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			client, err := newRESTAPIClient(ctx, componenttest.NewNopTelemetrySettings(), cfg, componenttest.NewNopHost())
+			client, err := newRESTAPIClient(ctx, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, cfg, componenttest.NewNopHost())
 			require.NoError(t, err)
 
 			data, err := fetchDataArray(ctx, client, server.URL, url.Values{})
@@ -334,7 +335,7 @@ func TestRESTAPIClient_BasicAuth(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -409,7 +410,7 @@ func TestRESTAPIClient_OAuth2Auth(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -466,7 +467,7 @@ func TestRESTAPIClient_OAuth2Auth_HeaderPrefix(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	client, err := newRESTAPIClient(ctx, componenttest.NewNopTelemetrySettings(), cfg, componenttest.NewNopHost())
+	client, err := newRESTAPIClient(ctx, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, cfg, componenttest.NewNopHost())
 	require.NoError(t, err)
 
 	data, err := fetchDataArray(ctx, client, apiServer.URL, url.Values{})
@@ -524,7 +525,7 @@ func TestRESTAPIClient_OAuth2Auth_WithScopes(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -572,7 +573,7 @@ func TestRESTAPIClient_AkamaiEdgeGridAuth(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	// Use an explicit path so the URL the client signs matches what the
@@ -661,7 +662,7 @@ func TestRESTAPIClient_AkamaiEdgeGridAuth_AccountKey(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	client, err := newRESTAPIClient(ctx, componenttest.NewNopTelemetrySettings(), cfg, componenttest.NewNopHost())
+	client, err := newRESTAPIClient(ctx, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, cfg, componenttest.NewNopHost())
 	require.NoError(t, err)
 
 	_, err = fetchDataArray(ctx, client, server.URL, url.Values{"other": []string{"v"}})
@@ -702,7 +703,7 @@ func TestRESTAPIClient_WithQueryParams(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -745,7 +746,7 @@ func TestRESTAPIClient_ResponseField(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -778,7 +779,7 @@ func TestRESTAPIClient_HTTPError(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -810,7 +811,7 @@ func TestRESTAPIClient_InvalidJSON(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -851,7 +852,7 @@ func TestRESTAPIClient_CustomHeaders(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -888,7 +889,7 @@ func TestRESTAPIClient_GetFullResponse_CustomHeaders(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -929,7 +930,7 @@ func TestRESTAPIClient_SensitiveHeaders(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -966,7 +967,7 @@ func TestRESTAPIClient_GetFullResponse_SensitiveHeaders(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -1003,7 +1004,7 @@ func TestRESTAPIClient_GetNDJSON(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -1035,7 +1036,7 @@ func TestRESTAPIClient_GetNDJSON_EmptyResponse(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	data, _, metadata, _, err := client.FetchNDJSON(ctx, apiRequest{URL: server.URL, Query: url.Values{}}, true)
@@ -1062,7 +1063,7 @@ func TestRESTAPIClient_GetNDJSON_MetadataOnly(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	data, _, metadata, _, err := client.FetchNDJSON(ctx, apiRequest{URL: server.URL, Query: url.Values{}}, true)
@@ -1089,7 +1090,7 @@ func TestRESTAPIClient_GetNDJSON_HTTPError(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	data, _, metadata, _, err := client.FetchNDJSON(ctx, apiRequest{URL: server.URL, Query: url.Values{}}, true)
@@ -1225,7 +1226,7 @@ func TestRESTAPIClient_GetNDJSON_MetadataInHeader(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	data, _, metadata, headers, err := client.FetchNDJSON(ctx, apiRequest{URL: server.URL, Query: url.Values{}}, false)
@@ -1257,7 +1258,7 @@ func TestRESTAPIClient_GetNDJSON_ReturnsHeaders(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	data, _, metadata, headers, err := client.FetchNDJSON(ctx, apiRequest{URL: server.URL, Query: url.Values{}}, true)
@@ -1290,7 +1291,7 @@ func TestRESTAPIClient_GetFullResponse_ReturnsHeaders(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	data, _, headers, err := client.FetchFullResponse(ctx, apiRequest{URL: server.URL, Query: url.Values{}})
@@ -1322,7 +1323,7 @@ func TestRESTAPIClient_EmptyArray(t *testing.T) {
 	host := componenttest.NewNopHost()
 	settings := componenttest.NewNopTelemetrySettings()
 
-	client, err := newRESTAPIClient(ctx, settings, cfg, host)
+	client, err := newRESTAPIClient(ctx, settings, component.BuildInfo{}, cfg, host)
 	require.NoError(t, err)
 
 	params := url.Values{}
@@ -1335,7 +1336,7 @@ func TestRESTAPIClient_EmptyArray(t *testing.T) {
 // newTestClient builds a client against the given config for the POST tests.
 func newTestClient(ctx context.Context, t *testing.T, cfg *Config) restAPIClient {
 	t.Helper()
-	client, err := newRESTAPIClient(ctx, componenttest.NewNopTelemetrySettings(), cfg, componenttest.NewNopHost())
+	client, err := newRESTAPIClient(ctx, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, cfg, componenttest.NewNopHost())
 	require.NoError(t, err)
 	return client
 }
@@ -1732,7 +1733,7 @@ func TestClientTLS(t *testing.T) {
 				},
 			}
 
-			client, err := newRESTAPIClient(ctx, componenttest.NewNopTelemetrySettings(), cfg, componenttest.NewNopHost())
+			client, err := newRESTAPIClient(ctx, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, cfg, componenttest.NewNopHost())
 			require.NoError(t, err)
 			defer func() { require.NoError(t, client.Shutdown()) }()
 

@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/akamai/AkamaiOPEN-edgegrid-golang/v13/pkg/edgegrid"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
 	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
@@ -71,10 +72,13 @@ type defaultRESTAPIClient struct {
 	tokenSource   oauth2.TokenSource
 }
 
-// newRESTAPIClient creates a new REST API client.
+// newRESTAPIClient creates a new REST API client. Its requests carry the
+// collector distribution from buildInfo in their User-Agent, unless one is
+// configured in headers.
 func newRESTAPIClient(
 	ctx context.Context,
 	settings component.TelemetrySettings,
+	buildInfo component.BuildInfo,
 	cfg *Config,
 	host component.Host,
 ) (restAPIClient, error) {
@@ -82,6 +86,7 @@ func newRESTAPIClient(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
 	}
+	httpClient.Transport = useragent.NewTransport(httpClient.Transport, useragent.String(buildInfo))
 
 	client := &defaultRESTAPIClient{
 		client:        httpClient,

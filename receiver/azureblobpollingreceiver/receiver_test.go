@@ -567,13 +567,14 @@ func TestPollingReceiver_InitialLookback(t *testing.T) {
 		defer func() { newAzureBlobClient = originalNewAzureBlobClient }()
 
 		mockClient := new(azureblob.MockBlobClient)
-		newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger) (azureblob.BlobClient, error) {
+		newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger, _ component.BuildInfo) (azureblob.BlobClient, error) {
 			return mockClient, nil
 		}
 
 		receiver, err := newLogsReceiver(
 			component.MustNewID("azureblobpolling"),
 			zap.NewNop(),
+			component.BuildInfo{},
 			cfg,
 			consumertest.NewNop(),
 		)
@@ -597,13 +598,14 @@ func TestPollingReceiver_InitialLookback(t *testing.T) {
 		defer func() { newAzureBlobClient = originalNewAzureBlobClient }()
 
 		mockClient := new(azureblob.MockBlobClient)
-		newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger) (azureblob.BlobClient, error) {
+		newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger, _ component.BuildInfo) (azureblob.BlobClient, error) {
 			return mockClient, nil
 		}
 
 		receiver, err := newLogsReceiver(
 			component.MustNewID("azureblobpolling"),
 			zap.NewNop(),
+			component.BuildInfo{},
 			cfg,
 			consumertest.NewNop(),
 		)
@@ -618,7 +620,7 @@ func TestNewLogsReceiver_BlobFormat(t *testing.T) {
 	defer func() { newAzureBlobClient = originalNewAzureBlobClient }()
 
 	mockClient := new(azureblob.MockBlobClient)
-	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger) (azureblob.BlobClient, error) {
+	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger, _ component.BuildInfo) (azureblob.BlobClient, error) {
 		return mockClient, nil
 	}
 
@@ -634,25 +636,25 @@ func TestNewLogsReceiver_BlobFormat(t *testing.T) {
 	}
 
 	t.Run("Default format uses LogsConsumer", func(t *testing.T) {
-		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), baseCfg(""), consumertest.NewNop())
+		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, baseCfg(""), consumertest.NewNop())
 		require.NoError(t, err)
 		require.IsType(t, &blobconsume.LogsConsumer{}, r.consumer)
 	})
 
 	t.Run("OTLP format uses LogsConsumer", func(t *testing.T) {
-		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), baseCfg(BlobFormatOTLP), consumertest.NewNop())
+		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, baseCfg(BlobFormatOTLP), consumertest.NewNop())
 		require.NoError(t, err)
 		require.IsType(t, &blobconsume.LogsConsumer{}, r.consumer)
 	})
 
 	t.Run("JSON format uses NDJSONLogsConsumer", func(t *testing.T) {
-		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), baseCfg(BlobFormatJSON), consumertest.NewNop())
+		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, baseCfg(BlobFormatJSON), consumertest.NewNop())
 		require.NoError(t, err)
 		require.IsType(t, &blobconsume.NDJSONLogsConsumer{}, r.consumer)
 	})
 
 	t.Run("Text format uses RawTextLogsConsumer", func(t *testing.T) {
-		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), baseCfg(BlobFormatText), consumertest.NewNop())
+		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, baseCfg(BlobFormatText), consumertest.NewNop())
 		require.NoError(t, err)
 		require.IsType(t, &blobconsume.RawTextLogsConsumer{}, r.consumer)
 	})
@@ -661,13 +663,13 @@ func TestNewLogsReceiver_BlobFormat(t *testing.T) {
 		cfg := baseCfg(BlobFormatText)
 		cfg.EnableIncrementalRead = true
 		cfg.EnablePerLineText = true
-		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), cfg, consumertest.NewNop())
+		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, cfg, consumertest.NewNop())
 		require.NoError(t, err)
 		require.IsType(t, &blobconsume.LineTextLogsConsumer{}, r.consumer)
 	})
 
 	t.Run("RecordsJSON format uses RecordsJSONLogsConsumer", func(t *testing.T) {
-		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), baseCfg(BlobFormatRecordsJSON), consumertest.NewNop())
+		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, baseCfg(BlobFormatRecordsJSON), consumertest.NewNop())
 		require.NoError(t, err)
 		require.IsType(t, &blobconsume.RecordsJSONLogsConsumer{}, r.consumer)
 	})
@@ -678,7 +680,7 @@ func TestNewLogsReceiver_BlobFormat(t *testing.T) {
 		// must treat that as nothing-to-save rather than dereferencing the nil checkpoint.
 		cfg := baseCfg(BlobFormatRecordsJSON)
 		cfg.EnableIncrementalRead = true
-		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), cfg, consumertest.NewNop())
+		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, cfg, consumertest.NewNop())
 		require.NoError(t, err)
 		require.NotPanics(t, func() {
 			require.NoError(t, r.Shutdown(context.Background()))
@@ -691,7 +693,7 @@ func TestNewLogsReceiver_RejectsUnsupportedFormat(t *testing.T) {
 	defer func() { newAzureBlobClient = originalNewAzureBlobClient }()
 
 	mockClient := new(azureblob.MockBlobClient)
-	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger) (azureblob.BlobClient, error) {
+	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger, _ component.BuildInfo) (azureblob.BlobClient, error) {
 		return mockClient, nil
 	}
 
@@ -704,7 +706,7 @@ func TestNewLogsReceiver_RejectsUnsupportedFormat(t *testing.T) {
 		BlobFormat:       "invalid_format",
 	}
 
-	_, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), cfg, consumertest.NewNop())
+	_, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, cfg, consumertest.NewNop())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unsupported blob_format")
 }
@@ -714,7 +716,7 @@ func TestNewMetricsReceiver_RejectsNonOTLP(t *testing.T) {
 	defer func() { newAzureBlobClient = originalNewAzureBlobClient }()
 
 	mockClient := new(azureblob.MockBlobClient)
-	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger) (azureblob.BlobClient, error) {
+	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger, _ component.BuildInfo) (azureblob.BlobClient, error) {
 		return mockClient, nil
 	}
 
@@ -727,7 +729,7 @@ func TestNewMetricsReceiver_RejectsNonOTLP(t *testing.T) {
 		BlobFormat:       BlobFormatJSON,
 	}
 
-	_, err := newMetricsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), cfg, consumertest.NewNop())
+	_, err := newMetricsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, cfg, consumertest.NewNop())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not supported for metrics pipelines")
 }
@@ -737,7 +739,7 @@ func TestNewTracesReceiver_RejectsNonOTLP(t *testing.T) {
 	defer func() { newAzureBlobClient = originalNewAzureBlobClient }()
 
 	mockClient := new(azureblob.MockBlobClient)
-	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger) (azureblob.BlobClient, error) {
+	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger, _ component.BuildInfo) (azureblob.BlobClient, error) {
 		return mockClient, nil
 	}
 
@@ -750,7 +752,7 @@ func TestNewTracesReceiver_RejectsNonOTLP(t *testing.T) {
 		BlobFormat:       BlobFormatText,
 	}
 
-	_, err := newTracesReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), cfg, consumertest.NewNop())
+	_, err := newTracesReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, cfg, consumertest.NewNop())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not supported for traces pipelines")
 }
@@ -4014,7 +4016,7 @@ func TestPollingReceiver_Shutdown_JoinsPollLoop(t *testing.T) {
 func TestNewLogsReceiver_ResolvesRevisitWindow(t *testing.T) {
 	originalNewAzureBlobClient := newAzureBlobClient
 	defer func() { newAzureBlobClient = originalNewAzureBlobClient }()
-	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger) (azureblob.BlobClient, error) {
+	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger, _ component.BuildInfo) (azureblob.BlobClient, error) {
 		return new(azureblob.MockBlobClient), nil
 	}
 	base := func() *Config {
@@ -4028,7 +4030,7 @@ func TestNewLogsReceiver_ResolvesRevisitWindow(t *testing.T) {
 	}
 
 	t.Run("defaults when unset", func(t *testing.T) {
-		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), base(), consumertest.NewNop())
+		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, base(), consumertest.NewNop())
 		require.NoError(t, err)
 		require.Equal(t, defaultIncrementalRevisitWindow, r.revisitWindow)
 	})
@@ -4036,7 +4038,7 @@ func TestNewLogsReceiver_ResolvesRevisitWindow(t *testing.T) {
 	t.Run("honors a custom value", func(t *testing.T) {
 		cfg := base()
 		cfg.IncrementalRevisitWindow = 30 * time.Minute
-		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), cfg, consumertest.NewNop())
+		r, err := newLogsReceiver(component.MustNewID("azureblobpolling"), zap.NewNop(), component.BuildInfo{}, cfg, consumertest.NewNop())
 		require.NoError(t, err)
 		require.Equal(t, 30*time.Minute, r.revisitWindow)
 	})

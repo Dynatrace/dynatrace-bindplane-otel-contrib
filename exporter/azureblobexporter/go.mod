@@ -3,7 +3,9 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/azureblobe
 go 1.26.10
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.2
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.2
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent v1.3.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.70.0
 	go.opentelemetry.io/collector/component/componenttest v0.164.0
@@ -21,7 +23,6 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/internal v0.1.0 // indirect
 	github.com/apache/arrow-go/v18 v18.7.0 // indirect
@@ -81,3 +82,5 @@ require (
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
+
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent => ../../internal/useragent

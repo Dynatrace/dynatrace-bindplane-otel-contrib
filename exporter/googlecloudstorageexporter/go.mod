@@ -4,6 +4,7 @@ go 1.26.10
 
 require (
 	cloud.google.com/go/storage v1.69.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent v1.3.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.70.0
 	go.opentelemetry.io/collector/component/componenttest v0.164.0
@@ -100,3 +101,5 @@ require (
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
+
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent => ../../internal/useragent

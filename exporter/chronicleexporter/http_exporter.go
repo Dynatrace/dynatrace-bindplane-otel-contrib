@@ -29,6 +29,7 @@ import (
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter/internal/metadata"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter/protos/api"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
@@ -64,6 +65,7 @@ type httpExporter struct {
 	cfg        *Config
 	set        component.TelemetrySettings
 	exporterID string
+	userAgent  string
 	marshaler  *protoMarshaler
 	client     *http.Client
 	transport  *http.Transport
@@ -84,6 +86,7 @@ func newHTTPExporter(cfg *Config, params exporter.Settings, telemetry *metadata.
 		cfg:        cfg,
 		set:        params.TelemetrySettings,
 		exporterID: params.ID.String(),
+		userAgent:  useragent.String(params.BuildInfo),
 		marshaler:  marshaler,
 		telemetry:  telemetry,
 		metricAttributes: attribute.NewSet(
@@ -124,11 +127,13 @@ func (exp *httpExporter) Start(ctx context.Context, _ component.Host) error {
 		ResponseHeaderTimeout: exp.cfg.HTTPResponseHeaderTimeout,
 	}
 
+	// Requests that do not set their own User-Agent identify the collector
+	// distribution.
 	exp.client = &http.Client{
-		Transport: &oauth2.Transport{
+		Transport: useragent.NewTransport(&oauth2.Transport{
 			Base:   exp.transport,
 			Source: ts,
-		},
+		}, exp.userAgent),
 	}
 
 	if exp.cfg.ValidateLogTypes {

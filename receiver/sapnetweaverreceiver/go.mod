@@ -48,6 +48,7 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent v1.3.0
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -89,3 +90,5 @@ require (
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
+
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent => ../../internal/useragent

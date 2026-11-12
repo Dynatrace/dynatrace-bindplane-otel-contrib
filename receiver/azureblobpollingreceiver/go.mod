@@ -31,6 +31,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/internal v0.1.0 // indirect
 	github.com/apache/arrow-go/v18 v18.7.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent v1.3.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
@@ -81,3 +82,5 @@ replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsu
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient
 
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils => ../../internal/testutils
+
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent => ../../internal/useragent
