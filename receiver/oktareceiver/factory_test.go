@@ -16,10 +16,14 @@ package oktareceiver
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/oktareceiver/internal/metadata"
+	"github.com/okta/okta-sdk-golang/v6/okta"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 )
 
@@ -40,4 +44,20 @@ func TestCreateLogsReceiver(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, recv)
+}
+
+func TestCreateLogsReceiverUserAgent(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.Domain = "example.okta.com"
+	cfg.APIToken = "token"
+
+	set := receivertest.NewNopSettings(metadata.Type)
+	set.BuildInfo = component.BuildInfo{Command: "test-collector", Version: "1.2.3"}
+
+	r, err := NewFactory().CreateLogs(context.Background(), set, cfg, consumertest.NewNop())
+	require.NoError(t, err)
+
+	ua := okta.NewUserAgent(r.(*oktaLogsReceiver).client.GetConfig()).String()
+	require.True(t, strings.HasPrefix(ua, "okta-sdk-golang/"), ua)
+	require.True(t, strings.HasSuffix(ua, " test-collector/1.2.3"), ua)
 }

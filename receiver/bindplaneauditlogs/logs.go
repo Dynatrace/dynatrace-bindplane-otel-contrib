@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -49,6 +50,7 @@ type bindplaneAuditLogsReceiver struct {
 	wg            *sync.WaitGroup
 	lastTimestamp *time.Time
 	settings      component.TelemetrySettings
+	buildInfo     component.BuildInfo
 }
 
 // newBindplaneAuditLogsReceiver returns a newly configured bindplaneAuditLogsReceiver
@@ -67,6 +69,7 @@ func (r *bindplaneAuditLogsReceiver) Start(ctx context.Context, host component.H
 	if err != nil {
 		return fmt.Errorf("failed to create HTTP client: %w", err)
 	}
+	client.Transport = useragent.NewTransport(client.Transport, useragent.String(r.buildInfo))
 	r.client = client
 
 	ctx, cancel := context.WithCancel(context.Background())

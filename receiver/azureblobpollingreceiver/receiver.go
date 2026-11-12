@@ -127,12 +127,12 @@ type pollingReceiver struct {
 }
 
 // newMetricsReceiver creates a new metrics specific receiver.
-func newMetricsReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextConsumer consumer.Metrics) (*pollingReceiver, error) {
+func newMetricsReceiver(id component.ID, logger *zap.Logger, buildInfo component.BuildInfo, cfg *Config, nextConsumer consumer.Metrics) (*pollingReceiver, error) {
 	if cfg.BlobFormat != "" && cfg.BlobFormat != BlobFormatOTLP {
 		return nil, fmt.Errorf("blob_format %q is not supported for metrics pipelines, only %q is supported", cfg.BlobFormat, BlobFormatOTLP)
 	}
 
-	r, err := newPollingReceiver(id, logger, cfg)
+	r, err := newPollingReceiver(id, logger, buildInfo, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -144,8 +144,8 @@ func newMetricsReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextCo
 }
 
 // newLogsReceiver creates a new logs specific receiver.
-func newLogsReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextConsumer consumer.Logs) (*pollingReceiver, error) {
-	r, err := newPollingReceiver(id, logger, cfg)
+func newLogsReceiver(id component.ID, logger *zap.Logger, buildInfo component.BuildInfo, cfg *Config, nextConsumer consumer.Logs) (*pollingReceiver, error) {
+	r, err := newPollingReceiver(id, logger, buildInfo, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -178,12 +178,12 @@ func newLogsReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextConsu
 }
 
 // newTracesReceiver creates a new traces specific receiver.
-func newTracesReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextConsumer consumer.Traces) (*pollingReceiver, error) {
+func newTracesReceiver(id component.ID, logger *zap.Logger, buildInfo component.BuildInfo, cfg *Config, nextConsumer consumer.Traces) (*pollingReceiver, error) {
 	if cfg.BlobFormat != "" && cfg.BlobFormat != BlobFormatOTLP {
 		return nil, fmt.Errorf("blob_format %q is not supported for traces pipelines, only %q is supported", cfg.BlobFormat, BlobFormatOTLP)
 	}
 
-	r, err := newPollingReceiver(id, logger, cfg)
+	r, err := newPollingReceiver(id, logger, buildInfo, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -195,8 +195,8 @@ func newTracesReceiver(id component.ID, logger *zap.Logger, cfg *Config, nextCon
 }
 
 // newPollingReceiver creates a new polling receiver
-func newPollingReceiver(id component.ID, logger *zap.Logger, cfg *Config) (*pollingReceiver, error) {
-	azureClient, err := newAzureBlobClient(cfg.ConnectionString, cfg.BatchSize, cfg.PageSize, logger)
+func newPollingReceiver(id component.ID, logger *zap.Logger, buildInfo component.BuildInfo, cfg *Config) (*pollingReceiver, error) {
+	azureClient, err := newAzureBlobClient(cfg.ConnectionString, cfg.BatchSize, cfg.PageSize, logger, buildInfo)
 	if err != nil {
 		return nil, fmt.Errorf("new Azure client: %w", err)
 	}

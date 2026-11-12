@@ -19,16 +19,28 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
 	"go.opentelemetry.io/collector/component"
 
 	"github.com/hooklift/gowsdl/soap"
 )
 
-func newSoapClient(ctx context.Context, cfg *Config, host component.Host, settings component.TelemetrySettings) (*soap.Client, error) {
+// newSoapClient creates the SOAP client. Its requests carry the collector
+// distribution from buildInfo in their User-Agent, unless one is configured in
+// headers.
+func newSoapClient(ctx context.Context, cfg *Config, host component.Host, settings component.TelemetrySettings, buildInfo component.BuildInfo) (*soap.Client, error) {
 	httpClient, err := cfg.ClientConfig.ToClient(ctx, host.GetExtensions(), settings)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP Client: %w", err)
 	}
 
-	return soap.NewClient(cfg.ClientConfig.Endpoint, soap.WithBasicAuth(cfg.Username, cfg.Password), soap.WithHTTPClient(httpClient)), nil
+	opts := []soap.Option{soap.WithBasicAuth(cfg.Username, cfg.Password), soap.WithHTTPClient(httpClient)}
+	// The soap client sets its own User-Agent on every request, so wrapping
+	// the transport would never apply. Override it with a soap header instead.
+	// Headers configured in confighttp are applied later, by the transport, so
+	// a configured User-Agent still wins.
+	if ua := useragent.String(buildInfo); ua != "" {
+		opts = append(opts, soap.WithHTTPHeaders(map[string]string{"User-Agent": ua}))
+	}
+	return soap.NewClient(cfg.ClientConfig.Endpoint, opts...), nil
 }

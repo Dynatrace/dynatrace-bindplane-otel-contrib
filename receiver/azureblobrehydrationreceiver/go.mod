@@ -29,6 +29,7 @@ require (
 	github.com/apache/arrow-go/v18 v18.7.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent v1.3.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
@@ -85,6 +86,8 @@ replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsu
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient => ../../internal/storageclient
 
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils => ../../internal/testutils
+
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent => ../../internal/useragent
 
 // Replacing testify so tests can pass. Some weird behavior with latest testify version. Potentially related to: https://github.com/stretchr/testify/issues/1785
 // Recheck during next release.

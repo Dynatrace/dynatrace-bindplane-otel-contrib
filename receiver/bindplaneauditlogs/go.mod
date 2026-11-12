@@ -74,8 +74,11 @@ require (
 )
 
 require (
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent v1.3.0
 	go.opentelemetry.io/collector/component v1.70.0
 	go.opentelemetry.io/collector/config/configopaque v1.70.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.70.0
 	go.opentelemetry.io/collector/receiver v1.70.0
 )
+
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent => ../../internal/useragent

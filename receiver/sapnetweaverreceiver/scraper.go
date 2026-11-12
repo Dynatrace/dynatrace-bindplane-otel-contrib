@@ -33,15 +33,16 @@ import (
 )
 
 type sapNetweaverScraper struct {
-	settings component.TelemetrySettings
-	cfg      *Config
-	client   *soap.Client
-	service  webService
-	instance string
-	hostname string
-	SID      string
-	rb       *metadata.ResourceBuilder
-	mb       *metadata.MetricsBuilder
+	settings  component.TelemetrySettings
+	buildInfo component.BuildInfo
+	cfg       *Config
+	client    *soap.Client
+	service   webService
+	instance  string
+	hostname  string
+	SID       string
+	rb        *metadata.ResourceBuilder
+	mb        *metadata.MetricsBuilder
 }
 
 func newSapNetweaverScraper(
@@ -49,17 +50,18 @@ func newSapNetweaverScraper(
 	cfg *Config,
 ) *sapNetweaverScraper {
 	a := &sapNetweaverScraper{
-		settings: settings.TelemetrySettings,
-		cfg:      cfg,
-		rb:       metadata.NewResourceBuilder(cfg.MetricsBuilderConfig.ResourceAttributes),
-		mb:       metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, settings),
+		settings:  settings.TelemetrySettings,
+		buildInfo: settings.BuildInfo,
+		cfg:       cfg,
+		rb:        metadata.NewResourceBuilder(cfg.MetricsBuilderConfig.ResourceAttributes),
+		mb:        metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, settings),
 	}
 
 	return a
 }
 
 func (s *sapNetweaverScraper) start(ctx context.Context, host component.Host) error {
-	soapClient, err := newSoapClient(ctx, s.cfg, host, s.settings)
+	soapClient, err := newSoapClient(ctx, s.cfg, host, s.settings, s.buildInfo)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}

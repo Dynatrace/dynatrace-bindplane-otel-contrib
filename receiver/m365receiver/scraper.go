@@ -250,13 +250,14 @@ type mClient interface {
 }
 
 type m365Scraper struct {
-	settings component.TelemetrySettings
-	logger   *zap.Logger
-	cfg      *Config
-	client   mClient
-	rb       *metadata.ResourceBuilder
-	mb       *metadata.MetricsBuilder
-	root     string
+	settings  component.TelemetrySettings
+	buildInfo component.BuildInfo
+	logger    *zap.Logger
+	cfg       *Config
+	client    mClient
+	rb        *metadata.ResourceBuilder
+	mb        *metadata.MetricsBuilder
+	root      string
 }
 
 func newM365Scraper(
@@ -264,18 +265,19 @@ func newM365Scraper(
 	cfg *Config,
 ) *m365Scraper {
 	m := &m365Scraper{
-		settings: settings.TelemetrySettings,
-		logger:   settings.Logger,
-		cfg:      cfg,
-		rb:       metadata.NewResourceBuilder(cfg.MetricsBuilderConfig.ResourceAttributes),
-		mb:       metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, settings),
-		root:     "https://graph.microsoft.com/v1.0/reports/",
+		settings:  settings.TelemetrySettings,
+		buildInfo: settings.BuildInfo,
+		logger:    settings.Logger,
+		cfg:       cfg,
+		rb:        metadata.NewResourceBuilder(cfg.MetricsBuilderConfig.ResourceAttributes),
+		mb:        metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, settings),
+		root:      "https://graph.microsoft.com/v1.0/reports/",
 	}
 	return m
 }
 
 func (m *m365Scraper) start(ctx context.Context, host component.Host) error {
-	httpClient, err := m.cfg.ClientConfig.ToClient(ctx, host.GetExtensions(), m.settings)
+	httpClient, err := newHTTPClient(ctx, m.cfg, host, m.settings, m.buildInfo)
 	if err != nil {
 		m.logger.Error("error creating HTTP client", zap.Error(err))
 		return err

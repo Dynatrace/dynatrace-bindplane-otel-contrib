@@ -23,7 +23,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
+
+	uaaws "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent/aws"
 )
 
 // S3Client provides a client for S3 object operations
@@ -59,9 +62,11 @@ type DefaultClient struct {
 	batchSize int
 }
 
-// NewAWSClient creates a new AWS Client
-func NewAWSClient(logger *zap.Logger, region string, pollSize, batchSize int) (S3Client, error) {
-	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
+// NewAWSClient creates a new AWS Client. Requests name the collector
+// distribution from buildInfo in their User-Agent.
+func NewAWSClient(logger *zap.Logger, buildInfo component.BuildInfo, region string, pollSize, batchSize int) (S3Client, error) {
+	loadOpts := append([]func(*config.LoadOptions) error{config.WithRegion(region)}, uaaws.LoadOptions(buildInfo)...)
+	cfg, err := config.LoadDefaultConfig(context.Background(), loadOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("aws load default config: %w", err)
 	}
@@ -73,6 +78,10 @@ func NewAWSClient(logger *zap.Logger, region string, pollSize, batchSize int) (S
 		batchSize: batchSize,
 	}, nil
 }
+
+// userAgentLoadOptions returns the AWS config load options that add the
+// collector distribution from buildInfo to the User-Agent of every request.
+// It returns nil when the build info does not name the collector.
 
 // StreamObjects continuously pulls & batches ObjectInfo from S3 before sending down the objectChan.
 func (a *DefaultClient) StreamObjects(ctx context.Context, bucket, prefix string, objectChan chan *ObjectResults, errChan chan error, doneChan chan struct{}) {

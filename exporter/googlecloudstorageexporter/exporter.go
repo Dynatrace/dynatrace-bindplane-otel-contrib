@@ -44,7 +44,7 @@ type googleCloudStorageExporter struct {
 
 // newExporter creates a new Google Cloud Storage exporter
 func newExporter(cfg *Config, params exporter.Settings) (*googleCloudStorageExporter, error) {
-	storageClient, err := newGoogleCloudStorageClient(cfg)
+	storageClient, err := newGoogleCloudStorageClient(cfg, params.BuildInfo)
 	if err != nil {
 		return nil, fmt.Errorf("create storage client: %w", err)
 	}

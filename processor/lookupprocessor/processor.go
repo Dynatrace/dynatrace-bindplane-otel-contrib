@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -78,6 +79,9 @@ type lookupProcessor struct {
 	cfg         *Config
 	componentID component.ID
 	signal      string
+	// userAgent is sent by the HTTP sources (api, puppetdb) on requests that
+	// do not configure their own. Empty leaves Go's default.
+	userAgent string
 }
 
 // newLookupProcessor creates a new lookupProcessor. The source is constructed
@@ -99,9 +103,19 @@ func (p *lookupProcessor) buildSource() (LookupSource, error) {
 	case p.cfg.Redis != nil:
 		return NewRedisSource(p.cfg.Redis, p.logger)
 	case p.cfg.API != nil:
-		return NewAPISource(p.cfg.API, p.logger)
+		src, err := NewAPISource(p.cfg.API, p.logger)
+		if err != nil {
+			return nil, err
+		}
+		src.client.Transport = useragent.NewTransport(src.client.Transport, p.userAgent)
+		return src, nil
 	case p.cfg.PuppetDB != nil:
-		return NewPuppetDBSource(p.cfg.PuppetDB, p.logger)
+		src, err := NewPuppetDBSource(p.cfg.PuppetDB, p.logger)
+		if err != nil {
+			return nil, err
+		}
+		src.client.Transport = useragent.NewTransport(src.client.Transport, p.userAgent)
+		return src, nil
 	case p.cfg.CSV != "":
 		return NewCSVFile(p.cfg.CSV, p.cfg.Field, p.logger), nil
 	case p.cfg.JSON != "":

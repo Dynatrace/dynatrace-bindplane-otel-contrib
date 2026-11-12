@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 )
@@ -46,11 +47,15 @@ type defaultSplunkSearchAPIClient struct {
 	tokenType string
 }
 
-func newDefaultSplunkSearchAPIClient(ctx context.Context, settings component.TelemetrySettings, conf Config, host component.Host) (*defaultSplunkSearchAPIClient, error) {
+// newDefaultSplunkSearchAPIClient creates the Splunk client. Its requests carry
+// the collector distribution from buildInfo in their User-Agent, unless one is
+// configured in headers.
+func newDefaultSplunkSearchAPIClient(ctx context.Context, settings component.TelemetrySettings, buildInfo component.BuildInfo, conf Config, host component.Host) (*defaultSplunkSearchAPIClient, error) {
 	client, err := conf.ClientConfig.ToClient(ctx, host.GetExtensions(), settings)
 	if err != nil {
 		return nil, err
 	}
+	client.Transport = useragent.NewTransport(client.Transport, useragent.String(buildInfo))
 
 	return &defaultSplunkSearchAPIClient{
 		client:    client,

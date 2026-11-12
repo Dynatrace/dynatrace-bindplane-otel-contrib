@@ -7,6 +7,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1
 	github.com/Azure/azure-sdk-for-go/sdk/monitor/ingestion/azlogs v1.1.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/exporterutils v1.3.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent v1.3.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.3.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.3.1
 	github.com/stretchr/testify v1.12.1
@@ -94,5 +95,7 @@ require (
 )
 
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/exporterutils => ../../internal/exporterutils
+
+replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent => ../../internal/useragent
 
 replace github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr => ../../pkg/expr

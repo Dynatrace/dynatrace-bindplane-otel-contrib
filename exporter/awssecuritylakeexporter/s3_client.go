@@ -26,7 +26,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
+
+	uaaws "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent/aws"
 )
 
 // S3Client uploads objects to Amazon S3.
@@ -43,10 +46,10 @@ type s3ClientImpl struct {
 //
 // If roleARN is non-empty, STS AssumeRole credentials are used.
 // If endpoint is non-empty, a custom endpoint resolver is set on the S3 client.
-func NewS3Client(ctx context.Context, region, roleARN, endpoint string, logger *zap.Logger) (S3Client, error) {
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(region),
-	)
+// Requests name the collector distribution from buildInfo in their User-Agent.
+func NewS3Client(ctx context.Context, region, roleARN, endpoint string, buildInfo component.BuildInfo, logger *zap.Logger) (S3Client, error) {
+	loadOpts := append([]func(*config.LoadOptions) error{config.WithRegion(region)}, uaaws.LoadOptions(buildInfo)...)
+	cfg, err := config.LoadDefaultConfig(ctx, loadOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("load AWS config: %w", err)
 	}
@@ -73,6 +76,10 @@ func NewS3Client(ctx context.Context, region, roleARN, endpoint string, logger *
 		logger: logger,
 	}, nil
 }
+
+// userAgentLoadOptions returns the AWS config load options that add the
+// collector distribution from buildInfo to the User-Agent of every request.
+// It returns nil when the build info does not name the collector.
 
 // Upload uploads body to the given bucket/key. It logs success or failure.
 func (c *s3ClientImpl) Upload(ctx context.Context, bucket, key string, body io.Reader) error {

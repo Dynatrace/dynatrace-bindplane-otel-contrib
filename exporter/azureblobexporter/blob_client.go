@@ -17,7 +17,11 @@ package azureblobexporter // import "github.com/dynatrace/dynatrace-bindplane-ot
 import (
 	"context"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"go.opentelemetry.io/collector/component"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent/azure"
 )
 
 // blobClient is a wrapper for an Azure Blob client to allow mocking for testing.
@@ -33,9 +37,12 @@ type azureBlobClient struct {
 	azClient *azblob.Client
 }
 
-// newAzureBlobClient creates a new azureBlobClient with the given connection string
-func newAzureBlobClient(connectionString string) (*azureBlobClient, error) {
-	azClient, err := azblob.NewClientFromConnectionString(connectionString, nil)
+// newAzureBlobClient creates a new azureBlobClient with the given connection string.
+// Requests name the collector distribution from buildInfo in their User-Agent.
+func newAzureBlobClient(connectionString string, buildInfo component.BuildInfo) (*azureBlobClient, error) {
+	azClient, err := azblob.NewClientFromConnectionString(connectionString, &azblob.ClientOptions{
+		ClientOptions: azcore.ClientOptions{PerCallPolicies: azure.Policies(buildInfo)},
+	})
 	if err != nil {
 		return nil, err
 	}

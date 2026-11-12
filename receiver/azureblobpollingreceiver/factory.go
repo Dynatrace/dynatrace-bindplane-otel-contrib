@@ -57,7 +57,7 @@ func createMetricsReceiver(_ context.Context, params receiver.Settings, conf com
 		return nil, errImproperCfgType
 	}
 
-	r, err := newMetricsReceiver(params.ID, params.Logger, cfg, con)
+	r, err := newMetricsReceiver(params.ID, params.Logger, params.BuildInfo, cfg, con)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func createLogsReceiver(_ context.Context, params receiver.Settings, conf compon
 		return nil, errImproperCfgType
 	}
 
-	r, err := newLogsReceiver(params.ID, params.Logger, cfg, con)
+	r, err := newLogsReceiver(params.ID, params.Logger, params.BuildInfo, cfg, con)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func createTracesReceiver(_ context.Context, params receiver.Settings, conf comp
 		return nil, errImproperCfgType
 	}
 
-	r, err := newTracesReceiver(params.ID, params.Logger, cfg, con)
+	r, err := newTracesReceiver(params.ID, params.Logger, params.BuildInfo, cfg, con)
 	if err != nil {
 		return nil, err
 	}

@@ -19,6 +19,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
@@ -65,6 +66,7 @@ func createTracesProcessor(
 	}
 
 	p := newLookupProcessor(lookupCfg, set.ID, signalTraces, set.Logger)
+	p.userAgent = useragent.String(set.BuildInfo)
 	return processorhelper.NewTraces(
 		ctx,
 		set,
@@ -89,6 +91,7 @@ func createLogsProcessor(
 	}
 
 	p := newLookupProcessor(lookupCfg, set.ID, signalLogs, set.Logger)
+	p.userAgent = useragent.String(set.BuildInfo)
 	return processorhelper.NewLogs(
 		ctx,
 		set,
@@ -113,6 +116,7 @@ func createMetricsProcessor(
 	}
 
 	p := newLookupProcessor(lookupCfg, set.ID, signalMetrics, set.Logger)
+	p.userAgent = useragent.String(set.BuildInfo)
 	return processorhelper.NewMetrics(
 		ctx,
 		set,

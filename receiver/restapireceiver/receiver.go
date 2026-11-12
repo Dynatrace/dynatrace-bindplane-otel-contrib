@@ -57,6 +57,7 @@ type checkpointData struct {
 // baseReceiver contains shared functionality for REST API receivers.
 type baseReceiver struct {
 	settings      component.TelemetrySettings
+	buildInfo     component.BuildInfo
 	logger        *zap.Logger
 	cfg           *Config
 	client        restAPIClient
@@ -108,7 +109,7 @@ func (b *baseReceiver) logDeprecationWarnings() {
 
 // initializeClient creates the HTTP client.
 func (b *baseReceiver) initializeClient(ctx context.Context, host component.Host) error {
-	client, err := newRESTAPIClient(ctx, b.settings, b.cfg, host)
+	client, err := newRESTAPIClient(ctx, b.settings, b.buildInfo, b.cfg, host)
 	if err != nil {
 		return fmt.Errorf("failed to create REST API client: %w", err)
 	}
@@ -807,11 +808,12 @@ func newRESTAPILogsReceiver(
 ) (*restAPILogsReceiver, error) {
 	r := &restAPILogsReceiver{
 		baseReceiver: baseReceiver{
-			settings: params.TelemetrySettings,
-			logger:   params.Logger,
-			cfg:      cfg,
-			id:       params.ID,
-			clock:    clockwork.NewRealClock(),
+			settings:  params.TelemetrySettings,
+			buildInfo: params.BuildInfo,
+			logger:    params.Logger,
+			cfg:       cfg,
+			id:        params.ID,
+			clock:     clockwork.NewRealClock(),
 		},
 		consumer: cons,
 	}
@@ -1110,11 +1112,12 @@ func newRESTAPIMetricsReceiver(
 ) (*restAPIMetricsReceiver, error) {
 	r := &restAPIMetricsReceiver{
 		baseReceiver: baseReceiver{
-			settings: params.TelemetrySettings,
-			logger:   params.Logger,
-			cfg:      cfg,
-			id:       params.ID,
-			clock:    clockwork.NewRealClock(),
+			settings:  params.TelemetrySettings,
+			buildInfo: params.BuildInfo,
+			logger:    params.Logger,
+			cfg:       cfg,
+			id:        params.ID,
+			clock:     clockwork.NewRealClock(),
 		},
 		consumer: cons,
 	}

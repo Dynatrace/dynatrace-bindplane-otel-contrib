@@ -46,6 +46,7 @@ type lClient interface {
 
 type m365LogsReceiver struct {
 	settings      component.TelemetrySettings
+	buildInfo     component.BuildInfo
 	logger        *zap.Logger
 	consumer      consumer.Logs
 	cfg           *Config
@@ -82,6 +83,7 @@ type auditMetaData struct {
 func newM365Logs(cfg *Config, settings receiver.Settings, consumer consumer.Logs) *m365LogsReceiver {
 	return &m365LogsReceiver{
 		settings:      settings.TelemetrySettings,
+		buildInfo:     settings.BuildInfo,
 		logger:        settings.Logger,
 		consumer:      consumer,
 		cfg:           cfg,
@@ -104,7 +106,7 @@ func newM365Logs(cfg *Config, settings receiver.Settings, consumer consumer.Logs
 // creates the client for http requests, and initializes metadata struct
 func (l *m365LogsReceiver) Start(ctx context.Context, host component.Host) error {
 	// create default client
-	httpClient, err := l.cfg.ClientConfig.ToClient(ctx, host.GetExtensions(), l.settings)
+	httpClient, err := newHTTPClient(ctx, l.cfg, host, l.settings, l.buildInfo)
 	if err != nil {
 		l.logger.Error("error creating HTTP client", zap.Error(err))
 		return err
