@@ -45,7 +45,7 @@ trailer by default; please disable or strip it before committing.
 - `make bench` — Run benchmarks
 
 ### Code Quality
-- `make ci-checks` — Run all CI checks (format, license, mod paths, dependabot, misspell, lint, gosec, test)
+- `make ci-checks` — Run all CI checks (format, license, mod paths, misspell, lint, gosec, test)
 - `make lint` — Run revive linter
 - `make fmt` — Format code with goimports
 - `make check-fmt` — Check code formatting
@@ -58,7 +58,6 @@ trailer by default; please disable or strip it before committing.
 - `make tidy` — Tidy go modules across all submodules
 - `make generate` — Run go generate across all modules
 - `make check-mod-paths` — Verify all go.mod module paths match directory structure
-- `make check-dependabot` — Verify all modules have dependabot entries
 
 ### Building the Collector Locally
 - `make build-collector` — Build the collector against the local contrib working tree
@@ -92,4 +91,3 @@ trailer by default; please disable or strip it before committing.
 Each component is its own Go module. When adding or modifying dependencies:
 - Run `make tidy` to tidy all modules
 - Ensure module paths follow `github.com/dynatrace/dynatrace-bindplane-otel-contrib/<path>` convention
-- Add new modules to `.github/dependabot.yml`
