@@ -53,6 +53,12 @@
       "groupName": "github-actions deps"
     },
     {
+      "description": "One weekly PR for non-major Go updates",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "go non-major deps"
+    },
+    {
       "description": "replace directives are deliberate pins/forks",
       "matchDepTypes": ["replace"],
       "enabled": false
