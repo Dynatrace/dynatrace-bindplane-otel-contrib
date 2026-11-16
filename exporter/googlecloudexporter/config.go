@@ -31,7 +31,10 @@ import (
 
 const (
 	defaultMetricPrefix = "workload.googleapis.com"
-	defaultUserAgent    = "StanzaLogAgent/{{version}}"
+	// defaultUserAgent is the default user_agent. The wrapped upstream exporter
+	// replaces {{version}} with component.BuildInfo.Version when it creates its
+	// clients (collector.SetUserAgent in opentelemetry-operations-go).
+	defaultUserAgent = "StanzaLogAgent/{{version}}"
 )
 
 // Config is the config the google cloud exporter

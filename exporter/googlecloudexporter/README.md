@@ -93,4 +93,4 @@ Unlike the official Google Cloud Exporter, this extension transforms all resourc
 
 ## User Agent
 
-The default `user_agent` is `StanzaLogAgent/{{version}}`. The `{{version}}` placeholder is replaced with the collector version from the component's build info (`component.BuildInfo.Version`), so no build-time linker flags are needed. When building with the OpenTelemetry Collector Builder (OCB), this is the `dist.version` value of the manifest. A custom `user_agent` may also contain `{{version}}`.
+The default `user_agent` is `StanzaLogAgent/{{version}}`. The `{{version}}` placeholder is replaced with the collector version from the component's build info (`component.BuildInfo.Version`). When building with the OpenTelemetry Collector Builder (OCB), this is the `dist.version` value of the manifest. A custom `user_agent` may also contain `{{version}}`.

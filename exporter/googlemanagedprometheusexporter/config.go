@@ -27,6 +27,9 @@ import (
 )
 
 const (
+	// defaultUserAgent is the default user_agent. The wrapped upstream exporter
+	// replaces {{version}} with component.BuildInfo.Version when it creates its
+	// clients (collector.SetUserAgent in opentelemetry-operations-go).
 	defaultUserAgent = "StanzaLogAgent/{{version}}"
 )
 
