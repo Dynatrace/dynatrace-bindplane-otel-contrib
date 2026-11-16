@@ -38,7 +38,7 @@ jobs:
       gomod: ${{ steps.filter.outputs.gomod == 'true' || steps.filter.outputs.checks == 'true' || steps.filter.outputs.makefile == 'true' }}
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Detect changed files
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         id: filter
@@ -71,14 +71,14 @@ jobs:
     runs-on: ubuntu-latest-8-cores
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: "internal/tools/go.mod"
           cache: false # Use the dedicated actions/cache step instead
       - name: Set up Go cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/go/pkg/mod
@@ -88,7 +88,7 @@ jobs:
             ${{ runner.os }}-go-
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /home/runner/go/bin
           key: ${{ runner.os }}-gotools-${{ hashFiles('**/go.sum', '**/Makefile') }}
@@ -106,14 +106,14 @@ jobs:
       - detect-changes
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: "internal/tools/go.mod"
           cache: false # Use the dedicated actions/cache step instead
       - name: Set up Go cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/go/pkg/mod
@@ -123,7 +123,7 @@ jobs:
             ${{ runner.os }}-go-
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /home/runner/go/bin
           key: ${{ runner.os }}-gotools-${{ hashFiles('**/go.sum', '**/Makefile') }}
@@ -143,14 +143,14 @@ jobs:
       - detect-changes
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: "internal/tools/go.mod"
           cache: false # Use the dedicated actions/cache step instead
       - name: Set up Go cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/go/pkg/mod
@@ -160,7 +160,7 @@ jobs:
             ${{ runner.os }}-go-
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /home/runner/go/bin
           key: ${{ runner.os }}-gotools-${{ hashFiles('**/go.sum', '**/Makefile') }}
@@ -180,14 +180,14 @@ jobs:
       - detect-changes
     steps:
       - name: Checkout Source
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: "internal/tools/go.mod"
           cache: false # Use the dedicated actions/cache step instead
       - name: Set up Go cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/go/pkg/mod
@@ -197,7 +197,7 @@ jobs:
             ${{ runner.os }}-go-
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /home/runner/go/bin
           key: ${{ runner.os }}-gotools-${{ hashFiles('**/go.sum', '**/Makefile') }}
@@ -217,14 +217,14 @@ jobs:
       - detect-changes
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: "internal/tools/go.mod"
           cache: false # Use the dedicated actions/cache step instead
       - name: Set up Go cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/go/pkg/mod
@@ -234,7 +234,7 @@ jobs:
             ${{ runner.os }}-go-
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /home/runner/go/bin
           key: ${{ runner.os }}-gotools-${{ hashFiles('**/go.sum', '**/Makefile') }}
@@ -254,14 +254,14 @@ jobs:
       - detect-changes
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: "internal/tools/go.mod"
           cache: false # Use the dedicated actions/cache step instead
       - name: Set up Go cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/go/pkg/mod
@@ -271,7 +271,7 @@ jobs:
             ${{ runner.os }}-go-
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /home/runner/go/bin
           key: ${{ runner.os }}-gotools-${{ hashFiles('**/go.sum', '**/Makefile') }}
@@ -291,14 +291,14 @@ jobs:
       - detect-changes
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: "internal/tools/go.mod"
           cache: false # Use the dedicated actions/cache step instead
       - name: Set up Go cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/go/pkg/mod
@@ -308,7 +308,7 @@ jobs:
             ${{ runner.os }}-go-
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /home/runner/go/bin
           key: ${{ runner.os }}-gotools-${{ hashFiles('**/go.sum', '**/Makefile') }}
@@ -334,7 +334,7 @@ jobs:
       - detect-changes
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Check Module Paths
         run: make check-mod-paths
 
@@ -346,6 +346,6 @@ jobs:
       - detect-changes
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Check Component Metadata
         run: make check-metadata
