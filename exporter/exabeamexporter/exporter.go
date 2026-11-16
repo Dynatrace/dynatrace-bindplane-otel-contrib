@@ -56,7 +56,7 @@ func newExporter(cfg *Config, params exporter.Settings) (*exabeamExporter, error
 
 	return &exabeamExporter{
 		settings: s,
-		uploader: newS3Uploader(s, cfg.Endpoint),
+		uploader: newS3Uploader(s, cfg.Endpoint, params.BuildInfo),
 		encoder:  enc,
 		logger:   params.Logger,
 	}, nil

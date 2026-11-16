@@ -286,7 +286,7 @@ func TestUploadRetrySequences(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := retryserver.New(t, tc.sequence)
-			exp, _ := newTestExporter(t, newS3Uploader(testSettings(), srv.URL()), defaultMaxFileSize)
+			exp, _ := newTestExporter(t, newS3Uploader(testSettings(), srv.URL(), component.BuildInfo{}), defaultMaxFileSize)
 
 			for i, call := range tc.calls {
 				err := exp.logsDataPusher(context.Background(), testLogs(1, 10))

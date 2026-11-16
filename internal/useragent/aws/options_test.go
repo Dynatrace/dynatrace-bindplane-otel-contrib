@@ -38,3 +38,8 @@ func TestLoadOptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, cfg.APIOptions, 1, "the user agent middleware is registered on the config")
 }
+
+func TestAPIOptions(t *testing.T) {
+	require.Nil(t, APIOptions(component.BuildInfo{}))
+	require.Len(t, APIOptions(component.BuildInfo{Command: "otelcol", Version: "1.0.0"}), 1)
+}
