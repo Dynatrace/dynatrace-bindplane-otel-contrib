@@ -106,7 +106,46 @@ if [ -z "$CONTRIB_STABLE_TARGET_VERSION" ]; then
     exit 1
 fi
 
-LOCAL_MODULES=$(find . -type f -name "go.mod" -exec dirname {} \; | sort)
+# Bump OTel versions in the DBDOT replica manifest used by the build check.
+# Only entries on the current OTel minor (and stable v1 modules) are bumped, so
+# deliberate pins to older versions are left alone. Fork redirects in the
+# manifest's replaces section and non-OTel components must be updated by hand.
+DBDOT_MANIFEST=internal/dbdot/manifest.yaml
+if [ -f "$DBDOT_MANIFEST" ]; then
+    CURRENT_MINOR=$(grep -oE 'go\.opentelemetry\.io/collector/[^ ]+ v0\.[0-9]+\.' "$DBDOT_MANIFEST" | head -1 | sed -E 's/.* v0\.([0-9]+)\./\1/')
+    echo "Updating $DBDOT_MANIFEST (current OTel minor: v0.$CURRENT_MINOR)"
+    awk \
+        -v minor="$CURRENT_MINOR" \
+        -v core="$TARGET_VERSION" \
+        -v contrib="$CONTRIB_TARGET_VERSION" \
+        -v pdata="$PDATA_TARGET_VERSION" \
+        -v contrib_stable="$CONTRIB_STABLE_TARGET_VERSION" \
+        -v stable_list="$(echo $STABLE_MODULES)" \
+        -v stable_contrib_list="$(echo $STABLE_CONTRIB_MODULES)" \
+        '
+        BEGIN {
+            n = split(stable_list, a, " "); for (i = 1; i <= n; i++) stable[a[i]] = 1
+            n = split(stable_contrib_list, a, " "); for (i = 1; i <= n; i++) stable_contrib[a[i]] = 1
+        }
+        $1 == "-" && $2 == "gomod:" && NF == 4 {
+            mod = $3; ver = $4; new = ""
+            current = (index(ver, "v0." minor ".") == 1)
+            if (mod in stable) new = pdata
+            else if (mod in stable_contrib) new = contrib_stable
+            else if (mod ~ /^github\.com\/open-telemetry\/opentelemetry-collector-contrib\// && current) new = contrib
+            else if (mod ~ /^go\.opentelemetry\.io\/collector\// && current) new = core
+            if (new != "") { sub(/[ \t]+$/, ""); $0 = substr($0, 1, length($0) - length(ver)) new }
+        }
+        { print }
+        ' "$DBDOT_MANIFEST" > "$DBDOT_MANIFEST.tmp"
+    mv "$DBDOT_MANIFEST.tmp" "$DBDOT_MANIFEST"
+fi
+
+# ocb's version tracks the OTel core version.
+awk -v v="$TARGET_VERSION" '/^OCB_VERSION \?= /{print "OCB_VERSION ?= " v; next} {print}' Makefile > Makefile.tmp
+mv Makefile.tmp Makefile
+
+LOCAL_MODULES=$(find . -type f -name "go.mod" -not -path "./build/*" -exec dirname {} \; | sort)
 for local_mod in $LOCAL_MODULES; do
     # Run in a subshell so that the CD doesn't change this shell's current directory
     # Temporarily disable 'set -e' for this command so we can check its exit status

@@ -29,113 +29,24 @@ jobs:
       matrix:
         target: [build-linux, build-darwin, build-windows]
     steps:
-      - name: Checkout Contrib
+      - name: Checkout Sources
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          path: contrib
 
-      # The collector manifest pulls in private Dynatrace Go modules, so module
-      # fetches during the build need a token (the collector repo itself is
-      # public). Same GitHub App as the collector's CI: contents:read on the
-      # scoped repos, app ID in the PRIVATE_GO_MODULES_APP_ID actions variable
-      # and key in the PRIVATE_GO_MODULES_APP_PRIVATE_KEY secret.
+      # The DBDOT manifest (internal/dbdot/manifest.yaml) pulls in private
+      # Dynatrace Go modules, so module fetches during the build need a token.
+      # Same GitHub App as the collector's CI: contents:read on the scoped
+      # repos, app ID in the PRIVATE_GO_MODULES_APP_ID actions variable and key
+      # in the PRIVATE_GO_MODULES_APP_PRIVATE_KEY secret.
       - name: Grant access to private Dynatrace repos
-        id: collector_token
-        uses: ./contrib/.github/actions/private-go-modules
+        uses: ./.github/actions/private-go-modules
         with:
           app-id: ${{ vars.PRIVATE_GO_MODULES_APP_ID }}
           private-key: ${{ secrets.PRIVATE_GO_MODULES_APP_PRIVATE_KEY }}
 
-      # OTel version bumps are coordinated breaking changes that must land in
-      # contrib and collector in lockstep, so contrib cannot always build
-      # against collector's main. We resolve the collector ref by comparing the
-      # OTel version contrib declares against the version on collector's main:
-      #   - same version  -> collector main is caught up; build against main.
-      #   - contrib ahead  -> build against the collector coordination branch
-      #     deps/otel-<version> if it exists, otherwise fall back to main (which
-      #     will fail, correctly signalling that collector isn't ready yet).
-      # The version is read from the mdatagen module in internal/tools/go.mod,
-      # which is present in both repos. Keying off the declared OTel version
-      # rather than the PR branch name means follow-up PRs opened during a
-      # release window (before collector's main catches up) resolve to the
-      # coordination branch too, not just the original bump PR.
-      # Preferring main whenever it matches means stale deps/otel-* branches that
-      # linger in the collector repo after merge are never used by mistake.
-      - name: Resolve collector ref
-        id: collector_ref
-        env:
-          COLLECTOR_TOKEN: ${{ steps.collector_token.outputs.token }}
-        run: |
-          set -euo pipefail
-          MOD="go.opentelemetry.io/collector/cmd/mdatagen"
-          COLLECTOR="https://github.com/Dynatrace/dynatrace-bindplane-otel-collector.git"
-          # internal/tools/go.mod is the pinned-tooling manifest present in both
-          # repos; it declares mdatagen at the beta-line OTel version.
-          TOOLS_GOMOD="internal/tools/go.mod"
-
-          extract_ver() { grep -oE "${MOD} v0\.[0-9]+\.[0-9]+" | grep -oE 'v0\.[0-9]+\.[0-9]+' | head -1; }
-
-          contrib_ver=$(extract_ver < "contrib/${TOOLS_GOMOD}" || true)
-          if [ -z "$contrib_ver" ]; then
-            echo "::error title=Build Check::Could not determine contrib OTel version from ${TOOLS_GOMOD}."
-            exit 1
-          fi
-
-          main_ver=$(curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused -H "Authorization: Bearer ${COLLECTOR_TOKEN}" \
-            "https://raw.githubusercontent.com/Dynatrace/dynatrace-bindplane-otel-collector/main/${TOOLS_GOMOD}" 2>/dev/null \
-            | extract_ver || true)
-
-          if [ "$contrib_ver" = "$main_ver" ]; then
-            echo "ref=main" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Build Check::Collector main is on ${main_ver}; building contrib against main."
-            exit 0
-          fi
-
-          branch="deps/otel-${contrib_ver#v}"
-          # Query the remote for the coordination branch with bounded retry.
-          # git ls-remote --exit-code returns 2 when it connected fine but the
-          # branch does not exist (a deterministic answer we must not retry),
-          # versus other non-zero codes (e.g. 128) for transient network errors.
-          branch_exists=""
-          for i in 1 2 3; do
-            if git ls-remote --exit-code --heads "$COLLECTOR" "$branch" >/dev/null 2>&1; then
-              branch_exists=yes
-              break
-            else
-              rc=$?
-              if [ "$rc" -eq 2 ]; then
-                branch_exists=no
-                break
-              fi
-              echo "::warning title=Build Check::git ls-remote attempt ${i}/3 for '${branch}' failed (exit ${rc}); retrying." >&2
-              sleep $((i * 5))
-            fi
-          done
-          if [ -z "$branch_exists" ]; then
-            echo "::error title=Build Check::git ls-remote could not reach '${COLLECTOR}' after 3 attempts."
-            exit 1
-          fi
-          if [ "$branch_exists" = "yes" ]; then
-            echo "ref=$branch" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Build Check::Contrib on ${contrib_ver}, collector main on ${main_ver:-unknown}; building against coordination branch '${branch}'."
-          else
-            echo "ref=main" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Build Check::Contrib on ${contrib_ver} but collector main on ${main_ver:-unknown} and no '${branch}' branch found; building against main (expected to fail until collector catches up)."
-          fi
-
-      - name: Checkout Collector
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          repository: Dynatrace/dynatrace-bindplane-otel-collector
-          token: ${{ steps.collector_token.outputs.token }}
-          ref: ${{ steps.collector_ref.outputs.ref }}
-          path: collector
-
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          # Match the Go version the collector builds with.
-          go-version-file: "collector/internal/tools/go.mod"
+          go-version-file: "internal/tools/go.mod"
           cache: false
 
       - name: Set up Go cache
@@ -144,16 +55,17 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum', 'internal/dbdot/manifest.yaml') }}
           restore-keys: |
             ${{ runner.os }}-go-
 
-      # The collector build fetches Go modules; a transient proxy blip here was
-      # the original PIPE-1058 failure (build-collector/windows). retry.sh only
-      # retries on a transient-network signature, so a real build failure still
-      # fails immediately. retry.sh lives in the contrib checkout (path: contrib).
-      - name: Build Collector with Contrib Modules
-        run: bash contrib/.github/scripts/retry.sh make -C contrib ${{ matrix.target }} COLLECTOR_PATH=../collector
+      # Builds a replica of DBDOT from internal/dbdot/manifest.yaml with every
+      # contrib module replaced by this checkout. The build fetches Go modules;
+      # a transient proxy blip here was the original PIPE-1058 failure
+      # (build-collector/windows). retry.sh only retries on a transient-network
+      # signature, so a real build failure still fails immediately.
+      - name: Build DBDOT with Contrib Modules
+        run: bash .github/scripts/retry.sh make ${{ matrix.target }}
 
   build-summary:
     if: always()

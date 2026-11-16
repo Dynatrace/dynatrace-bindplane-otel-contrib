@@ -19,24 +19,16 @@ CURRENT_TAG := $(shell git tag --sort=v:refname --points-at HEAD | grep -E "v[0-
 # Version will be the tag pointing to the current commit, or the previous version tag if there is no such tag
 VERSION ?= $(if $(CURRENT_TAG),$(CURRENT_TAG),$(PREVIOUS_TAG)-SNAPSHOT-$(SNAPSHOT))
 
-# Source .local.env if it exists (for COLLECTOR_PATH etc.)
+# Source .local.env if it exists (for local overrides)
 -include .local.env
 export
 
 # Bypass the module proxy and checksum database for private Dynatrace modules
-# pulled in by the collector manifest (e.g. dt-otelcol-edge-processing-components);
+# pulled in by the DBDOT manifest (e.g. dt-otelcol-edge-processing-components);
 # sum.golang.org cannot see private repos and fails verification with a 404.
 # Matches the collector repo's Makefile.
 export GOPRIVATE ?= github.com/Dynatrace/*
 
-COLLECTOR_PATH ?= ../dynatrace-bindplane-otel-collector
-COLLECTOR_ABS ?= $(abspath $(COLLECTOR_PATH))
-
-SNAPSHOT := $(shell git -C $(COLLECTOR_PATH) rev-parse --short HEAD)
-COLLECTOR_PREVIOUS_TAG := $(shell git -C $(COLLECTOR_PATH) tag --sort=v:refname --no-contains HEAD | grep -E "[0-9]+\.[0-9]+\.[0-9]+$$" | grep -v 'version' | tail -n1)
-COLLECTOR_CURRENT_TAG := $(shell git -C $(COLLECTOR_PATH) tag --sort=v:refname --points-at HEAD | grep -E "v[0-9]+\.[0-9]+\.[0-9]+$$" | grep -v 'version' | tail -n1)
-# Version will be the tag pointing to the current commit, or the previous version tag if there is no such tag
-COLLECTOR_VERSION ?= $(if $(COLLECTOR_CURRENT_TAG),$(COLLECTOR_CURRENT_TAG),$(COLLECTOR_PREVIOUS_TAG)-SNAPSHOT-$(SNAPSHOT))
 OUTDIR ?= build
 
 EXT = $(if $(filter windows,$(GOOS)),.exe,)
@@ -45,41 +37,24 @@ EXT = $(if $(filter windows,$(GOOS)),.exe,)
 OCB_VERSION ?= v0.164.0
 OCB ?= $(shell command -v $${OCB:-builder} 2>/dev/null || echo $${GOBIN:-$$HOME/go/bin}/builder)
 
-# ocb manifest copy that points every contrib module at the local working tree.
-LOCAL_MANIFEST := $(abspath $(OUTDIR))/manifest.local.yaml
+# DBDOT replica build. internal/dbdot/manifest.yaml mirrors the collector repo's
+# ocb manifest; the build writes a copy of it that replaces every contrib module
+# with its on-disk path, so the collector is built from this working tree.
+DBDOT_MANIFEST := internal/dbdot/manifest.yaml
+DBDOT_BUILD_DIR := $(OUTDIR)/dbdot
+LOCAL_MANIFEST := $(OUTDIR)/manifest.local.yaml
 
-# Build-info stamps, mirroring the collector Makefile. GIT_HASH comes from the
-# collector checkout because that is the tree COLLECTOR_VERSION describes.
-GIT_HASH ?= $(shell git -C $(COLLECTOR_PATH) rev-parse HEAD)
+GIT_HASH ?= $(shell git rev-parse HEAD)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-
-# DBDOT identity values stamped into the opamp connection extension. These are
-# the DISTRO=full values from the collector Makefile; this target only builds
-# the full manifest.
-AGENT_NAME = com.dynatrace.bindplane.otel.collector
-AGENT_DESCRIPTION = Dynatrace Bindplane Distribution of OpenTelemetry Collector
-PRODUCT_NAME = dynatrace-bindplane-otel-collector
-STDERR_LOG_NAME = $(subst -,_,$(PRODUCT_NAME)).err
-OPAMP_EXT_MODULE = github.com/dynatrace/dynatrace-bindplane-otel-collector/extension/opampconnectionextension
-OPAMP_EXT_COLLECTOR_PKG = $(OPAMP_EXT_MODULE)/internal/collector
-OPAMP_EXT_SERVICE_PKG = $(OPAMP_EXT_MODULE)/internal/service
-OPAMP_EXT_PACKAGESTATE_PKG = $(OPAMP_EXT_MODULE)/packagestate
 
 # AGENT_BUILD_TAGS are the build tags that should be used when building DBDOT
 # 'embed_library' used by the telemetry generator receiver to use blitz (PR#3525)
 AGENT_BUILD_TAGS = embed_library
 
-# AGENT_LDFLAGS stamps version + git hash + build date into the v1 collector
-# binaries (both consume github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version),
-# plus the DBDOT identity values into the opamp connection extension.
 AGENT_LDFLAGS = -s -w \
-	-X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.version=$(COLLECTOR_VERSION) \
+	-X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.version=$(VERSION) \
 	-X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.gitHash=$(GIT_HASH) \
-	-X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.date=$(BUILD_DATE) \
-	-X $(OPAMP_EXT_COLLECTOR_PKG).buildName=$(AGENT_NAME) \
-	-X '$(OPAMP_EXT_COLLECTOR_PKG).buildDescription=$(AGENT_DESCRIPTION)' \
-	-X $(OPAMP_EXT_PACKAGESTATE_PKG).collectorPackageName=$(PRODUCT_NAME) \
-	-X $(OPAMP_EXT_SERVICE_PKG).stderrLogName=$(STDERR_LOG_NAME)
+	-X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.date=$(BUILD_DATE)
 
 # Installs the ocb builder at the pinned version. The single source of truth
 # for the ocb version — CI workflows call this instead of pinning their own.
@@ -162,40 +137,24 @@ build-collector: _build-setup
 ## Private build targets
 
 .PHONY: _build-setup
-_build-setup:
-	@if [ ! -d "$(COLLECTOR_PATH)" ]; then \
-		echo "Error: COLLECTOR_PATH=$(COLLECTOR_PATH) does not exist."; \
-		echo "Clone the collector repo or update .local.env"; \
-		exit 1; \
-	fi
+_build-setup: install-ocb
 	@echo "Generating ocb manifest with local contrib modules..."
 	@mkdir -p $(OUTDIR)
-	@CONTRIB_ROOT=$$(pwd) && \
-	: > $(OUTDIR)/contrib-replaces.yaml && \
-	for gomod in $$(find "$$CONTRIB_ROOT" -name go.mod -not -path "*/internal/tools/*" -not -path "$$CONTRIB_ROOT/build/*" -not -path "*/vendor/*" | sort); do \
+	@: > $(OUTDIR)/contrib-replaces.yaml
+	@for gomod in $$(find . -name go.mod -not -path "./internal/tools/*" -not -path "./$(OUTDIR)/*" -not -path "*/vendor/*" | sort); do \
 		dir=$$(dirname "$$gomod"); \
 		modpath=$$(awk '/^module /{print $$2; exit}' "$$gomod"); \
-		echo "  - $$modpath => $$dir" >> $(OUTDIR)/contrib-replaces.yaml; \
-	done && \
-	awk -v rf="$(OUTDIR)/contrib-replaces.yaml" \
-		'/^replaces:/{print; while ((getline line < rf) > 0) print line; next} {print}' \
-		"$(COLLECTOR_ABS)/manifests/dynatrace-bindplane-otel-collector/manifest.yaml" > $(LOCAL_MANIFEST)
-	@# The source manifest's collector-internal replaces use paths relative to the
-	@# collector repo (e.g. "=> ../extension/..."). Once copied into $(OUTDIR), ocb
-	@# would resolve them against $(OUTDIR), so rewrite them to absolute collector paths.
-	@# Also rewrite the manifest's contrib module paths to this repo's renamed module
-	@# prefix so the local-directory replaces above actually apply; otherwise go
-	@# silently ignores them and builds the published bindplane-otel-contrib release.
-	@# This is a no-op once the collector manifest switches to the new module paths.
-	sed -i.bak -E \
-		-e 's#=> \.\./#=> $(COLLECTOR_ABS)/#' \
-		-e 's#github\.com/observiq/bindplane-otel-contrib#github.com/dynatrace/dynatrace-bindplane-otel-contrib#' \
-		$(LOCAL_MANIFEST) && rm -f $(LOCAL_MANIFEST).bak
-	$(MAKE) install-ocb
+		echo "  - $$modpath => $(CURDIR)/$${dir#./}" >> $(OUTDIR)/contrib-replaces.yaml; \
+	done
+	@grep -q '^replaces:' $(DBDOT_MANIFEST) || { echo "$(DBDOT_MANIFEST) has no replaces: section"; exit 1; }
+	@awk -v rf="$(OUTDIR)/contrib-replaces.yaml" -v out="$(abspath $(DBDOT_BUILD_DIR))" \
+		'/^replaces:/{print; while ((getline line < rf) > 0) print line; next} \
+		/^  output_path:/{print "  output_path: " out; next} {print}' \
+		$(DBDOT_MANIFEST) > $(LOCAL_MANIFEST)
 
 .PHONY: _cleanup-build
 _cleanup-build:
-	rm -f $(OUTDIR)/manifest.local.yaml $(OUTDIR)/contrib-replaces.yaml
+	rm -f $(LOCAL_MANIFEST) $(OUTDIR)/contrib-replaces.yaml
 
 .PHONY: _build-linux
 _build-linux: _build-linux-amd64 _build-linux-arm64 _build-linux-arm _build-linux-ppc64 _build-linux-ppc64le
@@ -249,12 +208,7 @@ _build-collector:
 		exit 1; \
 	fi
 	$(OCB) --config $(LOCAL_MANIFEST) --skip-compilation
-	@# Entry point path mirrors AGENT_MAIN in the collector Makefile.
-	cp $(COLLECTOR_ABS)/extension/opampconnectionextension/cmd/main/main.go $(OUTDIR)/main.go
-	# Drop ocb's run/runInteractive helpers — our main.go owns startup.
-	rm -f $(OUTDIR)/main_others.go $(OUTDIR)/main_windows.go
-	cd $(OUTDIR) && go mod tidy
-	cd $(OUTDIR) && CGO_ENABLED=0 go build -tags "$(AGENT_BUILD_TAGS)" -ldflags "$(AGENT_LDFLAGS)" -o ../$(OUTDIR)/collector_$(GOOS)_$(GOARCH)$(EXT) .
+	cd $(DBDOT_BUILD_DIR) && CGO_ENABLED=0 go build -trimpath -tags "$(AGENT_BUILD_TAGS)" -ldflags "$(AGENT_LDFLAGS)" -o $(abspath $(OUTDIR))/collector_$(GOOS)_$(GOARCH)$(EXT) .
 
 .PHONY: clean
 clean:
@@ -262,7 +216,7 @@ clean:
 
 .PHONY: version
 version:
-	@printf $(COLLECTOR_VERSION)
+	@printf $(VERSION)
 
 # tool-related commands
 .PHONY: install-tools
