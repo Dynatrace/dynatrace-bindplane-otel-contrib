@@ -27,7 +27,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/consumererror"
+
+	uaaws "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent/aws"
 )
 
 // defaultSigningRegion is used when no bucket location is known. GCS accepts it for SigV4.
@@ -44,7 +47,7 @@ type s3Uploader struct {
 	bucket string
 }
 
-func newS3Uploader(s connectionSettings, endpoint string) *s3Uploader {
+func newS3Uploader(s connectionSettings, endpoint string, buildInfo component.BuildInfo) *s3Uploader {
 	region := s.BucketLocation
 	if region == "" {
 		region = defaultSigningRegion
@@ -62,7 +65,11 @@ func newS3Uploader(s connectionSettings, endpoint string) *s3Uploader {
 		// GCS rejects the aws-chunked uploads with trailing checksums that the SDK sends by default.
 		RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired,
 		ResponseChecksumValidation: aws.ResponseChecksumValidationWhenRequired,
-		APIOptions:                 []func(*middleware.Stack) error{excludeHeadersFromSigning(unsignedHeaders...)},
+		// The collector distribution is added to the SDK's User-Agent.
+		APIOptions: append(
+			[]func(*middleware.Stack) error{excludeHeadersFromSigning(unsignedHeaders...)},
+			uaaws.APIOptions(buildInfo)...,
+		),
 	})
 
 	return &s3Uploader{client: client, bucket: s.BucketName}

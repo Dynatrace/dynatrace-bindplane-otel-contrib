@@ -30,13 +30,21 @@ import (
 // "<name>/<version>" entry. It returns nil when the build info does not name
 // the collector.
 func LoadOptions(buildInfo component.BuildInfo) []func(*config.LoadOptions) error {
+	apiOptions := APIOptions(buildInfo)
+	if apiOptions == nil {
+		return nil
+	}
+	return []func(*config.LoadOptions) error{config.WithAPIOptions(apiOptions)}
+}
+
+// APIOptions returns the same User-Agent middleware as LoadOptions, for
+// clients built from explicit service options (for example s3.Options.APIOptions)
+// rather than from config.LoadDefaultConfig. It returns nil when the build info
+// does not name the collector.
+func APIOptions(buildInfo component.BuildInfo) []func(*middleware.Stack) error {
 	name, version := useragent.Name(buildInfo), useragent.Version(buildInfo)
 	if name == "" || version == "" {
 		return nil
 	}
-	return []func(*config.LoadOptions) error{
-		config.WithAPIOptions([]func(*middleware.Stack) error{
-			awsmiddleware.AddUserAgentKeyValue(name, version),
-		}),
-	}
+	return []func(*middleware.Stack) error{awsmiddleware.AddUserAgentKeyValue(name, version)}
 }

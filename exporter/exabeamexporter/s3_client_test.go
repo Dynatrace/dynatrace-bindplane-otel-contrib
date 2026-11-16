@@ -29,6 +29,7 @@ import (
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 )
 
@@ -112,7 +113,7 @@ func testSettings() connectionSettings {
 
 func TestS3UploaderPutObject(t *testing.T) {
 	srv := newFakeS3(t)
-	up := newS3Uploader(testSettings(), srv.URL)
+	up := newS3Uploader(testSettings(), srv.URL, component.BuildInfo{})
 
 	body := []byte("gzipped file contents")
 	require.NoError(t, up.PutObject(context.Background(), "exa-bindplane-logs_x.log.gz", body))
@@ -147,6 +148,17 @@ func TestS3UploaderPutObject(t *testing.T) {
 }
 
 // requireAcceptEncodingUnsigned checks Accept-Encoding is sent but not signed.
+func TestS3UploaderUserAgent(t *testing.T) {
+	srv := newFakeS3(t)
+	up := newS3Uploader(testSettings(), srv.URL, component.BuildInfo{Command: "test-collector", Version: "1.2.3"})
+	require.NoError(t, up.PutObject(context.Background(), "exa-bindplane-logs_x.log.gz", []byte("x")))
+
+	reqs := srv.recorded()
+	require.Len(t, reqs, 1)
+	require.Contains(t, reqs[0].Header.Get("User-Agent"), " test-collector/1.2.3")
+	require.NotContains(t, reqs[0].Header.Get("Authorization"), "user-agent", "the User-Agent is not signed")
+}
+
 func requireAcceptEncodingUnsigned(t *testing.T, req recordedRequest) {
 	t.Helper()
 	auth := req.Header.Get("Authorization")
@@ -158,7 +170,7 @@ func requireAcceptEncodingUnsigned(t *testing.T, req recordedRequest) {
 func TestS3UploaderSDKRetryKeepsHeaderUnsigned(t *testing.T) {
 	srv := newFakeS3(t)
 	srv.respondNext(http.StatusServiceUnavailable)
-	up := newS3Uploader(testSettings(), srv.URL)
+	up := newS3Uploader(testSettings(), srv.URL, component.BuildInfo{})
 
 	require.NoError(t, up.PutObject(context.Background(), "key.log.gz", []byte("x")))
 
@@ -173,7 +185,7 @@ func TestS3UploaderEmptyLocationUsesAuto(t *testing.T) {
 	srv := newFakeS3(t)
 	s := testSettings()
 	s.BucketLocation = ""
-	up := newS3Uploader(s, srv.URL)
+	up := newS3Uploader(s, srv.URL, component.BuildInfo{})
 
 	require.NoError(t, up.PutObject(context.Background(), "key.log.gz", []byte("x")))
 	reqs := srv.recorded()
@@ -184,7 +196,7 @@ func TestS3UploaderEmptyLocationUsesAuto(t *testing.T) {
 func TestS3UploaderError(t *testing.T) {
 	srv := newFakeS3(t)
 	srv.setStatus(http.StatusForbidden)
-	up := newS3Uploader(testSettings(), srv.URL)
+	up := newS3Uploader(testSettings(), srv.URL, component.BuildInfo{})
 
 	err := up.PutObject(context.Background(), "key.log.gz", []byte("x"))
 	require.ErrorContains(t, err, "AccessDenied")
