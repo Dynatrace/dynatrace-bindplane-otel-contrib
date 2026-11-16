@@ -46,6 +46,7 @@ type splunksearchapireceiver struct {
 	logsConsumer     consumer.Logs
 	config           *Config
 	settings         component.TelemetrySettings
+	buildInfo        component.BuildInfo
 	id               component.ID
 	cancel           context.CancelFunc
 	client           splunkSearchAPIClient
@@ -71,7 +72,7 @@ func newSSAPIReceiver(
 
 func (ssapir *splunksearchapireceiver) Start(ctx context.Context, host component.Host) error {
 	var err error
-	ssapir.client, err = newDefaultSplunkSearchAPIClient(ctx, ssapir.settings, *ssapir.config, host)
+	ssapir.client, err = newDefaultSplunkSearchAPIClient(ctx, ssapir.settings, ssapir.buildInfo, *ssapir.config, host)
 	if err != nil {
 		return err
 	}

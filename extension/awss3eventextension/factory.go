@@ -31,6 +31,7 @@ import (
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/awss3eventextension/internal/worker"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/event"
+	uaaws "github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent/aws"
 )
 
 // NewFactory creates a new extension factory
@@ -67,7 +68,8 @@ func createExtension(_ context.Context, set extension.Settings, cfg component.Co
 		return nil, fmt.Errorf("failed to extract region from SQS URL: %w", err)
 	}
 
-	awsConfig, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
+	loadOpts := append([]func(*config.LoadOptions) error{config.WithRegion(region)}, uaaws.LoadOptions(set.BuildInfo)...)
+	awsConfig, err := config.LoadDefaultConfig(context.Background(), loadOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AWS config: %w", err)
 	}
@@ -105,3 +107,7 @@ func createExtension(_ context.Context, set extension.Settings, cfg component.Co
 		},
 	}, nil
 }
+
+// userAgentLoadOptions returns the AWS config load options that add the
+// collector distribution from buildInfo to the User-Agent of every request.
+// It returns nil when the build info does not name the collector.

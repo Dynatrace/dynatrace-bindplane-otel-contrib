@@ -49,7 +49,7 @@ func TestSplunkResultsPaginationFailure(t *testing.T) {
 	defer server.Close()
 	settings := componenttest.NewNopTelemetrySettings()
 	ssapir := newSSAPIReceiver(zap.NewNop(), cfg, settings, component.NewID(typeStr))
-	ssapir.client, _ = newDefaultSplunkSearchAPIClient(context.Background(), settings, *cfg, componenttest.NewNopHost())
+	ssapir.client, _ = newDefaultSplunkSearchAPIClient(context.Background(), settings, component.BuildInfo{}, *cfg, componenttest.NewNopHost())
 	ssapir.client.(*defaultSplunkSearchAPIClient).client = server.Client()
 	ssapir.client.(*defaultSplunkSearchAPIClient).endpoint = server.URL
 	ssapir.logsConsumer = &consumertest.LogsSink{}
@@ -117,7 +117,7 @@ func TestExporterFailure(t *testing.T) {
 	logsConsumer.On("ConsumeLogs", mock.Anything, mock.Anything).Return(nil)
 
 	ssapir.logsConsumer = logsConsumer
-	ssapir.client, _ = newDefaultSplunkSearchAPIClient(context.Background(), settings, *cfg, componenttest.NewNopHost())
+	ssapir.client, _ = newDefaultSplunkSearchAPIClient(context.Background(), settings, component.BuildInfo{}, *cfg, componenttest.NewNopHost())
 	ssapir.client.(*defaultSplunkSearchAPIClient).client = server.Client()
 	ssapir.client.(*defaultSplunkSearchAPIClient).endpoint = server.URL
 

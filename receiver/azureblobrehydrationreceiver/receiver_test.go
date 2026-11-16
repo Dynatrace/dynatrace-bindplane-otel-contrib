@@ -51,7 +51,7 @@ func Test_newMetricsReceiver(t *testing.T) {
 		EndingTime:   "2023-10-02T17:01",
 	}
 	co := consumertest.NewNop()
-	r, err := newMetricsReceiver(id, testLogger, cfg, co)
+	r, err := newMetricsReceiver(id, testLogger, component.BuildInfo{}, cfg, co)
 	require.NoError(t, err)
 
 	require.Equal(t, testLogger, r.logger)
@@ -73,7 +73,7 @@ func Test_newLogsReceiver(t *testing.T) {
 		EndingTime:   "2023-10-02T17:01",
 	}
 	co := consumertest.NewNop()
-	r, err := newLogsReceiver(id, testLogger, cfg, co)
+	r, err := newLogsReceiver(id, testLogger, component.BuildInfo{}, cfg, co)
 	require.NoError(t, err)
 
 	require.Equal(t, testLogger, r.logger)
@@ -95,7 +95,7 @@ func Test_newTracesReceiver(t *testing.T) {
 		EndingTime:   "2023-10-02T17:01",
 	}
 	co := consumertest.NewNop()
-	r, err := newTracesReceiver(id, testLogger, cfg, co)
+	r, err := newTracesReceiver(id, testLogger, component.BuildInfo{}, cfg, co)
 	require.NoError(t, err)
 
 	require.Equal(t, testLogger, r.logger)
@@ -141,7 +141,7 @@ func Test_fullRehydration(t *testing.T) {
 		// Setup mocks
 		mockClient := setNewAzureBlobClient(t)
 		testConsumer := &consumertest.MetricsSink{}
-		r, err := newMetricsReceiver(id, testLogger, cfg, testConsumer)
+		r, err := newMetricsReceiver(id, testLogger, component.BuildInfo{}, cfg, testConsumer)
 		require.NoError(t, err)
 
 		mockClient.EXPECT().StreamBlobs(mock.Anything, cfg.Container, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return().After(time.Millisecond).Run(func(_ mock.Arguments) {
@@ -182,7 +182,7 @@ func Test_fullRehydration(t *testing.T) {
 
 		// Create new receiver
 		testConsumer := &consumertest.TracesSink{}
-		r, err := newTracesReceiver(id, testLogger, cfg, testConsumer)
+		r, err := newTracesReceiver(id, testLogger, component.BuildInfo{}, cfg, testConsumer)
 		require.NoError(t, err)
 
 		// Setup mocks
@@ -224,7 +224,7 @@ func Test_fullRehydration(t *testing.T) {
 		mockClient := setNewAzureBlobClient(t)
 		// Create new receiver
 		testConsumer := &consumertest.LogsSink{}
-		r, err := newLogsReceiver(id, testLogger, cfg, testConsumer)
+		r, err := newLogsReceiver(id, testLogger, component.BuildInfo{}, cfg, testConsumer)
 		require.NoError(t, err)
 
 		mockClient.EXPECT().StreamBlobs(mock.Anything, cfg.Container, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return().After(time.Millisecond).Run(func(_ mock.Arguments) {
@@ -268,7 +268,7 @@ func Test_fullRehydration(t *testing.T) {
 		mockClient := setNewAzureBlobClient(t)
 		// Create new receiver
 		testConsumer := &consumertest.LogsSink{}
-		r, err := newLogsReceiver(id, testLogger, cfg, testConsumer)
+		r, err := newLogsReceiver(id, testLogger, component.BuildInfo{}, cfg, testConsumer)
 		require.NoError(t, err)
 
 		mockClient.EXPECT().StreamBlobs(mock.Anything, cfg.Container, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return().After(time.Millisecond).Run(func(_ mock.Arguments) {
@@ -318,7 +318,7 @@ func Test_fullRehydration(t *testing.T) {
 		mockClient := setNewAzureBlobClient(t)
 		// Create new receiver
 		testConsumer := &consumertest.LogsSink{}
-		r, err := newLogsReceiver(id, testLogger, deleteCfg, testConsumer)
+		r, err := newLogsReceiver(id, testLogger, component.BuildInfo{}, deleteCfg, testConsumer)
 		require.NoError(t, err)
 
 		mockClient.EXPECT().StreamBlobs(mock.Anything, cfg.Container, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return().After(time.Millisecond).Run(func(_ mock.Arguments) {
@@ -370,7 +370,7 @@ func Test_fullRehydration(t *testing.T) {
 
 		// Create new receiver
 		testConsumer := &consumertest.LogsSink{}
-		r, err := newLogsReceiver(id, testLogger, cfg, testConsumer)
+		r, err := newLogsReceiver(id, testLogger, component.BuildInfo{}, cfg, testConsumer)
 		require.NoError(t, err)
 
 		mockClient.EXPECT().StreamBlobs(mock.Anything, cfg.Container, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return().After(time.Millisecond).Run(func(_ mock.Arguments) {
@@ -552,7 +552,7 @@ func setNewAzureBlobClient(t *testing.T) *azureblob.MockBlobClient {
 
 	mockClient := azureblob.NewMockBlobClient(t)
 
-	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger) (azureblob.BlobClient, error) {
+	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger, _ component.BuildInfo) (azureblob.BlobClient, error) {
 		return mockClient, nil
 	}
 

@@ -47,6 +47,7 @@ func createLogsReceiver(_ context.Context,
 		config:           ssapirConfig,
 		id:               params.ID,
 		settings:         params.TelemetrySettings,
+		buildInfo:        params.BuildInfo,
 		checkpointRecord: &EventRecord{},
 	}
 	return ssapir, nil

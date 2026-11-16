@@ -24,6 +24,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
+	"go.opentelemetry.io/collector/component"
 )
 
 type m365Client struct {
@@ -145,6 +148,18 @@ type ExchangeDetails struct {
 // Invitation json struct
 type Invitation struct {
 	ShareID string `json:"ShareId"`
+}
+
+// newHTTPClient creates the HTTP client described by cfg. Requests carry the
+// collector distribution from buildInfo in their User-Agent, unless one is
+// configured in headers.
+func newHTTPClient(ctx context.Context, cfg *Config, host component.Host, settings component.TelemetrySettings, buildInfo component.BuildInfo) (*http.Client, error) {
+	httpClient, err := cfg.ClientConfig.ToClient(ctx, host.GetExtensions(), settings)
+	if err != nil {
+		return nil, err
+	}
+	httpClient.Transport = useragent.NewTransport(httpClient.Transport, useragent.String(buildInfo))
+	return httpClient, nil
 }
 
 // client implementation

@@ -15,15 +15,21 @@
 package azureloganalyticsexporter
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/monitor/ingestion/azlogs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.uber.org/zap"
@@ -123,4 +129,30 @@ func TestClassifyError_MarshalPermanent(t *testing.T) {
 	err := consumererror.NewPermanent(fmt.Errorf("failed to convert logs to Azure Log Analytics format: %w", errors.New("bad data")))
 	require.Error(t, err)
 	assert.True(t, consumererror.IsPermanent(err), "marshal errors should be permanent")
+}
+
+type staticTokenCredential struct{}
+
+func (staticTokenCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{Token: "token", ExpiresOn: time.Now().Add(time.Hour)}, nil
+}
+
+func TestNewClientOptionsUserAgent(t *testing.T) {
+	userAgents := make(chan string, 1)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userAgents <- r.Header.Get("User-Agent")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	options := newClientOptions(component.BuildInfo{Command: "test-collector", Version: "1.2.3"})
+	options.Transport = server.Client()
+
+	client, err := azlogs.NewClient(server.URL, staticTokenCredential{}, options)
+	require.NoError(t, err)
+	_, err = client.Upload(context.Background(), "rule-id", "stream", []byte("[]"), nil)
+	require.NoError(t, err)
+
+	userAgent := <-userAgents
+	require.True(t, strings.HasPrefix(userAgent, "test-collector/1.2.3 azsdk-go-azlogs/"), "User-Agent %q", userAgent)
 }

@@ -40,7 +40,12 @@ func createLogsReceiver(
 	consumer consumer.Logs,
 ) (receiver.Logs, error) {
 	rCfg := rConf.(*Config)
-	return newBindplaneAuditLogsReceiver(rCfg, params.Logger, consumer)
+	r, err := newBindplaneAuditLogsReceiver(rCfg, params.Logger, consumer)
+	if err != nil {
+		return nil, err
+	}
+	r.buildInfo = params.BuildInfo
+	return r, nil
 }
 
 func createDefaultConfig() component.Config {

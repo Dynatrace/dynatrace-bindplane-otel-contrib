@@ -37,6 +37,7 @@ import (
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient"
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/metadata"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsubeventreceiver/internal/worker"
 )
@@ -45,6 +46,7 @@ type logsReceiver struct {
 	id        component.ID
 	cfg       *Config
 	telemetry component.TelemetrySettings
+	buildInfo component.BuildInfo
 	metrics   *metadata.TelemetryBuilder
 	next      consumer.Logs
 	startOnce sync.Once
@@ -114,6 +116,7 @@ func newLogsReceiver(params receiver.Settings, cfg *Config, next consumer.Logs, 
 		id:               id,
 		cfg:              cfg,
 		telemetry:        tel,
+		buildInfo:        params.BuildInfo,
 		metrics:          tb,
 		next:             next,
 		offsetStorage:    storageclient.NewNopStorage(),
@@ -123,14 +126,23 @@ func newLogsReceiver(params receiver.Settings, cfg *Config, next consumer.Logs, 
 	}, nil
 }
 
-func (r *logsReceiver) Start(_ context.Context, host component.Host) error {
-	ctx := context.Background()
-
-	// Build client options
+// clientOptions returns the options shared by the Pub/Sub and GCS clients.
+func (r *logsReceiver) clientOptions() []option.ClientOption {
 	var opts []option.ClientOption
 	if r.cfg.CredentialsFile != "" {
 		opts = append(opts, option.WithCredentialsFile(r.cfg.CredentialsFile))
 	}
+	// Identify the collector distribution in the User-Agent of both clients.
+	if ua := useragent.String(r.buildInfo); ua != "" {
+		opts = append(opts, option.WithUserAgent(ua))
+	}
+	return opts
+}
+
+func (r *logsReceiver) Start(_ context.Context, host component.Host) error {
+	ctx := context.Background()
+
+	opts := r.clientOptions()
 
 	// Create low-level Pub/Sub subscriber client for synchronous Pull.
 	subClient, err := subscriber.NewSubscriberClient(ctx, opts...)

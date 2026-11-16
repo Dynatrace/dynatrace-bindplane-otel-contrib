@@ -15,9 +15,16 @@
 package azureblobrehydrationreceiver //import "github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/azureblobrehydrationreceiver"
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/consumer/consumertest"
+	"go.opentelemetry.io/collector/receiver/receivertest"
+	"go.uber.org/zap"
+
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob"
 )
 
 func Test_createDefaultConfig(t *testing.T) {
@@ -31,4 +38,26 @@ func Test_createDefaultConfig(t *testing.T) {
 	actualCfg, ok := componentCfg.(*Config)
 	require.True(t, ok)
 	require.Equal(t, expectedCfg, actualCfg)
+}
+
+func Test_createLogsReceiverPassesBuildInfo(t *testing.T) {
+	oldfunc := newAzureBlobClient
+	t.Cleanup(func() { newAzureBlobClient = oldfunc })
+
+	var gotBuildInfo component.BuildInfo
+	newAzureBlobClient = func(_ string, _ int, _ int, _ *zap.Logger, buildInfo component.BuildInfo) (azureblob.BlobClient, error) {
+		gotBuildInfo = buildInfo
+		return azureblob.NewMockBlobClient(t), nil
+	}
+
+	params := receivertest.NewNopSettings(receivertest.NopType)
+	params.BuildInfo = component.BuildInfo{Command: "test-collector", Version: "1.2.3"}
+	cfg := &Config{
+		StartingTime: "2023-10-02T17:00",
+		EndingTime:   "2023-10-02T17:01",
+	}
+
+	_, err := createLogsReceiver(context.Background(), params, cfg, consumertest.NewNop())
+	require.NoError(t, err)
+	require.Equal(t, params.BuildInfo, gotBuildInfo)
 }

@@ -52,9 +52,10 @@ type partition struct {
 
 // securityLakeExporter exports OCSF-formatted logs as Parquet to AWS Security Lake S3.
 type securityLakeExporter struct {
-	cfg    *Config
-	logger *zap.Logger
-	s3     S3Client
+	cfg       *Config
+	logger    *zap.Logger
+	buildInfo component.BuildInfo
+	s3        S3Client
 
 	// classToSource maps class_uid -> custom source name for routing
 	classToSource map[int]string
@@ -79,6 +80,7 @@ func newExporter(cfg *Config, params exporter.Settings) (*securityLakeExporter, 
 	return &securityLakeExporter{
 		cfg:           cfg,
 		logger:        params.Logger,
+		buildInfo:     params.BuildInfo,
 		classToSource: classToSource,
 		classToSchema: classToSchema,
 	}, nil
@@ -91,7 +93,7 @@ func (e *securityLakeExporter) Capabilities() consumer.Capabilities {
 
 // Start initializes the S3 client.
 func (e *securityLakeExporter) Start(ctx context.Context, _ component.Host) error {
-	s3, err := NewS3Client(ctx, e.cfg.Region, e.cfg.RoleARN, e.cfg.Endpoint, e.logger)
+	s3, err := NewS3Client(ctx, e.cfg.Region, e.cfg.RoleARN, e.cfg.Endpoint, e.buildInfo, e.logger)
 	if err != nil {
 		return fmt.Errorf("creating S3 client: %w", err)
 	}
