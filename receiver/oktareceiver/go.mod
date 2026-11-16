@@ -4,6 +4,7 @@ go 1.26.10
 
 require (
 	github.com/okta/okta-sdk-golang/v6 v6.1.7
+	github.com/okta/okta-sdk-golang/v8 v8.0.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.164.1
 	github.com/stretchr/testify v1.12.1
