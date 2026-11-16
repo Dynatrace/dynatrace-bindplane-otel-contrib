@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/useragent"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/oktareceiver/internal/metadata"
 )
 
@@ -43,11 +44,17 @@ func createLogsReceiver(
 ) (receiver.Logs, error) {
 	cfg := rConf.(*Config)
 
-	oktaCfg, err := okta.NewConfiguration(
-		okta.WithOrgUrl("https://"+cfg.Domain),
+	setters := []okta.ConfigSetter{
+		okta.WithOrgUrl("https://" + cfg.Domain),
 		okta.WithToken(string(cfg.APIToken)),
 		okta.WithCache(false),
-	)
+	}
+	// Add the collector distribution after the SDK's own User-Agent.
+	if product := useragent.Product(params.BuildInfo); product != "" {
+		setters = append(setters, okta.WithUserAgentExtra(product))
+	}
+
+	oktaCfg, err := okta.NewConfiguration(setters...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create okta client configuration: %w", err)
 	}
