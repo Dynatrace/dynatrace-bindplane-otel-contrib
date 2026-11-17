@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/pubsub v1.52.0
 	cloud.google.com/go/storage v1.70.0
 	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/cenkalti/backoff/v7 v7.0.3
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.3.0
 	github.com/google/go-cmp v0.7.0
 	github.com/jonboulle/clockwork v0.5.0
