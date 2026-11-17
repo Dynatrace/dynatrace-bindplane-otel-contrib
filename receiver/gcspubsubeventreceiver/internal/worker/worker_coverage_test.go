@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	subscriber "cloud.google.com/go/pubsub/apiv1"
-	"cloud.google.com/go/pubsub/apiv1/pubsubpb"
-	"cloud.google.com/go/pubsub/pstest"
+	subscriber "cloud.google.com/go/pubsub/v2/apiv1"
+	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
+	"cloud.google.com/go/pubsub/v2/pstest"
 	"cloud.google.com/go/storage"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -38,7 +38,7 @@ import (
 // psSub stands up a pstest server with one subscription and a pulled message, and
 // returns a real subscriber client wired to it.
 type psSub struct {
-	client       *subscriber.SubscriberClient
+	client       *subscriber.SubscriptionAdminClient
 	srv          *pstest.Server
 	subscription string
 	ackID        string
@@ -56,7 +56,7 @@ func newPSTestSub(t *testing.T) *psSub {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
 
-	pubClient, err := subscriber.NewSubscriberClient(ctx, option.WithGRPCConn(conn))
+	pubClient, err := subscriber.NewSubscriptionAdminClient(ctx, option.WithGRPCConn(conn))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = pubClient.Close() })
 
