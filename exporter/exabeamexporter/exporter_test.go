@@ -223,7 +223,7 @@ func TestLogsDataPusherTimeout(t *testing.T) {
 }
 
 // TestUploadRetrySequences checks which upload responses the exporterhelper retries. The SDK
-// retries 408, 500, 502, 503 and 504 itself before returning, so the sequences use statuses it
+// retries 408, 429, 500, 502, 503 and 504 itself before returning, so the sequences use statuses it
 // doesn't retry, and each call sends one request.
 func TestUploadRetrySequences(t *testing.T) {
 	type callExpectation struct {
@@ -236,19 +236,6 @@ func TestUploadRetrySequences(t *testing.T) {
 		sequence []retryserver.Response
 		calls    []callExpectation
 	}{
-		{
-			name: "rate limited then success: 429 → 429 → success",
-			sequence: []retryserver.Response{
-				{StatusCode: http.StatusTooManyRequests},
-				{StatusCode: http.StatusTooManyRequests},
-				{StatusCode: http.StatusOK},
-			},
-			calls: []callExpectation{
-				{expectErr: true, permanentErr: false},
-				{expectErr: true, permanentErr: false},
-				{expectErr: false},
-			},
-		},
 		{
 			name: "server error then success: 501 → success",
 			sequence: []retryserver.Response{
@@ -271,9 +258,9 @@ func TestUploadRetrySequences(t *testing.T) {
 			calls:    []callExpectation{{expectErr: true, permanentErr: true}},
 		},
 		{
-			name: "retryable then permanent: 429 → 400",
+			name: "retryable then permanent: 501 → 400",
 			sequence: []retryserver.Response{
-				{StatusCode: http.StatusTooManyRequests},
+				{StatusCode: http.StatusNotImplemented},
 				{StatusCode: http.StatusBadRequest},
 			},
 			calls: []callExpectation{
