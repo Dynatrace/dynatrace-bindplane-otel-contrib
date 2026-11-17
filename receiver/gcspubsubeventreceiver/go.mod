@@ -3,7 +3,7 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsube
 go 1.26.10
 
 require (
-	cloud.google.com/go/pubsub v1.52.0
+	cloud.google.com/go/pubsub/v2 v2.9.0
 	cloud.google.com/go/storage v1.70.0
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.3.0
