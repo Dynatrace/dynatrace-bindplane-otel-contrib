@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 
 	"github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/collector"
-	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version"
 	gcp "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlecloudexporter"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
@@ -32,7 +31,10 @@ import (
 
 const (
 	defaultMetricPrefix = "workload.googleapis.com"
-	defaultUserAgent    = "StanzaLogAgent"
+	// defaultUserAgent is the default user_agent. The wrapped upstream exporter
+	// replaces {{version}} with component.BuildInfo.Version when it creates its
+	// clients (collector.SetUserAgent in opentelemetry-operations-go).
+	defaultUserAgent = "StanzaLogAgent/{{version}}"
 )
 
 // Config is the config the google cloud exporter
@@ -120,19 +122,18 @@ func (c *Config) updateProjectFromFile(fileName string) error {
 
 // createDefaultConfig creates the default config for the exporter
 func createDefaultConfig() component.Config {
-	collectorVersion := version.Version()
 	return &Config{
-		GCPConfig:   createDefaultGCPConfig(collectorVersion),
+		GCPConfig:   createDefaultGCPConfig(),
 		BatchConfig: createDefaultBatchConfig(),
 		AppendHost:  true,
 	}
 }
 
 // createDefaultGCPConfig creates a default GCP config
-func createDefaultGCPConfig(collectorVersion string) *gcp.Config {
+func createDefaultGCPConfig() *gcp.Config {
 	factory := gcp.NewFactory()
 	config := factory.CreateDefaultConfig().(*gcp.Config)
-	config.Config.UserAgent = fmt.Sprintf("%s/%s", defaultUserAgent, collectorVersion)
+	config.Config.UserAgent = defaultUserAgent
 	config.Config.MetricConfig.Prefix = defaultMetricPrefix
 	config.Config.LogConfig.DefaultLogName, _ = os.Hostname()
 
