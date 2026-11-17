@@ -23,7 +23,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"github.com/gorilla/websocket"
 	"github.com/open-telemetry/opamp-go/protobufs"
@@ -312,10 +312,8 @@ func (c *upstreamConnection) writerLoop(ctx context.Context, conn *websocket.Con
 // unreachable upstream is visible at the default log level, and every retry after that is
 // logged at Debug with the backoff interval so an extended outage does not flood the log.
 func (c *upstreamConnection) ensureConnected(ctx context.Context, id string) (*websocket.Conn, error) {
+	// backoff v5+ ExponentialBackOff has no MaxElapsedTime and never stops.
 	infiniteBackoff := backoff.NewExponentialBackOff()
-
-	// Make ticker run forever.
-	infiniteBackoff.MaxElapsedTime = 0
 
 	c.logger.Info("connecting to upstream OpAMP server", zap.String(keyURLFull, c.settings.endpoint))
 
