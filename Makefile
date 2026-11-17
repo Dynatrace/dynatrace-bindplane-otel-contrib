@@ -273,7 +273,7 @@ install-tools:
 	cd $(TOOLS_MOD_DIR) && go install go.opentelemetry.io/collector/cmd/mdatagen
 	cd $(TOOLS_MOD_DIR) && go install github.com/securego/gosec/v2/cmd/gosec
 	cd $(TOOLS_MOD_DIR) && go install github.com/uw-labs/lichen
-	cd $(TOOLS_MOD_DIR) && go install github.com/vektra/mockery/v2
+	cd $(TOOLS_MOD_DIR) && go install github.com/vektra/mockery/v3
 	cd $(TOOLS_MOD_DIR) && go install golang.org/x/tools/cmd/goimports
 	cd $(TOOLS_MOD_DIR) && go install gotest.tools/gotestsum
 
@@ -286,7 +286,7 @@ install-tools-ci:
 	@command -v mdatagen > /dev/null 2>&1 || (cd $(TOOLS_MOD_DIR) && go install go.opentelemetry.io/collector/cmd/mdatagen)
 	@command -v gosec > /dev/null 2>&1 || (cd $(TOOLS_MOD_DIR) && go install github.com/securego/gosec/v2/cmd/gosec)
 	@command -v lichen > /dev/null 2>&1 || (cd $(TOOLS_MOD_DIR) && go install github.com/uw-labs/lichen)
-	@command -v mockery > /dev/null 2>&1 || (cd $(TOOLS_MOD_DIR) && go install github.com/vektra/mockery/v2)
+	@command -v mockery > /dev/null 2>&1 || (cd $(TOOLS_MOD_DIR) && go install github.com/vektra/mockery/v3)
 	@command -v goimports > /dev/null 2>&1 || (cd $(TOOLS_MOD_DIR) && go install golang.org/x/tools/cmd/goimports)
 	@command -v gotestsum > /dev/null 2>&1 || (cd $(TOOLS_MOD_DIR) && go install gotest.tools/gotestsum)
 

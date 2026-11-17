@@ -34,7 +34,7 @@ type ObjectInfo struct {
 
 // StorageClient is an interface for interacting with Google Cloud Storage
 //
-//go:generate mockery --name StorageClient --output ./mocks --with-expecter --filename mock_storage_client.go --structname MockStorageClient
+//go:generate mockery
 type StorageClient interface {
 	// DownloadObject downloads the contents of the object into the supplied buffer.
 	// It will return the count of bytes used in the buffer.

@@ -1,0 +1,15 @@
+template: testify
+force-file-write: true
+dir: "{{.InterfaceDir}}/internal/mocks"
+pkgname: mocks
+packages:
+  github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/googlecloudstorageexporter:
+    interfaces:
+      marshaler:
+        config:
+          filename: mock_marshaler.go
+          structname: MockMarshaler
+      storageClient:
+        config:
+          filename: mock_storage_client.go
+          structname: MockStorageClient

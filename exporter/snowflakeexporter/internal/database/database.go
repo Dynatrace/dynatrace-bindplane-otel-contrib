@@ -25,7 +25,7 @@ import (
 
 // Database defines functions to use to interact with a database
 //
-//go:generate mockery --name Database --filename mock_database.go --structname MockDatabase
+//go:generate mockery
 type Database interface {
 	InitDatabaseConn(ctx context.Context, roles string) error
 	CreateSchema(ctx context.Context, schema string) error

@@ -1,0 +1,15 @@
+template: testify
+force-file-write: true
+dir: "{{.InterfaceDir}}/internal/mocks"
+pkgname: mocks
+packages:
+  github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/azureblobexporter:
+    interfaces:
+      blobClient:
+        config:
+          filename: mock_blob_client.go
+          structname: MockBlobClient
+      marshaler:
+        config:
+          filename: mock_marshaler.go
+          structname: MockMarshaler

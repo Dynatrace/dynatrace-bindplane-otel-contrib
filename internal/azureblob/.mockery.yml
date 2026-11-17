@@ -1,0 +1,9 @@
+template: testify
+force-file-write: true
+packages:
+  github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/azureblob:
+    interfaces:
+      BlobClient:
+        config:
+          filename: mock_blob_client.go
+          structname: MockBlobClient

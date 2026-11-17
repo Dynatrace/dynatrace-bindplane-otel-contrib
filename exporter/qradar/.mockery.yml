@@ -1,0 +1,11 @@
+template: testify
+force-file-write: true
+dir: "{{.InterfaceDir}}/internal/mocks"
+pkgname: mocks
+packages:
+  github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/qradar:
+    interfaces:
+      qradarClient:
+        config:
+          filename: qradar_client.go
+          structname: MockForwarderClient

@@ -1,0 +1,11 @@
+template: testify
+force-file-write: true
+dir: "{{.InterfaceDir}}/mocks"
+pkgname: mocks
+packages:
+  github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/googlecloudstoragerehydrationreceiver:
+    interfaces:
+      StorageClient:
+        config:
+          filename: mock_storage_client.go
+          structname: MockStorageClient

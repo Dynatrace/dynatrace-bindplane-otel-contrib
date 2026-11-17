@@ -1,0 +1,11 @@
+template: testify
+force-file-write: true
+dir: "{{.InterfaceDir}}/mocks"
+pkgname: mocks
+packages:
+  github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/snowflakeexporter/internal/database:
+    interfaces:
+      Database:
+        config:
+          filename: mock_database.go
+          structname: MockDatabase
