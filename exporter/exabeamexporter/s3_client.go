@@ -154,7 +154,7 @@ func (u *s3Uploader) PutObject(ctx context.Context, key string, body []byte) err
 // isPermanentUploadError reports whether err is a 4xx response other than 408 Request Timeout
 // or 429 Too Many Requests, such as wrong keys (403) or a missing bucket (404). 5xx responses
 // and errors without a response, such as network errors, are retried. The SDK has already
-// retried 5xx responses itself by the time they get here.
+// retried 5xx and 429 responses itself by the time they get here.
 func isPermanentUploadError(err error) bool {
 	var respErr interface{ HTTPStatusCode() int }
 	if !errors.As(err, &respErr) {
