@@ -38,6 +38,7 @@ The exporter can be configured using the following fields:
 | `override_endpoint`             | bool              | `false`                                | `false`  | Whether to ignore the `location` field when constructing the endpoint. Only applies to `https` protocol.                                                                                 |
 | `creds_file_path`               | string            |                                        | `false`  | The file path to the Google credentials JSON file. Mutually exclusive with `creds`. If neither is set, the exporter falls back to Google Application Default Credentials.                |
 | `creds`                         | string            |                                        | `false`  | The Google credentials JSON. Mutually exclusive with `creds_file_path`. If neither is set, the exporter falls back to Google Application Default Credentials.                            |
+| `token_url`                     | string            |                                        | `false`  | Overrides the OAuth2 token endpoint, e.g. a Private Service Connect endpoint. Must be an `https://` URL with no user info, query, or fragment. Requires `creds` or `creds_file_path` with a service account key. Applies to both protocols. See [Private Connectivity](#private-connectivity). |
 | `log_type`                      | string            |                                        | `false`  | The default Chronicle log type that will be sent.                                                                                                                                        |
 | `override_log_type`             | bool              | `true`                                 | `false`  | Whether or not to override the `log_type` in the config with `attributes["log_type"]`.                                                                                                   |
 | `validate_log_types`            | bool              | `false`                                | `false`  | Whether to validate configured log types against Chronicle via an API call on startup. Only applies to `https` protocol.                                                                 |
@@ -85,6 +86,21 @@ This option is only supported with the `https` protocol (v1alpha, v1beta and v1)
 This exporter requires a Google Cloud service account with access to the Chronicle API. The service account must have access to the endpoint specified in the config.
 
 For additional information on accessing Chronicle, see the [Chronicle documentation](https://cloud.google.com/chronicle/docs/reference/ingestion-api#getting_api_authentication_credentials).
+
+### Private Connectivity
+
+When the collector reaches Google Cloud through a private path, such as Cloud Interconnect with a [Private Service Connect endpoint](https://cloud.google.com/vpc/docs/configure-private-service-connect-apis), both the Chronicle API and the OAuth2 token endpoint may need private hostnames:
+
+- Set `endpoint` to the private Chronicle hostname. For `https`, also set `override_endpoint: true`.
+- Set `token_url` to the private OAuth2 token endpoint. Access tokens are requested from this URL instead of the `token_uri` in the service account key. The JWT assertion audience remains `https://oauth2.googleapis.com/token`, as Google requires.
+
+The hostnames in this README, such as `oauth2-myendpoint.p.googleapis.com`, are illustrative. Use the hostnames your network team has set up for your Private Service Connect endpoint. Google creates DNS records automatically for only some services, so you may need to create records for these hostnames yourself.
+
+`token_url` must be an `https://` URL with no user info, query, or fragment. It requires a service account key supplied through `creds` or `creds_file_path`. Other credential types, and Application Default Credentials, are not supported with `token_url`.
+
+When `token_url` is set, the exporter requests a token in the background at startup and logs a warning if the request fails. Startup is not blocked. Each token request times out after 30 seconds. If the token endpoint can't be reached, times out, or returns a server error during an export, the export is retried according to `retry_on_failure`, for both protocols.
+
+Requests to both endpoints honor the `HTTPS_PROXY` and `NO_PROXY` environment variables.
 
 ## Regional Endpoints
 
@@ -164,6 +180,23 @@ chronicle:
   protocol: https
   endpoint: chronicle.us.rep.googleapis.com
   override_endpoint: true
+  location: us
+  project: my-gcp-project
+  customer_id: "customer-123"
+  creds_file_path: "/path/to/google/creds.json"
+  log_type: "ABSOLUTE"
+```
+
+### HTTPS with Private Service Connect
+
+Send logs and token requests through Private Service Connect endpoints. The hostnames are illustrative; use the ones set up for your network. See [Private Connectivity](#private-connectivity).
+
+```yaml
+chronicle:
+  protocol: https
+  endpoint: chronicle-myendpoint.p.googleapis.com
+  override_endpoint: true
+  token_url: https://oauth2-myendpoint.p.googleapis.com/token
   location: us
   project: my-gcp-project
   customer_id: "customer-123"

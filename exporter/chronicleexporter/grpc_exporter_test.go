@@ -17,6 +17,7 @@ package chronicleexporter
 import (
 	"context"
 	"net"
+	"net/http"
 	"testing"
 
 	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/exporter/chronicleexporter/internal/metadatatest"
@@ -192,6 +193,100 @@ func TestGRPCExporter(t *testing.T) {
 			}
 
 			require.Equal(t, tc.expectedRequests, mockServer.requests)
+		})
+	}
+}
+
+// insecurePerRPCCredentials sends per-RPC credentials over a plaintext
+// connection, so that the mock server can be used without TLS.
+type insecurePerRPCCredentials struct {
+	ts oauth2.TokenSource
+}
+
+func (c insecurePerRPCCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
+	tok, err := c.ts.Token()
+	if err != nil {
+		return nil, err
+	}
+	return map[string]string{"authorization": tok.Type() + " " + tok.AccessToken}, nil
+}
+
+func (insecurePerRPCCredentials) RequireTransportSecurity() bool { return false }
+
+// TestGRPCExporterTokenError tests that a transient token fetch failure is
+// retryable rather than dropping the batch, and that a credential rejection
+// remains permanent.
+func TestGRPCExporterTokenError(t *testing.T) {
+	testCases := []struct {
+		desc         string
+		tokenErr     error
+		expectedCode codes.Code
+		permanentErr bool
+	}{
+		{
+			desc:         "token endpoint unreachable",
+			expectedCode: codes.Unavailable,
+		},
+		{
+			desc:         "credentials rejected",
+			tokenErr:     &oauth2.RetrieveError{Response: &http.Response{StatusCode: http.StatusBadRequest}, ErrorCode: "invalid_grant"},
+			expectedCode: codes.Unauthenticated,
+			permanentErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			secureTokenSource := tokenSource
+			defer func() {
+				tokenSource = secureTokenSource
+			}()
+			tokenSource = func(context.Context, *Config) (oauth2.TokenSource, error) {
+				return errTokenSource{err: tc.tokenErr}, nil
+			}
+
+			mockServer, endpoint := newMockGRPCServer(t, func(*api.BatchCreateLogsRequest) (*api.BatchCreateLogsResponse, error) {
+				return &api.BatchCreateLogsResponse{}, nil
+			})
+			defer mockServer.srv.GracefulStop()
+
+			secureGPPCClientParams := grpcClientParams
+			defer func() {
+				grpcClientParams = secureGPPCClientParams
+			}()
+			grpcClientParams = func(_ string, ts oauth2.TokenSource) (string, []grpc.DialOption) {
+				return endpoint, []grpc.DialOption{
+					grpc.WithTransportCredentials(insecure.NewCredentials()),
+					grpc.WithPerRPCCredentials(insecurePerRPCCredentials{ts: ts}),
+				}
+			}
+
+			f := NewFactory()
+			cfg := f.CreateDefaultConfig().(*Config)
+			cfg.Protocol = protocolGRPC
+			cfg.CustomerID = "00000000-1111-2222-3333-444444444444"
+			cfg.LogType = "FAKE"
+			cfg.QueueBatchConfig = configoptional.None[exporterhelper.QueueBatchConfig]()
+			cfg.BackOffConfig.Enabled = false
+			cfg.Endpoint = endpoint
+			require.NoError(t, cfg.Validate())
+
+			ctx := context.Background()
+			exp, err := f.CreateLogs(ctx, exportertest.NewNopSettings(typ), cfg)
+			require.NoError(t, err)
+			require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+			defer func() {
+				require.NoError(t, exp.Shutdown(ctx))
+			}()
+
+			logs := plog.NewLogs()
+			logs.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty().Body().SetStr("Test")
+
+			err = exp.ConsumeLogs(ctx, logs)
+			require.Error(t, err)
+			require.Equal(t, tc.expectedCode, status.Code(err))
+			require.Equal(t, tc.permanentErr, consumererror.IsPermanent(err))
+			require.Equal(t, 0, mockServer.requests)
 		})
 	}
 }

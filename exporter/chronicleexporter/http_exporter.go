@@ -112,6 +112,7 @@ func (exp *httpExporter) Start(ctx context.Context, _ component.Host) error {
 	if err != nil {
 		return fmt.Errorf("load Google credentials: %w", err)
 	}
+	checkTokenURL(exp.cfg, exp.set.Logger, ts)
 
 	exp.transport = &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,

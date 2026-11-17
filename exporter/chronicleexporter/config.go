@@ -17,6 +17,7 @@ package chronicleexporter
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -53,6 +54,12 @@ type Config struct {
 
 	// Creds are the Google credentials JSON file.
 	Creds string `mapstructure:"creds"`
+
+	// TokenURL overrides the OAuth2 token endpoint used to exchange service account
+	// credentials for access tokens, e.g. a Private Service Connect endpoint such as
+	// https://oauth2-myendpoint.p.googleapis.com/token. The JWT audience remains
+	// https://oauth2.googleapis.com/token. Requires creds or creds_file_path.
+	TokenURL string `mapstructure:"token_url"`
 
 	// LogType is the type of log that will be sent to Chronicle if not overridden by `attributes["log_type"]` or `attributes["chronicle_log_type"]`.
 	LogType string `mapstructure:"log_type"`
@@ -137,6 +144,19 @@ type Config struct {
 func (cfg *Config) Validate() error {
 	if cfg.CredsFilePath != "" && cfg.Creds != "" {
 		return errors.New("can only specify creds_file_path or creds")
+	}
+
+	if cfg.TokenURL != "" {
+		u, err := url.Parse(cfg.TokenURL)
+		if err != nil || u.Scheme != "https" || u.Hostname() == "" {
+			return fmt.Errorf("token_url must be an absolute https URL: %q", cfg.TokenURL)
+		}
+		if u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
+			return fmt.Errorf("token_url must not contain user info, a query, or a fragment: %q", cfg.TokenURL)
+		}
+		if cfg.Creds == "" && cfg.CredsFilePath == "" {
+			return errors.New("token_url requires creds or creds_file_path")
+		}
 	}
 
 	if cfg.RawLogField != "" {
