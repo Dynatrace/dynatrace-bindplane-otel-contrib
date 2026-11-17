@@ -43,3 +43,22 @@ match the collector manifest.
   here. Then update the collector commit noted at the top of `manifest.yaml`.
 - **Contrib module versions** in the manifest don't affect the build, because
   every contrib module is replaced with the local tree.
+
+## Drift check
+
+`scripts/check-dbdot-drift.sh` compares this manifest with the collector's
+manifest on `main` (or a local path or URL passed as the first argument). The
+`DBDOT Manifest Drift` workflow runs it on every PR and on demand.
+
+- **Fails** when a component or `replaces` entry exists in one manifest but
+  not the other.
+- **Warns** when an entry's version or replace target differs. These are
+  expected while an OTel bump is in flight, but a lasting difference in a
+  fork or pin `replaces` entry should be synced.
+- **Ignores** the collector-internal modules the replica omits and contrib
+  module versions.
+
+```bash
+./scripts/check-dbdot-drift.sh                                  # against collector main
+./scripts/check-dbdot-drift.sh ../dynatrace-bindplane-otel-collector/manifests/dynatrace-bindplane-otel-collector/manifest.yaml
+```

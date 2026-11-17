@@ -65,6 +65,7 @@ trailer by default; please disable or strip it before committing.
   - `_build-setup` writes a copy of it that `replace`s every contrib module with its on-disk path.
   - `make build-linux` / `build-darwin` / `build-windows` build for that GOOS; `GOOS`/`GOARCH` are honored.
   - When the collector repo's manifest gains or drops components or fork/pin replaces, mirror the change in `internal/dbdot/manifest.yaml`.
+  - `./scripts/check-dbdot-drift.sh` compares the replica with the collector's manifest on `main`; the `DBDOT Manifest Drift` workflow runs it on every PR.
 
 ### Release
 - `make release version=vX.X.X` — Tag root + all submodules and push
