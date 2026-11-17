@@ -34,7 +34,7 @@ jobs:
       go: ${{ steps.filter.outputs.go == 'true' || steps.filter.outputs.tests == 'true' || steps.filter.outputs.makefile == 'true' }}
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Detect changed files
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         id: filter
@@ -76,11 +76,11 @@ jobs:
     steps:
       - name: Checkout Sources (Unix)
         if: matrix.os != 'windows'
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Checkout Sources (Windows)
         if: matrix.os == 'windows'
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
@@ -90,7 +90,7 @@ jobs:
 
       - name: Cache Go build (Ubuntu)
         if: matrix.os == 'ubuntu'
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /home/runner/.cache/go-build
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/*.go') }}
@@ -99,7 +99,7 @@ jobs:
 
       - name: Cache Go build (macOS)
         if: matrix.os == 'macos'
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /Users/runner/Library/Caches/go-build
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/*.go') }}
@@ -108,7 +108,7 @@ jobs:
 
       - name: Cache Go modules (Ubuntu)
         if: matrix.os == 'ubuntu'
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /home/runner/go/pkg/mod
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -117,7 +117,7 @@ jobs:
 
       - name: Cache Go modules (macOS)
         if: matrix.os == 'macos'
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /Users/runner/go/pkg/mod
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -126,7 +126,7 @@ jobs:
 
       - name: Cache Go modules (Windows)
         if: matrix.os == 'windows'
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: C:\Users\runneradmin\go\pkg\mod
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -135,7 +135,7 @@ jobs:
 
       - name: Cache Go build cache (Windows)
         if: matrix.os == 'windows'
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: C:\Users\runneradmin\AppData\Local\go-build
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/*.go') }}
@@ -144,7 +144,7 @@ jobs:
 
       - name: Cache Tools (Ubuntu)
         if: matrix.os == 'ubuntu'
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /home/runner/go/bin
           key: ${{ runner.os }}-go-tools-${{ hashFiles('internal/tools/go.sum') }}
@@ -153,7 +153,7 @@ jobs:
 
       - name: Cache Tools (macOS)
         if: matrix.os == 'macos'
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /Users/runner/go/bin
           key: ${{ runner.os }}-go-tools-${{ hashFiles('internal/tools/go.sum') }}
@@ -162,7 +162,7 @@ jobs:
 
       - name: Cache Tools (Windows)
         if: matrix.os == 'windows'
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: C:\Users\runneradmin\go\bin
           key: ${{ runner.os }}-go-tools-${{ hashFiles('internal/tools/go.sum') }}
