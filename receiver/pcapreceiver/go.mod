@@ -3,7 +3,7 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/pcapreceiv
 go 1.26.10
 
 require (
-	github.com/gopacket/gopacket v1.7.4
+	github.com/gopacket/gopacket v1.7.7
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.164.1
 	github.com/stretchr/testify v1.12.1

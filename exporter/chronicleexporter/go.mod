@@ -6,7 +6,7 @@ require (
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.3.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.3.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/osinfo v1.3.0
-	github.com/goccy/go-json v0.11.2
+	github.com/goccy/go-json v0.12.0
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/google/uuid v1.6.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.3.1
@@ -30,10 +30,10 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.28.0
-	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
-	golang.org/x/oauth2 v0.37.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800
-	google.golang.org/grpc v1.84.0
+	golang.org/x/exp v0.0.0-20261113113407-e3970619a1a4
+	golang.org/x/oauth2 v0.38.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20260817212433-ac3dfec99bb1
+	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -44,7 +44,7 @@ require (
 	github.com/antchfx/xpath v1.3.8 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/ebitengine/purego v0.10.2 // indirect
+	github.com/ebitengine/purego v0.11.2 // indirect
 	github.com/elastic/go-grok v0.3.1 // indirect
 	github.com/elastic/lunes v0.2.2 // indirect
 	github.com/expr-lang/expr v1.17.8 // indirect
@@ -70,8 +70,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.164.1 // indirect
-	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.8 // indirect
+	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.10 // indirect
 	github.com/shoenig/go-m1cpu v0.1.7 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
@@ -101,7 +101,7 @@ require (
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260817212433-ac3dfec99bb1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
