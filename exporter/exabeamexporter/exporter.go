@@ -76,12 +76,23 @@ func (e *exabeamExporter) logsDataPusher(ctx context.Context, ld plog.Logs) erro
 	if err != nil {
 		return consumererror.NewPermanent(fmt.Errorf("encode logs: %w", err))
 	}
+	if len(files) == 0 {
+		return nil
+	}
+
+	bucketAttr := metric.WithAttributes(attribute.String("bucket", e.settings.BucketName))
+	var unsplitSize int64
+	for _, file := range files {
+		unsplitSize += file.rawSize
+	}
+	e.telemetry.ExporterUnsplitPayloadSize.Record(ctx, unsplitSize, bucketAttr)
 
 	for i, file := range files {
-		err := e.uploadFile(ctx, file.data)
+		err := e.uploadFile(ctx, file)
 		if err == nil {
 			continue
 		}
+		e.telemetry.ExporterLogsSendFailed.Add(ctx, 1, bucketAttr)
 		if i == 0 {
 			return err
 		}
@@ -90,12 +101,12 @@ func (e *exabeamExporter) logsDataPusher(ctx context.Context, ld plog.Logs) erro
 	return nil
 }
 
-func (e *exabeamExporter) uploadFile(ctx context.Context, data []byte) error {
+func (e *exabeamExporter) uploadFile(ctx context.Context, file encodedFile) error {
 	name, err := newObjectName(e.settings.CollectorID, time.Now())
 	if err != nil {
 		return err
 	}
-	return e.uploadAndRecord(ctx, name, data)
+	return e.uploadAndRecord(ctx, name, file)
 }
 
 // logsFrom returns a copy of the log records of ld from index start onward, keeping their
@@ -129,8 +140,9 @@ func logsFrom(ld plog.Logs, start int) plog.Logs {
 }
 
 // uploadAndRecord uploads the file and records telemetry metrics.
-func (e *exabeamExporter) uploadAndRecord(ctx context.Context, objectName string, buf []byte) error {
+func (e *exabeamExporter) uploadAndRecord(ctx context.Context, objectName string, file encodedFile) error {
 	bucketAttr := attribute.String("bucket", e.settings.BucketName)
+	buf := file.data
 	payloadSize := int64(len(buf))
 
 	e.telemetry.ExporterPayloadSize.Record(ctx, payloadSize,
@@ -138,6 +150,9 @@ func (e *exabeamExporter) uploadAndRecord(ctx context.Context, objectName string
 			attribute.String("encoding", payloadEncoding),
 			bucketAttr,
 		),
+	)
+	e.telemetry.ExporterBatchSize.Record(ctx, int64(file.records),
+		metric.WithAttributes(bucketAttr),
 	)
 
 	e.telemetry.ExporterUploadInflight.Add(ctx, 1,
@@ -151,16 +166,23 @@ func (e *exabeamExporter) uploadAndRecord(ctx context.Context, objectName string
 		metric.WithAttributes(bucketAttr),
 	)
 
+	errAttr := attribute.String("error", classifyError(uploadErr))
 	e.telemetry.ExporterRequestDuration.Record(ctx, time.Since(start).Milliseconds(),
 		metric.WithAttributes(
-			attribute.String("error", classifyError(uploadErr)),
+			errAttr,
 			bucketAttr,
 			attribute.String("location", e.settings.BucketLocation),
 		),
 	)
+	e.telemetry.ExporterRequestCount.Add(ctx, 1,
+		metric.WithAttributes(errAttr, bucketAttr),
+	)
 
 	if uploadErr == nil {
 		e.telemetry.ExporterUploadBytesTotal.Add(ctx, payloadSize,
+			metric.WithAttributes(bucketAttr),
+		)
+		e.telemetry.ExporterRawBytes.Add(ctx, file.rawSize,
 			metric.WithAttributes(bucketAttr),
 		)
 	} else if errors.Is(uploadErr, context.DeadlineExceeded) {

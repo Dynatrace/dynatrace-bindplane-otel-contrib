@@ -128,6 +128,43 @@ func sumValue(t *testing.T, m *metricdata.Metrics) int64 {
 	return total
 }
 
+// histogramTotals returns the number of recorded values and their sum across all data points.
+func histogramTotals(t *testing.T, m *metricdata.Metrics) (count uint64, sum int64) {
+	t.Helper()
+	require.NotNil(t, m)
+	hist, ok := m.Data.(metricdata.Histogram[int64])
+	require.True(t, ok)
+	for _, dp := range hist.DataPoints {
+		count += dp.Count
+		sum += dp.Sum
+	}
+	return count, sum
+}
+
+// sumByError returns the value of each data point of a sum, keyed by its error attribute.
+func sumByError(t *testing.T, m *metricdata.Metrics) map[string]int64 {
+	t.Helper()
+	require.NotNil(t, m)
+	sum, ok := m.Data.(metricdata.Sum[int64])
+	require.True(t, ok)
+	out := map[string]int64{}
+	for _, dp := range sum.DataPoints {
+		errAttr, _ := dp.Attributes.Value(attribute.Key("error"))
+		out[errAttr.AsString()] += dp.Value
+	}
+	return out
+}
+
+// rawSize returns the size of a gzipped file before gzip.
+func rawSize(t *testing.T, file []byte) int64 {
+	t.Helper()
+	var n int64
+	for _, line := range gunzipLines(t, file) {
+		n += int64(len(line)) + 1
+	}
+	return n
+}
+
 func TestLogsDataPusher(t *testing.T) {
 	up := &fakeUploader{}
 	exp, reader := newTestExporter(t, up, defaultMaxFileSize)
@@ -169,13 +206,28 @@ func TestLogsDataPusher(t *testing.T) {
 	loc, ok := durHist.DataPoints[0].Attributes.Value(attribute.Key("location"))
 	require.True(t, ok)
 	require.Equal(t, "US", loc.AsString())
+
+	raw := rawSize(t, up.bodies[0])
+	require.Equal(t, raw, sumValue(t, findMetric(rm, "otelcol_exporter_raw_bytes")))
+	require.Equal(t, map[string]int64{"none": 1}, sumByError(t, findMetric(rm, "otelcol_exporter_request_count")))
+	count, records := histogramTotals(t, findMetric(rm, "otelcol_exporter_batch_size"))
+	require.Equal(t, uint64(1), count)
+	require.Equal(t, int64(5), records)
+	count, unsplit := histogramTotals(t, findMetric(rm, "otelcol_exporter_unsplit_payload_size"))
+	require.Equal(t, uint64(1), count)
+	require.Equal(t, raw, unsplit)
+	require.Nil(t, findMetric(rm, "otelcol_exporter_logs_send_failed"))
 }
 
 func TestLogsDataPusherNoRecords(t *testing.T) {
 	up := &fakeUploader{}
-	exp, _ := newTestExporter(t, up, defaultMaxFileSize)
+	exp, reader := newTestExporter(t, up, defaultMaxFileSize)
 	require.NoError(t, exp.logsDataPusher(context.Background(), plog.NewLogs()))
 	require.Empty(t, up.keys)
+
+	rm := collectMetrics(t, reader)
+	require.Nil(t, findMetric(rm, "otelcol_exporter_unsplit_payload_size"), "an empty batch is not recorded")
+	require.Nil(t, findMetric(rm, "otelcol_exporter_request_count"))
 }
 
 func TestLogsDataPusherSplitsFiles(t *testing.T) {
@@ -207,6 +259,10 @@ func TestLogsDataPusherUploadError(t *testing.T) {
 	dur := findMetric(rm, "otelcol_exporter_request_duration").Data.(metricdata.Histogram[int64])
 	errAttr, _ := dur.DataPoints[0].Attributes.Value(attribute.Key("error"))
 	require.Equal(t, "unknown", errAttr.AsString())
+
+	require.Equal(t, int64(1), sumValue(t, findMetric(rm, "otelcol_exporter_logs_send_failed")))
+	require.Equal(t, map[string]int64{"unknown": 1}, sumByError(t, findMetric(rm, "otelcol_exporter_request_count")))
+	require.Nil(t, findMetric(rm, "otelcol_exporter_raw_bytes"), "nothing was uploaded")
 }
 
 func TestLogsDataPusherTimeout(t *testing.T) {
@@ -220,6 +276,8 @@ func TestLogsDataPusherTimeout(t *testing.T) {
 
 	rm := collectMetrics(t, reader)
 	require.Equal(t, int64(1), sumValue(t, findMetric(rm, "otelcol_exporter_timeout_total")))
+	require.Equal(t, int64(1), sumValue(t, findMetric(rm, "otelcol_exporter_logs_send_failed")))
+	require.Equal(t, map[string]int64{"timeout": 1}, sumByError(t, findMetric(rm, "otelcol_exporter_request_count")))
 }
 
 // TestUploadRetrySequences checks which upload responses the exporterhelper retries. The SDK
@@ -471,4 +529,37 @@ func TestLogsDataPusherRawLogFieldFailureFallsBack(t *testing.T) {
 	warnings := logs.FilterMessage("raw_log_field failed; used the default raw log").All()
 	require.Len(t, warnings, 1, "one warning per batch")
 	require.Equal(t, int64(1), warnings[0].ContextMap()["records"])
+}
+
+// TestLogsDataPusherMetricsPartialFailure checks the batch metrics when a batch is split into
+// several files and an upload after the first one fails.
+func TestLogsDataPusherMetricsPartialFailure(t *testing.T) {
+	up := &fakeUploader{errs: []error{nil, errors.New("boom")}}
+	exp, reader := newTestExporter(t, up, 2000)
+
+	files, err := newTestEncoder(2000).encode(context.Background(), testLogs(50, 100))
+	require.NoError(t, err)
+	require.Greater(t, len(files), 2, "the batch must need more than two files")
+	var wantUnsplit int64
+	for _, file := range files {
+		wantUnsplit += file.rawSize
+	}
+
+	err = exp.logsDataPusher(context.Background(), testLogs(50, 100))
+	require.ErrorContains(t, err, "boom")
+	require.Len(t, up.bodies, 2, "uploads stop at the failed file")
+	require.Len(t, up.delivered, 1)
+
+	rm := collectMetrics(t, reader)
+	require.Equal(t, int64(1), sumValue(t, findMetric(rm, "otelcol_exporter_logs_send_failed")))
+	require.Equal(t, map[string]int64{"none": 1, "unknown": 1}, sumByError(t, findMetric(rm, "otelcol_exporter_request_count")))
+	require.Equal(t, rawSize(t, up.delivered[0]), sumValue(t, findMetric(rm, "otelcol_exporter_raw_bytes")), "only the uploaded file counts")
+
+	count, records := histogramTotals(t, findMetric(rm, "otelcol_exporter_batch_size"))
+	require.Equal(t, uint64(2), count, "one value per attempted file")
+	require.Equal(t, int64(files[0].records+files[1].records), records)
+
+	count, unsplit := histogramTotals(t, findMetric(rm, "otelcol_exporter_unsplit_payload_size"))
+	require.Equal(t, uint64(1), count, "one value per batch")
+	require.Equal(t, wantUnsplit, unsplit)
 }

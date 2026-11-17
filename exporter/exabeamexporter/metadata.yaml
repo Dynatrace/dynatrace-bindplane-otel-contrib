@@ -32,6 +32,29 @@ attributes:
 
 telemetry:
   metrics:
+    exporter_batch_size:
+      enabled: true
+      description: The number of log records in each uploaded file.
+      stability: alpha
+      unit: "{records}"
+      histogram:
+        value_type: int
+        bucket_boundaries:
+          [1, 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000]
+      attributes:
+        - bucket
+
+    exporter_logs_send_failed:
+      enabled: true
+      description: The number of times an upload failed and the batch was returned to the collector pipeline for retry. Counts failures, not log records.
+      stability: alpha
+      unit: "{failures}"
+      sum:
+        monotonic: true
+        value_type: int
+      attributes:
+        - bucket
+
     exporter_payload_size:
       enabled: true
       description: The size of the encoded and compressed file in bytes.
@@ -43,6 +66,29 @@ telemetry:
           [1e4, 5e4, 1e5, 2.5e5, 5e5, 7.5e5, 1e6, 2.5e6, 5e6, 7.5e6, 10e6]
       attributes:
         - encoding
+        - bucket
+
+    exporter_raw_bytes:
+      enabled: true
+      description: The number of uncompressed NDJSON bytes uploaded successfully.
+      stability: alpha
+      unit: By
+      sum:
+        monotonic: true
+        value_type: int
+      attributes:
+        - bucket
+
+    exporter_request_count:
+      enabled: true
+      description: The number of upload requests made.
+      stability: alpha
+      unit: "{requests}"
+      sum:
+        monotonic: true
+        value_type: int
+      attributes:
+        - error
         - bucket
 
     exporter_request_duration:
@@ -67,6 +113,18 @@ telemetry:
       sum:
         monotonic: true
         value_type: int
+      attributes:
+        - bucket
+
+    exporter_unsplit_payload_size:
+      enabled: true
+      description: The uncompressed NDJSON size of a batch before it is split into files at max_file_size. A value above max_file_size means the batch is uploaded as more than one file.
+      stability: alpha
+      unit: By
+      histogram:
+        value_type: int
+        bucket_boundaries:
+          [1e5, 5e5, 1e6, 2.5e6, 5e6, 7.5e6, 1e7, 1.5e7, 2e7, 3e7, 5e7]
       attributes:
         - bucket
 
