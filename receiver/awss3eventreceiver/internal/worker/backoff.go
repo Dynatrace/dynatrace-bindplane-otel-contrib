@@ -18,7 +18,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v7"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.uber.org/zap"
@@ -32,7 +32,6 @@ func newExponentialBackOff(cfg configretry.BackOffConfig) *backoff.ExponentialBa
 	bo.RandomizationFactor = cfg.RandomizationFactor
 	bo.Multiplier = cfg.Multiplier
 	bo.MaxInterval = cfg.MaxInterval
-	bo.MaxElapsedTime = cfg.MaxElapsedTime
 	bo.Reset()
 	return bo
 }
@@ -48,9 +47,12 @@ func consumeWithRetry(ctx context.Context, cfg configretry.BackOffConfig, logger
 	}
 
 	bo := newExponentialBackOff(cfg)
+	// backoff v5+ dropped ExponentialBackOff.MaxElapsedTime, so enforce it here with the
+	// same semantics: give up when the next wait would end past the limit.
+	start := time.Now()
 	for {
 		delay := bo.NextBackOff()
-		if delay == backoff.Stop {
+		if cfg.MaxElapsedTime > 0 && time.Since(start)+delay > cfg.MaxElapsedTime {
 			return err
 		}
 		logger.Debug("downstream consume failed; backing off before retry",
