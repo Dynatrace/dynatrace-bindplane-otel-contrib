@@ -145,16 +145,6 @@ func (e *exabeamExporter) uploadAndRecord(ctx context.Context, objectName string
 	buf := file.data
 	payloadSize := int64(len(buf))
 
-	e.telemetry.ExporterPayloadSize.Record(ctx, payloadSize,
-		metric.WithAttributes(
-			attribute.String("encoding", payloadEncoding),
-			bucketAttr,
-		),
-	)
-	e.telemetry.ExporterBatchSize.Record(ctx, int64(file.records),
-		metric.WithAttributes(bucketAttr),
-	)
-
 	e.telemetry.ExporterUploadInflight.Add(ctx, 1,
 		metric.WithAttributes(bucketAttr),
 	)
@@ -179,6 +169,16 @@ func (e *exabeamExporter) uploadAndRecord(ctx context.Context, objectName string
 	)
 
 	if uploadErr == nil {
+		// The size histograms describe uploaded files, so failed attempts and retries aren't recorded.
+		e.telemetry.ExporterPayloadSize.Record(ctx, payloadSize,
+			metric.WithAttributes(
+				attribute.String("encoding", payloadEncoding),
+				bucketAttr,
+			),
+		)
+		e.telemetry.ExporterBatchSize.Record(ctx, int64(file.records),
+			metric.WithAttributes(bucketAttr),
+		)
 		e.telemetry.ExporterUploadBytesTotal.Add(ctx, payloadSize,
 			metric.WithAttributes(bucketAttr),
 		)

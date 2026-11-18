@@ -34,7 +34,7 @@ telemetry:
   metrics:
     exporter_batch_size:
       enabled: true
-      description: The number of log records in each uploaded file.
+      description: The number of log records in each successfully uploaded file.
       stability: alpha
       unit: "{records}"
       histogram:
@@ -46,7 +46,7 @@ telemetry:
 
     exporter_logs_send_failed:
       enabled: true
-      description: The number of times an upload failed and the batch was returned to the collector pipeline for retry. Counts failures, not log records.
+      description: The number of failed upload attempts, including ones that are retried and ones that are dropped. Counts failures, not log records.
       stability: alpha
       unit: "{failures}"
       sum:
@@ -57,7 +57,7 @@ telemetry:
 
     exporter_payload_size:
       enabled: true
-      description: The size of the encoded and compressed file in bytes.
+      description: The size of each successfully uploaded file in bytes, after encoding and compression.
       stability: alpha
       unit: By
       histogram:
@@ -118,7 +118,7 @@ telemetry:
 
     exporter_unsplit_payload_size:
       enabled: true
-      description: The uncompressed NDJSON size of a batch before it is split into files at max_file_size. A value above max_file_size means the batch is uploaded as more than one file.
+      description: The uncompressed NDJSON size of a batch before it is split into files at max_file_size, recorded on every export attempt, including retries. A value above max_file_size means the batch is uploaded as more than one file.
       stability: alpha
       unit: By
       histogram:

@@ -203,14 +203,14 @@ Each metric has a `bucket` attribute. See [documentation.md](documentation.md) f
 
 | Metric | Type | Description |
 | --- | --- | --- |
-| `otelcol_exporter_logs_send_failed` | counter | Times an upload failed and the batch was returned to the pipeline for retry. Counts failures, not log records. |
+| `otelcol_exporter_logs_send_failed` | counter | Failed upload attempts, including ones that are retried and ones that are dropped. Counts failures, not log records. |
 | `otelcol_exporter_request_count` | counter | Upload requests, by `error` (`none`, `timeout` or `unknown`). |
 | `otelcol_exporter_request_duration` | histogram | Duration of each upload in milliseconds. |
 | `otelcol_exporter_timeout_total` | counter | Uploads that timed out. |
 | `otelcol_exporter_upload_inflight` | gauge | Uploads in progress. |
-| `otelcol_exporter_batch_size` | histogram | Log records in each uploaded file. |
-| `otelcol_exporter_unsplit_payload_size` | histogram | Uncompressed size of a batch before it is split into files at `max_file_size`. |
-| `otelcol_exporter_payload_size` | histogram | Compressed size of each file. |
+| `otelcol_exporter_batch_size` | histogram | Log records in each successfully uploaded file. |
+| `otelcol_exporter_unsplit_payload_size` | histogram | Uncompressed size of a batch before it is split into files at `max_file_size`, recorded on every export attempt, including retries. |
+| `otelcol_exporter_payload_size` | histogram | Compressed size of each successfully uploaded file. |
 | `otelcol_exporter_raw_bytes` | counter | Uncompressed bytes uploaded successfully. |
 | `otelcol_exporter_upload_bytes_total` | counter | Compressed bytes uploaded successfully. |
 

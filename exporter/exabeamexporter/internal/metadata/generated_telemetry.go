@@ -69,20 +69,20 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 	var err, errs error
 	builder.ExporterBatchSize, err = builder.meter.Int64Histogram(
 		"otelcol_exporter_batch_size",
-		metric.WithDescription("The number of log records in each uploaded file. [Alpha]"),
+		metric.WithDescription("The number of log records in each successfully uploaded file. [Alpha]"),
 		metric.WithUnit("{records}"),
 		metric.WithExplicitBucketBoundaries([]float64{1, 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000}...),
 	)
 	errs = errors.Join(errs, err)
 	builder.ExporterLogsSendFailed, err = builder.meter.Int64Counter(
 		"otelcol_exporter_logs_send_failed",
-		metric.WithDescription("The number of times an upload failed and the batch was returned to the collector pipeline for retry. Counts failures, not log records. [Alpha]"),
+		metric.WithDescription("The number of failed upload attempts, including ones that are retried and ones that are dropped. Counts failures, not log records. [Alpha]"),
 		metric.WithUnit("{failures}"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ExporterPayloadSize, err = builder.meter.Int64Histogram(
 		"otelcol_exporter_payload_size",
-		metric.WithDescription("The size of the encoded and compressed file in bytes. [Alpha]"),
+		metric.WithDescription("The size of each successfully uploaded file in bytes, after encoding and compression. [Alpha]"),
 		metric.WithUnit("By"),
 		metric.WithExplicitBucketBoundaries([]float64{10000, 50000, 100000, 250000, 500000, 750000, 1e+06, 2.5e+06, 5e+06, 7.5e+06, 1e+07}...),
 	)
@@ -114,7 +114,7 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 	errs = errors.Join(errs, err)
 	builder.ExporterUnsplitPayloadSize, err = builder.meter.Int64Histogram(
 		"otelcol_exporter_unsplit_payload_size",
-		metric.WithDescription("The uncompressed NDJSON size of a batch before it is split into files at max_file_size. A value above max_file_size means the batch is uploaded as more than one file. [Alpha]"),
+		metric.WithDescription("The uncompressed NDJSON size of a batch before it is split into files at max_file_size, recorded on every export attempt, including retries. A value above max_file_size means the batch is uploaded as more than one file. [Alpha]"),
 		metric.WithUnit("By"),
 		metric.WithExplicitBucketBoundaries([]float64{100000, 500000, 1e+06, 2.5e+06, 5e+06, 7.5e+06, 1e+07, 1.5e+07, 2e+07, 3e+07, 5e+07}...),
 	)

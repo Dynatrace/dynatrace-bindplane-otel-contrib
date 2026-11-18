@@ -24,7 +24,7 @@ func NewSettings(tt *componenttest.Telemetry) exporter.Settings {
 func AssertEqualExporterBatchSize(t *testing.T, tt *componenttest.Telemetry, dps []metricdata.HistogramDataPoint[int64], opts ...metricdatatest.Option) {
 	want := metricdata.Metrics{
 		Name:        "otelcol_exporter_batch_size",
-		Description: "The number of log records in each uploaded file. [Alpha]",
+		Description: "The number of log records in each successfully uploaded file. [Alpha]",
 		Unit:        "{records}",
 		Data: metricdata.Histogram[int64]{
 			Temporality: metricdata.CumulativeTemporality,
@@ -39,7 +39,7 @@ func AssertEqualExporterBatchSize(t *testing.T, tt *componenttest.Telemetry, dps
 func AssertEqualExporterLogsSendFailed(t *testing.T, tt *componenttest.Telemetry, dps []metricdata.DataPoint[int64], opts ...metricdatatest.Option) {
 	want := metricdata.Metrics{
 		Name:        "otelcol_exporter_logs_send_failed",
-		Description: "The number of times an upload failed and the batch was returned to the collector pipeline for retry. Counts failures, not log records. [Alpha]",
+		Description: "The number of failed upload attempts, including ones that are retried and ones that are dropped. Counts failures, not log records. [Alpha]",
 		Unit:        "{failures}",
 		Data: metricdata.Sum[int64]{
 			Temporality: metricdata.CumulativeTemporality,
@@ -55,7 +55,7 @@ func AssertEqualExporterLogsSendFailed(t *testing.T, tt *componenttest.Telemetry
 func AssertEqualExporterPayloadSize(t *testing.T, tt *componenttest.Telemetry, dps []metricdata.HistogramDataPoint[int64], opts ...metricdatatest.Option) {
 	want := metricdata.Metrics{
 		Name:        "otelcol_exporter_payload_size",
-		Description: "The size of the encoded and compressed file in bytes. [Alpha]",
+		Description: "The size of each successfully uploaded file in bytes, after encoding and compression. [Alpha]",
 		Unit:        "By",
 		Data: metricdata.Histogram[int64]{
 			Temporality: metricdata.CumulativeTemporality,
@@ -133,7 +133,7 @@ func AssertEqualExporterTimeoutTotal(t *testing.T, tt *componenttest.Telemetry, 
 func AssertEqualExporterUnsplitPayloadSize(t *testing.T, tt *componenttest.Telemetry, dps []metricdata.HistogramDataPoint[int64], opts ...metricdatatest.Option) {
 	want := metricdata.Metrics{
 		Name:        "otelcol_exporter_unsplit_payload_size",
-		Description: "The uncompressed NDJSON size of a batch before it is split into files at max_file_size. A value above max_file_size means the batch is uploaded as more than one file. [Alpha]",
+		Description: "The uncompressed NDJSON size of a batch before it is split into files at max_file_size, recorded on every export attempt, including retries. A value above max_file_size means the batch is uploaded as more than one file. [Alpha]",
 		Unit:        "By",
 		Data: metricdata.Histogram[int64]{
 			Temporality: metricdata.CumulativeTemporality,

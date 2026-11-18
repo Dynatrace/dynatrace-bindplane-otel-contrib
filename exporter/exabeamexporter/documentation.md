@@ -31,7 +31,7 @@ The following telemetry is emitted by this component.
 
 ### otelcol_exporter_batch_size
 
-The number of log records in each uploaded file.
+The number of log records in each successfully uploaded file.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -45,7 +45,7 @@ The number of log records in each uploaded file.
 
 ### otelcol_exporter_logs_send_failed
 
-The number of times an upload failed and the batch was returned to the collector pipeline for retry. Counts failures, not log records.
+The number of failed upload attempts, including ones that are retried and ones that are dropped. Counts failures, not log records.
 
 | Unit | Metric Type | Value Type | Monotonic | Stability |
 | ---- | ----------- | ---------- | --------- | --------- |
@@ -59,7 +59,7 @@ The number of times an upload failed and the batch was returned to the collector
 
 ### otelcol_exporter_payload_size
 
-The size of the encoded and compressed file in bytes.
+The size of each successfully uploaded file in bytes, after encoding and compression.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -133,7 +133,7 @@ The number of upload requests that resulted in a timeout.
 
 ### otelcol_exporter_unsplit_payload_size
 
-The uncompressed NDJSON size of a batch before it is split into files at max_file_size. A value above max_file_size means the batch is uploaded as more than one file.
+The uncompressed NDJSON size of a batch before it is split into files at max_file_size, recorded on every export attempt, including retries. A value above max_file_size means the batch is uploaded as more than one file.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |

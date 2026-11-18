@@ -263,6 +263,8 @@ func TestLogsDataPusherUploadError(t *testing.T) {
 	require.Equal(t, int64(1), sumValue(t, findMetric(rm, "otelcol_exporter_logs_send_failed")))
 	require.Equal(t, map[string]int64{"unknown": 1}, sumByError(t, findMetric(rm, "otelcol_exporter_request_count")))
 	require.Nil(t, findMetric(rm, "otelcol_exporter_raw_bytes"), "nothing was uploaded")
+	require.Nil(t, findMetric(rm, "otelcol_exporter_batch_size"), "a failed upload is not recorded")
+	require.Nil(t, findMetric(rm, "otelcol_exporter_payload_size"), "a failed upload is not recorded")
 }
 
 func TestLogsDataPusherTimeout(t *testing.T) {
@@ -278,6 +280,7 @@ func TestLogsDataPusherTimeout(t *testing.T) {
 	require.Equal(t, int64(1), sumValue(t, findMetric(rm, "otelcol_exporter_timeout_total")))
 	require.Equal(t, int64(1), sumValue(t, findMetric(rm, "otelcol_exporter_logs_send_failed")))
 	require.Equal(t, map[string]int64{"timeout": 1}, sumByError(t, findMetric(rm, "otelcol_exporter_request_count")))
+	require.Nil(t, findMetric(rm, "otelcol_exporter_batch_size"), "a timed-out upload is not recorded")
 }
 
 // TestUploadRetrySequences checks which upload responses the exporterhelper retries. The SDK
@@ -556,8 +559,11 @@ func TestLogsDataPusherMetricsPartialFailure(t *testing.T) {
 	require.Equal(t, rawSize(t, up.delivered[0]), sumValue(t, findMetric(rm, "otelcol_exporter_raw_bytes")), "only the uploaded file counts")
 
 	count, records := histogramTotals(t, findMetric(rm, "otelcol_exporter_batch_size"))
-	require.Equal(t, uint64(2), count, "one value per attempted file")
-	require.Equal(t, int64(files[0].records+files[1].records), records)
+	require.Equal(t, uint64(1), count, "only the uploaded file is recorded")
+	require.Equal(t, int64(files[0].records), records)
+	count, payload := histogramTotals(t, findMetric(rm, "otelcol_exporter_payload_size"))
+	require.Equal(t, uint64(1), count, "only the uploaded file is recorded")
+	require.Equal(t, int64(len(up.delivered[0])), payload)
 
 	count, unsplit := histogramTotals(t, findMetric(rm, "otelcol_exporter_unsplit_payload_size"))
 	require.Equal(t, uint64(1), count, "one value per batch")
