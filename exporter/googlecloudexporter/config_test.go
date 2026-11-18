@@ -15,30 +15,36 @@
 package googlecloudexporter
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/collector"
-	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlecloudexporter"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"google.golang.org/api/option"
 )
 
 func TestCreateDefaultConfig(t *testing.T) {
-	collectorVersion := version.Version()
-
 	cfg := createDefaultConfig()
 	googleCfg, ok := cfg.(*Config)
 	require.True(t, ok)
 
-	expectedUserAgent := fmt.Sprintf("%s/%s", defaultUserAgent, collectorVersion)
-
 	require.Equal(t, defaultMetricPrefix, googleCfg.GCPConfig.Config.MetricConfig.Prefix)
-	require.Equal(t, expectedUserAgent, googleCfg.GCPConfig.Config.UserAgent)
+	require.Equal(t, "StanzaLogAgent/{{version}}", googleCfg.GCPConfig.Config.UserAgent)
 	require.Len(t, googleCfg.GCPConfig.Config.MetricConfig.ResourceFilters, 1)
 	require.Equal(t, googleCfg.GCPConfig.Config.MetricConfig.ResourceFilters[0].Prefix, "")
 	require.Nil(t, googleCfg.Validate())
+}
+
+// TestDefaultUserAgentUsesBuildInfoVersion verifies the default user agent picks
+// up the collector version from component.BuildInfo, which the upstream exporter
+// substitutes for {{version}} when it is created.
+func TestDefaultUserAgentUsesBuildInfoVersion(t *testing.T) {
+	googleCfg := createDefaultConfig().(*Config)
+	collectorCfg := googleCfg.GCPConfig.Config
+
+	collector.SetUserAgent(&collectorCfg, component.BuildInfo{Version: "v1.2.3"})
+	require.Equal(t, "StanzaLogAgent/v1.2.3", collectorCfg.UserAgent)
 }
 
 func TestSetClientOptionsWithCredentials(t *testing.T) {

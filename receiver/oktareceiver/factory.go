@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/okta/okta-sdk-golang/v6/okta"
+	"github.com/okta/okta-sdk-golang/v8/okta"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"

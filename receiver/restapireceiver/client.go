@@ -23,7 +23,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/akamai/AkamaiOPEN-edgegrid-golang/v13/pkg/edgegrid"
+	"github.com/akamai/AkamaiOPEN-edgegrid-golang/v15/pkg/edgegrid"
 	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
