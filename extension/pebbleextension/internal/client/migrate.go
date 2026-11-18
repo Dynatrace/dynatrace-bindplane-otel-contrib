@@ -25,9 +25,6 @@ import (
 // migrateLegacyStore upgrades a store written by pebble v1 at its default format
 // (FormatMostCompatible), which pebble v2 refuses to open, by reopening it once with
 // v1 at its newest format. New directories and already-upgraded stores are left alone.
-//
-// ponytail: pebble v1 is only kept for this. Delete this file and the v1 require once
-// every fleet has run a v2 build.
 func migrateLegacyStore(path string, logger *zap.Logger) error {
 	desc, err := pebblev1.Peek(path, vfs.Default)
 	if err != nil || !desc.Exists || desc.FormatMajorVersion >= pebblev1.FormatFlushableIngest {
