@@ -40,13 +40,13 @@ func TestCreateDefaultConfig(t *testing.T) {
 
 	require.True(t, cfg.QueueConfig.HasValue())
 	queue := cfg.QueueConfig.Get()
-	require.Equal(t, exporterhelper.RequestSizerTypeBytes, queue.Sizer)
-	require.Equal(t, int64(200_000_000), queue.QueueSize)
+	require.Equal(t, exporterhelper.RequestSizerTypeRequests, queue.Sizer)
+	require.Equal(t, int64(5000), queue.QueueSize)
 	require.True(t, queue.Batch.HasValue())
 	batch := queue.Batch.Get()
-	require.Equal(t, exporterhelper.RequestSizerTypeBytes, batch.Sizer)
-	require.Equal(t, int64(10_000_000), batch.MinSize)
-	require.Equal(t, int64(10_000_000), batch.MaxSize)
+	require.Equal(t, exporterhelper.RequestSizerTypeItems, batch.Sizer)
+	require.Equal(t, int64(10_000), batch.MinSize)
+	require.Equal(t, int64(10_000), batch.MaxSize)
 	require.Equal(t, 300*time.Second, batch.FlushTimeout)
 
 	require.NoError(t, componenttest.CheckConfigStruct(cfg))
@@ -184,8 +184,8 @@ func TestExporterFlushesAtMinSize(t *testing.T) {
 	cfg.ConnectionString = testConnectionStringOpaque(t)
 	cfg.Endpoint = srv.URL
 	batch := cfg.QueueConfig.Get().Batch.Get()
-	batch.MinSize = 2000
-	batch.MaxSize = 2000
+	batch.MinSize = 20
+	batch.MaxSize = 20
 	batch.FlushTimeout = time.Hour
 	require.NoError(t, cfg.Validate())
 
@@ -197,7 +197,7 @@ func TestExporterFlushesAtMinSize(t *testing.T) {
 	expected := logBodies(ld)
 	require.NoError(t, exp.ConsumeLogs(context.Background(), ld))
 
-	// Over 5000 bytes of logs fill at least two batches, which upload before the hour-long flush timeout.
+	// 50 records fill two batches of 20, which upload before the hour-long flush timeout.
 	require.Eventually(t, func() bool { return len(srv.recorded()) >= 2 }, 5*time.Second, 10*time.Millisecond)
 
 	require.NoError(t, exp.Shutdown(context.Background()))
@@ -227,7 +227,7 @@ func TestExporterEndToEnd(t *testing.T) {
 	require.NoError(t, exp.ConsumeLogs(context.Background(), testLogs(3, 10)))
 	require.NoError(t, exp.ConsumeLogs(context.Background(), testLogs(2, 10)))
 
-	// The batch is far below 10 MB and the 300s flush timeout hasn't passed, so nothing is uploaded yet.
+	// The batch is far below 10,000 records and the 300s flush timeout hasn't passed, so nothing is uploaded yet.
 	require.Empty(t, srv.recorded())
 
 	require.NoError(t, exp.Shutdown(context.Background()))

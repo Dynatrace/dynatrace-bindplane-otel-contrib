@@ -151,18 +151,19 @@ telemetry:
 
 sending_queue:
   support: has_overrides
-  # Batches are sized in bytes and flushed after Exabeam's recommended max file size (10 MB)
-  # or max open time (300s), so each batch becomes one file.
-  # The queue is also sized in bytes. A queued request holds its share of queue_size until the
-  # batch it is in has been uploaded, so a queue sized in requests fills up with small requests
-  # long before a 10 MB batch forms.
+  # Batches are sized in log records and flushed at 10,000 records (about Exabeam's recommended
+  # 10 MB max file size at ~1 KB per record) or after Exabeam's max open time (300s). The exporter
+  # splits a batch into several files at max_file_size, so no file is larger than 10 MB.
+  # The queue is sized in requests. A queued request holds its slot until the batch it is in has
+  # been uploaded, so queue_size covers the batch being filled and num_consumers uploading batches
+  # for requests of 22 or more records on average.
   overrides:
     enabled: true
-    sizer: bytes
-    queue_size: 200000000
+    sizer: requests
+    queue_size: 5000
     batch:
       enabled: true
-      sizer: bytes
-      min_size: 10000000
-      max_size: 10000000
+      sizer: items
+      min_size: 10000
+      max_size: 10000
       flush_timeout: 300s
