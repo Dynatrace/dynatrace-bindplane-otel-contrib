@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/okta/okta-sdk-golang/v6/okta"
+	"github.com/okta/okta-sdk-golang/v8/okta"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/plogtest"
 	"github.com/stretchr/testify/require"
