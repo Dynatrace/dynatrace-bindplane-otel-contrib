@@ -23,8 +23,8 @@ import (
 	"strconv"
 	"time"
 
-	subscriber "cloud.google.com/go/pubsub/apiv1"
-	"cloud.google.com/go/pubsub/apiv1/pubsubpb"
+	subscriber "cloud.google.com/go/pubsub/v2/apiv1"
+	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"cloud.google.com/go/storage"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/collector/component"
@@ -80,7 +80,7 @@ type Worker struct {
 	bucketNameFilter  *regexp.Regexp
 	objectKeyFilter   *regexp.Regexp
 	obsrecv           *receiverhelper.ObsReport
-	subClient         *subscriber.SubscriberClient
+	subClient         *subscriber.SubscriptionAdminClient
 	maxExtension      time.Duration
 	errorBackOff      configretry.BackOffConfig
 	clock             clockwork.Clock
@@ -133,7 +133,7 @@ func WithBodyOptions(opts blobstream.BodyOptions) Option {
 
 // WithSubscriberClient sets the low-level Pub/Sub subscriber client used for
 // explicit Acknowledge and ModifyAckDeadline RPCs.
-func WithSubscriberClient(c *subscriber.SubscriberClient) Option {
+func WithSubscriberClient(c *subscriber.SubscriptionAdminClient) Option {
 	return func(w *Worker) {
 		w.subClient = c
 	}
