@@ -148,7 +148,7 @@ func TestCompaction(t *testing.T) {
 				Sync: tt.sync,
 			})
 			require.NoError(t, err)
-			err = client.Compact(true)
+			err = client.Compact(t.Context(), true)
 			require.NoError(t, err)
 			require.NoError(t, client.Close(t.Context()))
 		})

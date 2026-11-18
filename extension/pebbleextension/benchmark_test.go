@@ -315,7 +315,7 @@ func BenchmarkCompaction(b *testing.B) {
 	c, cleanup := setupBenchmarkClient(b, true)
 	defer cleanup()
 	for i := 0; i < b.N; i++ {
-		err := c.Compact(true)
+		err := c.Compact(b.Context(), true)
 		if err != nil {
 			b.Fatalf("failed to compact: %v", err)
 		}
