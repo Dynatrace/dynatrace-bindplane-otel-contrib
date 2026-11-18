@@ -108,6 +108,10 @@ type origin struct {
 type encodedFile struct {
 	data        []byte
 	firstRecord int
+	// records is the number of log records in the file.
+	records int
+	// rawSize is the size of the NDJSON before it was gzipped.
+	rawSize int64
 }
 
 // encoder turns logs into gzipped NDJSON files.
@@ -177,7 +181,12 @@ func (e *encoder) encode(ctx context.Context, ld plog.Logs) ([]encodedFile, erro
 		if err != nil {
 			return err
 		}
-		files = append(files, encodedFile{data: gz, firstRecord: fileStart})
+		files = append(files, encodedFile{
+			data:        gz,
+			firstRecord: fileStart,
+			records:     index - fileStart,
+			rawSize:     int64(file.Len()),
+		})
 		file.Reset()
 		fileStart = index
 		return nil

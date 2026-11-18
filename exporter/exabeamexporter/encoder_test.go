@@ -716,3 +716,26 @@ func TestEncoderMaxFileSizeBoundary(t *testing.T) {
 		})
 	}
 }
+
+// TestEncoderFileRecordsAndRawSize checks that each file reports how many records it holds and
+// its size before gzip, which the exporter's batch size and raw bytes metrics use.
+func TestEncoderFileRecordsAndRawSize(t *testing.T) {
+	enc := newTestEncoder(2000)
+	files, err := enc.encode(context.Background(), testLogs(50, 100))
+	require.NoError(t, err)
+	require.Greater(t, len(files), 1)
+
+	var records int
+	for _, file := range files {
+		lines := gunzipLines(t, file.data)
+		var raw int64
+		for _, line := range lines {
+			raw += int64(len(line)) + 1 // each line ends with a newline
+		}
+		require.Equal(t, records, file.firstRecord)
+		require.Equal(t, len(lines), file.records)
+		require.Equal(t, raw, file.rawSize)
+		records += file.records
+	}
+	require.Equal(t, 50, records)
+}

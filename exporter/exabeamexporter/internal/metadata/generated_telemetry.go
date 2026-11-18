@@ -23,14 +23,19 @@ func Tracer(settings component.TelemetrySettings) trace.Tracer {
 // TelemetryBuilder provides an interface for components to report telemetry
 // as defined in metadata and user config.
 type TelemetryBuilder struct {
-	meter                    metric.Meter
-	mu                       sync.Mutex
-	registrations            []metric.Registration
-	ExporterPayloadSize      metric.Int64Histogram
-	ExporterRequestDuration  metric.Int64Histogram
-	ExporterTimeoutTotal     metric.Int64Counter
-	ExporterUploadBytesTotal metric.Int64Counter
-	ExporterUploadInflight   metric.Int64UpDownCounter
+	meter                      metric.Meter
+	mu                         sync.Mutex
+	registrations              []metric.Registration
+	ExporterBatchSize          metric.Int64Histogram
+	ExporterLogsSendFailed     metric.Int64Counter
+	ExporterPayloadSize        metric.Int64Histogram
+	ExporterRawBytes           metric.Int64Counter
+	ExporterRequestCount       metric.Int64Counter
+	ExporterRequestDuration    metric.Int64Histogram
+	ExporterTimeoutTotal       metric.Int64Counter
+	ExporterUnsplitPayloadSize metric.Int64Histogram
+	ExporterUploadBytesTotal   metric.Int64Counter
+	ExporterUploadInflight     metric.Int64UpDownCounter
 }
 
 // TelemetryBuilderOption applies changes to default builder.
@@ -62,11 +67,36 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 	}
 	builder.meter = Meter(settings)
 	var err, errs error
+	builder.ExporterBatchSize, err = builder.meter.Int64Histogram(
+		"otelcol_exporter_batch_size",
+		metric.WithDescription("The number of log records in each successfully uploaded file. [Alpha]"),
+		metric.WithUnit("{records}"),
+		metric.WithExplicitBucketBoundaries([]float64{1, 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000}...),
+	)
+	errs = errors.Join(errs, err)
+	builder.ExporterLogsSendFailed, err = builder.meter.Int64Counter(
+		"otelcol_exporter_logs_send_failed",
+		metric.WithDescription("The number of failed upload attempts, including ones that are retried and ones that are dropped. Counts failures, not log records. [Alpha]"),
+		metric.WithUnit("{failures}"),
+	)
+	errs = errors.Join(errs, err)
 	builder.ExporterPayloadSize, err = builder.meter.Int64Histogram(
 		"otelcol_exporter_payload_size",
-		metric.WithDescription("The size of the encoded and compressed file in bytes. [Alpha]"),
+		metric.WithDescription("The size of each successfully uploaded file in bytes, after encoding and compression. [Alpha]"),
 		metric.WithUnit("By"),
 		metric.WithExplicitBucketBoundaries([]float64{10000, 50000, 100000, 250000, 500000, 750000, 1e+06, 2.5e+06, 5e+06, 7.5e+06, 1e+07}...),
+	)
+	errs = errors.Join(errs, err)
+	builder.ExporterRawBytes, err = builder.meter.Int64Counter(
+		"otelcol_exporter_raw_bytes",
+		metric.WithDescription("The number of uncompressed NDJSON bytes uploaded successfully. [Alpha]"),
+		metric.WithUnit("By"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ExporterRequestCount, err = builder.meter.Int64Counter(
+		"otelcol_exporter_request_count",
+		metric.WithDescription("The number of upload requests made. [Alpha]"),
+		metric.WithUnit("{requests}"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ExporterRequestDuration, err = builder.meter.Int64Histogram(
@@ -80,6 +110,13 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 		"otelcol_exporter_timeout_total",
 		metric.WithDescription("The number of upload requests that resulted in a timeout. [Alpha]"),
 		metric.WithUnit("{requests}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ExporterUnsplitPayloadSize, err = builder.meter.Int64Histogram(
+		"otelcol_exporter_unsplit_payload_size",
+		metric.WithDescription("The uncompressed NDJSON size of a batch before it is split into files at max_file_size, recorded on every export attempt, including retries. A value above max_file_size means the batch is uploaded as more than one file. [Alpha]"),
+		metric.WithUnit("By"),
+		metric.WithExplicitBucketBoundaries([]float64{100000, 500000, 1e+06, 2.5e+06, 5e+06, 7.5e+06, 1e+07, 1.5e+07, 2e+07, 3e+07, 5e+07}...),
 	)
 	errs = errors.Join(errs, err)
 	builder.ExporterUploadBytesTotal, err = builder.meter.Int64Counter(

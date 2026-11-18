@@ -29,9 +29,37 @@ sending_queue:
 
 The following telemetry is emitted by this component.
 
+### otelcol_exporter_batch_size
+
+The number of log records in each successfully uploaded file.
+
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| {records} | Histogram | Int | Alpha |
+
+#### Attributes
+
+| Name | Description | Values | Semantic Convention |
+| ---- | ----------- | ------ | ------------------- |
+| bucket | The name of the Exabeam GCS bucket. | Any Str | - |
+
+### otelcol_exporter_logs_send_failed
+
+The number of failed upload attempts, including ones that are retried and ones that are dropped. Counts failures, not log records.
+
+| Unit | Metric Type | Value Type | Monotonic | Stability |
+| ---- | ----------- | ---------- | --------- | --------- |
+| {failures} | Sum | Int | true | Alpha |
+
+#### Attributes
+
+| Name | Description | Values | Semantic Convention |
+| ---- | ----------- | ------ | ------------------- |
+| bucket | The name of the Exabeam GCS bucket. | Any Str | - |
+
 ### otelcol_exporter_payload_size
 
-The size of the encoded and compressed file in bytes.
+The size of each successfully uploaded file in bytes, after encoding and compression.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -42,6 +70,35 @@ The size of the encoded and compressed file in bytes.
 | Name | Description | Values | Semantic Convention |
 | ---- | ----------- | ------ | ------------------- |
 | encoding | The encoding applied to the payload (ndjson/gzip). | Any Str | - |
+| bucket | The name of the Exabeam GCS bucket. | Any Str | - |
+
+### otelcol_exporter_raw_bytes
+
+The number of uncompressed NDJSON bytes uploaded successfully.
+
+| Unit | Metric Type | Value Type | Monotonic | Stability |
+| ---- | ----------- | ---------- | --------- | --------- |
+| By | Sum | Int | true | Alpha |
+
+#### Attributes
+
+| Name | Description | Values | Semantic Convention |
+| ---- | ----------- | ------ | ------------------- |
+| bucket | The name of the Exabeam GCS bucket. | Any Str | - |
+
+### otelcol_exporter_request_count
+
+The number of upload requests made.
+
+| Unit | Metric Type | Value Type | Monotonic | Stability |
+| ---- | ----------- | ---------- | --------- | --------- |
+| {requests} | Sum | Int | true | Alpha |
+
+#### Attributes
+
+| Name | Description | Values | Semantic Convention |
+| ---- | ----------- | ------ | ------------------- |
+| error | The error classification for the request. | Str: ``none``, ``timeout``, ``unknown`` | - |
 | bucket | The name of the Exabeam GCS bucket. | Any Str | - |
 
 ### otelcol_exporter_request_duration
@@ -67,6 +124,20 @@ The number of upload requests that resulted in a timeout.
 | Unit | Metric Type | Value Type | Monotonic | Stability |
 | ---- | ----------- | ---------- | --------- | --------- |
 | {requests} | Sum | Int | true | Alpha |
+
+#### Attributes
+
+| Name | Description | Values | Semantic Convention |
+| ---- | ----------- | ------ | ------------------- |
+| bucket | The name of the Exabeam GCS bucket. | Any Str | - |
+
+### otelcol_exporter_unsplit_payload_size
+
+The uncompressed NDJSON size of a batch before it is split into files at max_file_size, recorded on every export attempt, including retries. A value above max_file_size means the batch is uploaded as more than one file.
+
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| By | Histogram | Int | Alpha |
 
 #### Attributes
 
