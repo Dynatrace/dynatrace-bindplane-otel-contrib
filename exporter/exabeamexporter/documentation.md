@@ -10,17 +10,17 @@
 sending_queue:
     enabled: true              # OVERRIDE
     wait_for_result: false     # default
-    sizer: bytes               # OVERRIDE
-    queue_size: 200000000      # OVERRIDE
+    sizer: requests            # OVERRIDE
+    queue_size: 5000           # OVERRIDE
     block_on_overflow: false   # default
     storage: null              # default
     num_consumers: 10          # default
     batch:
         enabled: true          # OVERRIDE
         flush_timeout: 5m0s    # OVERRIDE
-        sizer: bytes           # OVERRIDE
-        min_size: 10000000     # OVERRIDE
-        max_size: 10000000     # OVERRIDE
+        sizer: items           # OVERRIDE
+        min_size: 10000        # OVERRIDE
+        max_size: 10000        # OVERRIDE
         partition:
             metadata_keys: []  # default
 ```

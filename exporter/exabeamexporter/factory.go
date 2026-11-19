@@ -31,8 +31,7 @@ const (
 	defaultEndpoint = "https://storage.googleapis.com"
 
 	// defaultMaxFileSize follows Exabeam's recommended 10 MB max file size. The sending
-	// queue's batch defaults, declared in metadata.yaml, use the same size and Exabeam's
-	// 300s max open time.
+	// queue's batch defaults, declared in metadata.yaml, flush at 10,000 records or Exabeam's 300s max open time.
 	defaultMaxFileSize = 10_000_000
 
 	// defaultTimeout bounds one upload. Batched files are up to several MB compressed,
