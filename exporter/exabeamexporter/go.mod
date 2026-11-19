@@ -7,8 +7,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.21.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.10
 	github.com/aws/smithy-go v1.28.9
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.1.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.1.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/testutils v1.4.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/expr v1.4.0
 	github.com/klauspost/compress v1.20.4
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.4.1
 	github.com/stretchr/testify v1.12.1

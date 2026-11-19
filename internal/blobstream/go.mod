@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	github.com/bodgit/sevenzip v1.6.5
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.3.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.4.0
 	github.com/gabriel-vasile/mimetype v1.4.16
 	github.com/klauspost/compress v1.20.4
 	github.com/linkedin/goavro/v2 v2.15.0

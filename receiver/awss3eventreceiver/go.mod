@@ -10,8 +10,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.53.0
 	github.com/aws/smithy-go v1.28.9
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws v1.3.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.3.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws v1.4.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.4.0
 	github.com/google/go-cmp v0.7.0
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/stretchr/testify v1.12.1
@@ -70,7 +70,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.52.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream v1.3.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobstream v1.4.0
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect

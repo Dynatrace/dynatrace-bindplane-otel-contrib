@@ -4,8 +4,8 @@ go 1.26.10
 
 require (
 	cloud.google.com/go/storage v1.70.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume v1.3.0
-	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.3.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume v1.4.0
+	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.4.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.71.0
 	go.opentelemetry.io/collector/component/componenttest v0.165.0
