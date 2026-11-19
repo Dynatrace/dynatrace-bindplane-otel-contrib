@@ -1,0 +1,9 @@
+template: testify
+force-file-write: true
+packages:
+  github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/blobconsume:
+    interfaces:
+      Consumer:
+        config:
+          filename: mock_consumer.go
+          structname: MockConsumer

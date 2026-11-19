@@ -1,0 +1,19 @@
+template: testify
+force-file-write: true
+dir: "{{.InterfaceDir}}/mocks"
+pkgname: mocks
+packages:
+  github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/aws/client:
+    interfaces:
+      Client:
+        config:
+          filename: mock_client.go
+          structname: MockClient
+      S3Client:
+        config:
+          filename: mock_s3_client.go
+          structname: MockS3Client
+      SQSClient:
+        config:
+          filename: mock_sqs_client.go
+          structname: MockSQSClient

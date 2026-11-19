@@ -28,7 +28,7 @@ import (
 
 // S3Client provides a client for S3 object operations
 //
-//go:generate mockery --name S3Client --output ./mocks --with-expecter --filename mock_s3_client.go --structname MockS3Client
+//go:generate mockery
 type S3Client interface {
 	// StreamObjects continuously pulls & batches ObjectInfo from S3 before sending down the objectChan.
 	// Errors are sent down the errChan and stop the process. When no more objects are retrieved from S3, the doneChan is closed.

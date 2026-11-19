@@ -34,7 +34,7 @@ var ErrDownstream = errors.New("downstream consumer failed")
 
 // Consumer is responsible for turning entities into OTLP data and sending to the next consumer.
 //
-//go:generate mockery --name Consumer --inpackage --with-expecter --filename mock_consumer.go --structname MockConsumer
+//go:generate mockery
 type Consumer interface {
 	// Consume turns entity contents into OTLP data and forwards it to the next consumer,
 	// reporting only whether the operation failed. Callers that need the record counts use

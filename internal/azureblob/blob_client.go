@@ -80,7 +80,7 @@ type BlobInfo struct {
 
 // BlobClient provides a client for Blob operations
 //
-//go:generate mockery --name BlobClient --inpackage --with-expecter --filename mock_blob_client.go --structname MockBlobClient
+//go:generate mockery
 type BlobClient interface {
 	// DownloadBlob downloads the contents of the blob into the supplied buffer.
 	// It will return the count of bytes used in the buffer.

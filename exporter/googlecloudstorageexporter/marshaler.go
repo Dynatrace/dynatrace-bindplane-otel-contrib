@@ -25,8 +25,6 @@ import (
 )
 
 // marshaler marshals into data bytes based on configuration
-//
-//go:generate mockery --name marshaler --output ./internal/mocks --with-expecter --filename mock_marshaler.go --structname MockMarshaler
 type marshaler interface {
 	// MarshalTraces returns the marshaled json traces data
 	MarshalTraces(td ptrace.Traces) ([]byte, error)

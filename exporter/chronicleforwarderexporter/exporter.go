@@ -42,7 +42,7 @@ type chronicleForwarderExporter struct {
 
 // chronicleForwarderClient is a client for creating connections to Chronicle forwarder. (created for overriding in tests)
 //
-//go:generate mockery --name chronicleForwarderClient --output ./internal/mocks --with-expecter --filename chronicle_forwarder_client.go --structname MockForwarderClient
+//go:generate mockery
 type chronicleForwarderClient interface {
 	Dial(network string, address string) (net.Conn, error)
 	DialWithTLS(network string, addr string, config *tls.Config) (*tls.Conn, error)

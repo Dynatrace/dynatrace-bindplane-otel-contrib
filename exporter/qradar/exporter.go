@@ -40,7 +40,7 @@ type qradarExporter struct {
 
 // qradarClient is a client for creating connections to IBM QRadar. (created for overriding in tests)
 //
-//go:generate mockery --name qradarClient --output ./internal/mocks --with-expecter --filename qradar_client.go --structname MockForwarderClient
+//go:generate mockery
 type qradarClient interface {
 	Dial(network string, address string) (net.Conn, error)
 	DialWithTLS(network string, addr string, config *tls.Config) (*tls.Conn, error)

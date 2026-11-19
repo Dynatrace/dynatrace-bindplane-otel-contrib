@@ -22,7 +22,7 @@ import (
 	_ "github.com/mgechev/revive"
 	_ "github.com/securego/gosec/v2/cmd/gosec"
 	_ "github.com/uw-labs/lichen"
-	_ "github.com/vektra/mockery/v2"
+	_ "github.com/vektra/mockery/v3"
 	_ "go.opentelemetry.io/collector/cmd/mdatagen"
 	_ "golang.org/x/tools/cmd/goimports"
 	_ "golang.org/x/vuln/cmd/govulncheck"
