@@ -60,15 +60,17 @@ trailer by default; please disable or strip it before committing.
 - `make check-mod-paths` — Verify all go.mod module paths match directory structure
 
 ### Building the Collector Locally
-- `make build-collector` — Build the collector against the local contrib working tree
-  - Set `COLLECTOR_PATH` (default `../dynatrace-bindplane-otel-collector`) to a local collector checkout, e.g. via `.local.env`
-  - `_build-setup` writes an OCB manifest copy that `replace`s every contrib module with its on-disk path.
+- `make build-collector` — Build a replica of DBDOT against the local contrib working tree (no collector checkout needed)
+  - The replica's ocb manifest is `internal/dbdot/manifest.yaml`, a copy of the collector repo's manifest (see `internal/dbdot/README.md`).
+  - `_build-setup` writes a copy of it that `replace`s every contrib module with its on-disk path.
   - `make build-linux` / `build-darwin` / `build-windows` build for that GOOS; `GOOS`/`GOARCH` are honored.
+  - When the collector repo's manifest gains or drops components or fork/pin replaces, mirror the change in `internal/dbdot/manifest.yaml`.
+  - `./scripts/check-dbdot-drift.sh` compares the replica with the collector's manifest on `main`; the `DBDOT Manifest Drift` workflow runs it on every PR.
 
 ### Release
 - `make release version=vX.X.X` — Tag root + all submodules and push
 - `make update-modules NEW_VERSION=vX.X.X` — Update all inter-module version references
-- `make update-otel OTEL_VERSION=vX.X.X CONTRIB_VERSION=vX.X.X PDATA_VERSION=vX.X.X` — Update OTel dependencies
+- `make update-otel OTEL_VERSION=vX.X.X CONTRIB_VERSION=vX.X.X PDATA_VERSION=vX.X.X` — Update OTel dependencies (also bumps `internal/dbdot/manifest.yaml` and `OCB_VERSION`)
 
 ## Project Architecture
 
@@ -83,7 +85,7 @@ trailer by default; please disable or strip it before committing.
 
 1. **Multi-module repo** — Each component is a separate Go module with its own `go.mod`. There is no root `go.mod`.
 2. **No binary builds** — This repo produces libraries, not executables. The collector repo imports these.
-3. **`.local.env` pattern** — Environment overrides (like `COLLECTOR_PATH`) are stored in `.local.env`, which is gitignored.
+3. **`.local.env` pattern** — Environment overrides (like `OCB`) are stored in `.local.env`, which is gitignored.
 4. **`go.work` for local dev** — Run `./scripts/generate-gowork.sh` to generate a `go.work` file for IDE support. This file is gitignored.
 
 ## Module Management
