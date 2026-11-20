@@ -139,31 +139,31 @@ func (e *opampExporter) shutdown(ctx context.Context) error {
 	return shutdownErr
 }
 
-func (e *opampExporter) consumeLogs(_ context.Context, ld plog.Logs) error {
+func (e *opampExporter) consumeLogs(ctx context.Context, ld plog.Logs) error {
 	payload, err := e.logsMarshaler.MarshalLogs(ld)
 	if err != nil {
 		return fmt.Errorf("marshal logs: %w", err)
 	}
-	return e.sendMessage(snappy.Encode(nil, payload))
+	return e.sendMessage(ctx, snappy.Encode(nil, payload))
 }
 
-func (e *opampExporter) consumeMetrics(_ context.Context, md pmetric.Metrics) error {
+func (e *opampExporter) consumeMetrics(ctx context.Context, md pmetric.Metrics) error {
 	payload, err := e.metricsMarshaler.MarshalMetrics(md)
 	if err != nil {
 		return fmt.Errorf("marshal metrics: %w", err)
 	}
-	return e.sendMessage(snappy.Encode(nil, payload))
+	return e.sendMessage(ctx, snappy.Encode(nil, payload))
 }
 
-func (e *opampExporter) consumeTraces(_ context.Context, td ptrace.Traces) error {
+func (e *opampExporter) consumeTraces(ctx context.Context, td ptrace.Traces) error {
 	payload, err := e.tracesMarshaler.MarshalTraces(td)
 	if err != nil {
 		return fmt.Errorf("marshal traces: %w", err)
 	}
-	return e.sendMessage(snappy.Encode(nil, payload))
+	return e.sendMessage(ctx, snappy.Encode(nil, payload))
 }
 
-func (e *opampExporter) sendMessage(payload []byte) error {
+func (e *opampExporter) sendMessage(ctx context.Context, payload []byte) error {
 	// Reject new sends once shutdown has been signaled so we don't add to
 	// the wait group while shutdown is draining it.
 	select {
@@ -195,6 +195,8 @@ func (e *opampExporter) sendMessage(payload []byte) error {
 			case <-msgSendChan:
 			case <-e.done:
 				return errShuttingDown
+			case <-ctx.Done():
+				return ctx.Err()
 			}
 		default:
 			return fmt.Errorf("send opamp custom message: %w", err)

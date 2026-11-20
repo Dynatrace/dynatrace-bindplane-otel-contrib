@@ -332,6 +332,44 @@ func TestExporter_Shutdown_DrainsInflightSends(t *testing.T) {
 	require.Equal(t, 1, mockOpamp.unregisterCalls())
 }
 
+func TestExporter_Send_StopsWaitingWhenContextCanceled(t *testing.T) {
+	e := newOpAMPExporter(exportertest.NewNopSettings(metadata.Type).Logger,
+		createDefaultConfig().(*Config),
+		component.NewIDWithName(metadata.Type, "canceled"))
+	t.Cleanup(func() { unregisterExporter(e.exporterID) })
+
+	mockOpamp := newMockOpAMPExtension()
+	// The pending slot never frees, as when the OpAMP connection is down.
+	mockOpamp.holdPendingChan = make(chan struct{})
+
+	host := &mockHost{extensions: map[component.ID]component.Component{
+		component.MustNewID("opamp"): mockOpamp,
+	}}
+	require.NoError(t, e.start(context.Background(), host))
+	t.Cleanup(func() { require.NoError(t, e.shutdown(context.Background())) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	consumeErr := make(chan error, 1)
+	go func() {
+		consumeErr <- e.consumeMetrics(ctx, generateTestMetrics())
+	}()
+
+	require.Eventually(t, func() bool {
+		return mockOpamp.sendCalls() >= 1
+	}, time.Second, 10*time.Millisecond)
+
+	// Receivers wait on in-flight sends before the exporter is shut down, so
+	// a canceled send must return without waiting for shutdown.
+	cancel()
+
+	select {
+	case err := <-consumeErr:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("send kept waiting for a pending slot after its context was canceled")
+	}
+}
+
 func TestExporter_Shutdown_BoundedByContext(t *testing.T) {
 	e := newOpAMPExporter(exportertest.NewNopSettings(metadata.Type).Logger,
 		createDefaultConfig().(*Config),
