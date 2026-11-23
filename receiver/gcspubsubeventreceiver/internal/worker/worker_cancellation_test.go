@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
-	publisher "cloud.google.com/go/pubsub/apiv1"
-	subscriber "cloud.google.com/go/pubsub/apiv1"
-	"cloud.google.com/go/pubsub/apiv1/pubsubpb"
-	"cloud.google.com/go/pubsub/pstest"
+	publisher "cloud.google.com/go/pubsub/v2/apiv1"
+	subscriber "cloud.google.com/go/pubsub/v2/apiv1"
+	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
+	"cloud.google.com/go/pubsub/v2/pstest"
 	"cloud.google.com/go/storage"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -158,7 +158,7 @@ func fakeGCS(t *testing.T, head, tail string, hold bool) *storage.Client {
 // message carrying attrs, and pulls it so the returned ack ID is live.
 type fakePubSub struct {
 	srv          *pstest.Server
-	client       *subscriber.SubscriberClient
+	client       *subscriber.SubscriptionAdminClient
 	subscription string
 	messageID    string
 	ackID        string
@@ -175,11 +175,11 @@ func newFakePubSub(t *testing.T, attrs map[string]string) *fakePubSub {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
 
-	pubClient, err := publisher.NewPublisherClient(ctx, option.WithGRPCConn(conn))
+	pubClient, err := publisher.NewTopicAdminClient(ctx, option.WithGRPCConn(conn))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = pubClient.Close() })
 
-	subClient, err := subscriber.NewSubscriberClient(ctx, option.WithGRPCConn(conn))
+	subClient, err := subscriber.NewSubscriptionAdminClient(ctx, option.WithGRPCConn(conn))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = subClient.Close() })
 

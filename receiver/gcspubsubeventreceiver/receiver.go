@@ -23,8 +23,8 @@ import (
 	"sync"
 	"time"
 
-	subscriber "cloud.google.com/go/pubsub/apiv1"
-	"cloud.google.com/go/pubsub/apiv1/pubsubpb"
+	subscriber "cloud.google.com/go/pubsub/v2/apiv1"
+	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"cloud.google.com/go/storage"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/collector/component"
@@ -50,7 +50,7 @@ type logsReceiver struct {
 	startOnce sync.Once
 	stopOnce  sync.Once
 
-	subClient        *subscriber.SubscriberClient
+	subClient        *subscriber.SubscriptionAdminClient
 	storageClient    *storage.Client
 	subscriptionPath string
 	workerPool       sync.Pool
@@ -133,7 +133,7 @@ func (r *logsReceiver) Start(_ context.Context, host component.Host) error {
 	}
 
 	// Create low-level Pub/Sub subscriber client for synchronous Pull.
-	subClient, err := subscriber.NewSubscriberClient(ctx, opts...)
+	subClient, err := subscriber.NewSubscriptionAdminClient(ctx, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create Pub/Sub subscriber client: %w", err)
 	}

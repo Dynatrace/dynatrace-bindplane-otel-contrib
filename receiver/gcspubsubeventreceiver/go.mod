@@ -3,7 +3,7 @@ module github.com/dynatrace/dynatrace-bindplane-otel-contrib/receiver/gcspubsube
 go 1.26.10
 
 require (
-	cloud.google.com/go/pubsub v1.52.0
+	cloud.google.com/go/pubsub/v2 v2.9.0
 	cloud.google.com/go/storage v1.70.0
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/dynatrace/dynatrace-bindplane-otel-contrib/internal/storageclient v1.4.0
@@ -51,7 +51,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	cloud.google.com/go/iam v1.14.0 // indirect
 	cloud.google.com/go/monitoring v1.30.0 // indirect
-	cloud.google.com/go/pubsub/v2 v2.6.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.57.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.57.0 // indirect
@@ -88,7 +87,6 @@ require (
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
 	github.com/stangelandcl/ppmd v0.1.1 // indirect
-	go.einride.tech/aip v0.83.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.165.0 // indirect
 	go.opentelemetry.io/collector/extension v1.71.0 // indirect

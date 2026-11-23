@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	subscriber "cloud.google.com/go/pubsub/apiv1"
-	"cloud.google.com/go/pubsub/apiv1/pubsubpb"
-	"cloud.google.com/go/pubsub/pstest"
+	subscriber "cloud.google.com/go/pubsub/v2/apiv1"
+	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
+	"cloud.google.com/go/pubsub/v2/pstest"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/consumer/consumertest"
@@ -38,12 +38,12 @@ import (
 // testEnv bundles the pstest server, high-level helpers, and an apiv1 subscriber
 // client suitable for the receiver's pull-based architecture.
 type testEnv struct {
-	subClient *subscriber.SubscriberClient
+	subClient *subscriber.SubscriptionAdminClient
 	subPath   string
 }
 
 // setupTestEnv creates an in-process fake Pub/Sub server with a topic and
-// subscription, and returns a low-level SubscriberClient connected to it.
+// subscription, and returns a low-level SubscriptionAdminClient connected to it.
 func setupTestEnv(t *testing.T) testEnv {
 	t.Helper()
 
@@ -57,7 +57,7 @@ func setupTestEnv(t *testing.T) testEnv {
 	ctx := context.Background()
 
 	// Use the publisher/admin API to create a topic + subscription on the fake server.
-	pubClient, err := subscriber.NewSubscriberClient(ctx, option.WithGRPCConn(conn), option.WithoutAuthentication())
+	pubClient, err := subscriber.NewSubscriptionAdminClient(ctx, option.WithGRPCConn(conn), option.WithoutAuthentication())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = pubClient.Close() })
 
@@ -266,7 +266,7 @@ func TestPullMessages_DispatchesUniqueBatched(t *testing.T) {
 	topicPath := "projects/" + project + "/topics/" + topicID
 
 	// Create topic using the publisher admin API.
-	pubClient, err := subscriber.NewPublisherClient(ctx, option.WithGRPCConn(conn), option.WithoutAuthentication())
+	pubClient, err := subscriber.NewTopicAdminClient(ctx, option.WithGRPCConn(conn), option.WithoutAuthentication())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = pubClient.Close() })
 
@@ -274,7 +274,7 @@ func TestPullMessages_DispatchesUniqueBatched(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create subscription using the subscriber admin API.
-	subClient, err := subscriber.NewSubscriberClient(ctx, option.WithGRPCConn(conn), option.WithoutAuthentication())
+	subClient, err := subscriber.NewSubscriptionAdminClient(ctx, option.WithGRPCConn(conn), option.WithoutAuthentication())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = subClient.Close() })
 
