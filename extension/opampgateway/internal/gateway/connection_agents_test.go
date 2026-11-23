@@ -162,3 +162,13 @@ func TestConnectionAgentsAgentThatLeavesWithItsNewIDFreesTheOldID(t *testing.T) 
 	requireNoPendingRenames(t, a)
 	require.True(t, seen(a, x), "a different agent can get the old ID")
 }
+
+func TestConnectionAgentsDiscardReportsNothing(t *testing.T) {
+	ids := testAgentIDs(t, 1)
+	a := newConnectionAgents()
+	require.True(t, seen(a, ids[0]))
+	a.discard()
+
+	require.False(t, seen(a, ids[0]), "a message read after the discard does not make the agent active")
+	require.Empty(t, a.close())
+}
