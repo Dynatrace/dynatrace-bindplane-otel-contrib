@@ -141,12 +141,12 @@ func (p *pebbleExtension) startCompaction(ctx context.Context) {
 		case <-p.compactionDoneChan:
 			return
 		case <-ticker.C:
-			p.runCompaction()
+			p.runCompaction(ctx)
 		}
 	}
 }
 
-func (p *pebbleExtension) runCompaction() {
+func (p *pebbleExtension) runCompaction(ctx context.Context) {
 	p.clientsMutex.RLock()
 	clients := make([]client.Client, 0, len(p.clients))
 	for _, c := range p.clients {
@@ -172,7 +172,7 @@ func (p *pebbleExtension) runCompaction() {
 			wg.Add(1)
 			go func(c client.Client) {
 				defer wg.Done()
-				if err := c.Compact(true); err != nil {
+				if err := c.Compact(ctx, true); err != nil {
 					p.logger.Warn("compaction failed", zap.Error(err))
 				}
 			}(c)

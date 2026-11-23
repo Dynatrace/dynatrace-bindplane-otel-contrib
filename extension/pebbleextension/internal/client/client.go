@@ -24,7 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension/xextension/storage"
 	"go.uber.org/zap"
@@ -34,7 +34,7 @@ import (
 type Client interface {
 	storage.Client
 	// Compact performs a compaction operation on the database to reclaim space from deleted entries.
-	Compact(parallel bool) error
+	Compact(ctx context.Context, parallel bool) error
 }
 
 // DBClient is the interface for the pebble database
@@ -42,11 +42,11 @@ type DBClient interface {
 	Get(key []byte) ([]byte, io.Closer, error)
 	Set(key []byte, value []byte, opts *pebble.WriteOptions) error
 	Delete(key []byte, opts *pebble.WriteOptions) error
-	NewBatch() *pebble.Batch
+	NewBatch(opts ...pebble.BatchOption) *pebble.Batch
 	// Flush for the memtable is written to disk for Pebble
 	Flush() error
 	Close() error
-	Compact(start, end []byte, parallel bool) error
+	Compact(ctx context.Context, start, end []byte, parallel bool) error
 }
 
 type client struct {
@@ -97,6 +97,10 @@ func NewClient(path string, logger *zap.Logger, options *Options) (Client, error
 		openOptions.Cache = pebble.NewCache(options.CacheSize)
 	}
 	openOptions.Logger = logger.Sugar()
+
+	if err := migrateLegacyStore(path, logger); err != nil {
+		return nil, err
+	}
 
 	db, err := pebble.Open(path, openOptions)
 	if err != nil {
@@ -248,13 +252,13 @@ func (c *client) Close(_ context.Context) error {
 
 // Compact performs a compaction operation on the database to reclaim space from deleted entries.
 // Note: Compaction is I/O intensive and may impact performance during operation so we should only sparsely run it if necessary.
-// Note: in v2 of Pebble we will use the context
-func (c *client) Compact(parallel bool) error {
+// Cancelling ctx aborts an in-flight compaction.
+func (c *client) Compact(ctx context.Context, parallel bool) error {
 	c.asyncDone.Add(1)
 	defer c.asyncDone.Done()
 
 	c.logger.Debug("compacting database to reclaim space", zap.String("path", c.path))
 	// just compacting the entire database for now, there may be a better way of doing this but this is a starting point.
 	// tried looking into how cockroachdb does it but they have different lifecycles
-	return c.db.Compact([]byte{}, []byte{0xff, 0xff, 0xff, 0xff}, parallel)
+	return c.db.Compact(ctx, []byte{}, []byte{0xff, 0xff, 0xff, 0xff}, parallel)
 }
