@@ -57,18 +57,6 @@ func (c *connections[T]) remove(connectionID string) {
 	delete(c.byConnectionID, connectionID)
 }
 
-// removeByValue removes all entries whose value matches expected.
-func (c *connections[T]) removeByValue(expected T) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	for id, conn := range c.byConnectionID {
-		if any(conn) == any(expected) {
-			delete(c.byConnectionID, id)
-		}
-	}
-}
-
 func (c *connections[T]) size() int {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()

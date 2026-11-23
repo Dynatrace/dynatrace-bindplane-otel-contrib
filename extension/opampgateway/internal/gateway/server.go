@@ -53,8 +53,8 @@ type server struct {
 
 	addr net.Addr
 
-	// agentConnections represent connections per agent ID
-	agentConnections *connections[*downstreamConnection]
+	// agentRoutes represent connections per agent session
+	agentRoutes *agentRoutes
 
 	// downstreamConnections represent connections per downstream connection ID
 	downstreamConnections *connections[*downstreamConnection]
@@ -94,7 +94,7 @@ func newServer(serverConfig confighttp.ServerConfig, authTimeout time.Duration, 
 		authTimeout:                authTimeout,
 		logger:                     logger.Named("server"),
 		wsUpgrader:                 websocket.Upgrader{},
-		agentConnections:           newConnections[*downstreamConnection](),
+		agentRoutes:                newAgentRoutes(),
 		downstreamConnections:      newConnections[*downstreamConnection](),
 		upstreamConnectionAssigner: upstreamConnectionAssigner,
 		callbacks:                  callbacks,
@@ -111,7 +111,7 @@ func newServer(serverConfig confighttp.ServerConfig, authTimeout time.Duration, 
 func (s *server) Start(ctx context.Context, host component.Host, telemetrySettings component.TelemetrySettings) error {
 	// Reset state so the server can be restarted after a previous Stop.
 	s.shutdownCtx, s.shutdownCancel = context.WithCancel(context.Background())
-	s.agentConnections = newConnections[*downstreamConnection]()
+	s.agentRoutes = newAgentRoutes()
 	s.downstreamConnections = newConnections[*downstreamConnection]()
 	s.pendingAuthRequests = newAuthRequests()
 	s.chainedConnects = newChainedConnects()
@@ -189,13 +189,16 @@ func (s *server) Stop(ctx context.Context) error {
 // --------------------------------------------------------------------------------------
 // agent connection management
 
-func (s *server) getAgentConnection(agentID string) (*downstreamConnection, bool) {
-	conn, ok := s.agentConnections.get(agentID)
-	return conn, ok
+func (s *server) getAgentConnection(upstream *upstreamConnection, agentID string) (*downstreamConnection, bool) {
+	return s.agentRoutes.get(upstream, agentID)
 }
 
 func (s *server) setAgentConnection(agentID string, conn *downstreamConnection) {
-	s.agentConnections.set(agentID, conn)
+	s.agentRoutes.set(agentID, conn)
+}
+
+func (s *server) removeAgentConnection(agentID string, conn *downstreamConnection) {
+	s.agentRoutes.remove(agentID, conn)
 }
 
 // --------------------------------------------------------------------------------------
@@ -212,7 +215,7 @@ func (s *server) getDownstreamConnection(connectionID string) (*downstreamConnec
 
 func (s *server) removeDownstreamConnection(conn *downstreamConnection) {
 	s.downstreamConnections.remove(conn.id)
-	s.agentConnections.removeByValue(conn)
+	s.agentRoutes.removeConnection(conn)
 	s.chainedConnects.removeConnection(conn)
 }
 

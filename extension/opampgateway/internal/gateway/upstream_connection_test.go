@@ -15,11 +15,17 @@
 package gateway
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/dynatrace/dynatrace-bindplane-otel-contrib/extension/opampgateway/internal/metadata"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.uber.org/zap"
 )
 
@@ -92,4 +98,86 @@ func TestUpstreamConnectionHeaderAgentID(t *testing.T) {
 		// the configured headers must not be mutated
 		require.Empty(t, c.settings.headers.Get("X-Opamp-Gateway-Connection-Id"))
 	})
+}
+
+// sendResult runs send on its own goroutine, so that a test fails instead of blocking.
+func sendResult(c *upstreamConnection, msg *message) <-chan error {
+	result := make(chan error, 1)
+	go func() { result <- c.send(msg) }()
+	return result
+}
+
+func TestUpstreamConnectionSendForAnOldSocketDoesNotWait(t *testing.T) {
+	c := newUpstreamConnection(*websocket.DefaultDialer, nil, upstreamConnectionSettings{}, "upstream-0", zap.NewNop())
+
+	msg := newMessage(0, nil)
+	msg.generation = 1
+	select {
+	case err := <-sendResult(c, msg):
+		require.ErrorIs(t, err, errUpstreamSocketReplaced)
+	case <-time.After(5 * time.Second):
+		t.Fatal("send waits for a socket that is not connected")
+	}
+}
+
+func TestUpstreamConnectionSendStopsWhenItsSocketCloses(t *testing.T) {
+	c := newUpstreamConnection(*websocket.DefaultDialer, nil, upstreamConnectionSettings{}, "upstream-0", zap.NewNop())
+	socketDone := make(chan struct{})
+	c.socketMtx.Lock()
+	generation := c.generation.Add(1)
+	c.socketDone = socketDone
+	c.socketMtx.Unlock()
+
+	// No writer reads the message, as when the writer connects again.
+	msg := newMessage(0, nil)
+	msg.generation = generation
+	result := sendResult(c, msg)
+	close(socketDone)
+	select {
+	case err := <-result:
+		require.ErrorIs(t, err, errUpstreamSocketReplaced)
+	case <-time.After(5 * time.Second):
+		t.Fatal("send waits after its socket closed")
+	}
+}
+
+func TestUpstreamConnectionRecordsTheSocketThatWroteTheMessage(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+
+	telemetry, err := metadata.NewTelemetryBuilder(componenttest.NewNopTelemetrySettings())
+	require.NoError(t, err)
+	c := newUpstreamConnection(*websocket.DefaultDialer, telemetry, upstreamConnectionSettings{}, "upstream-0", zap.NewNop())
+	c.generation.Store(4)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = c.writerLoop(ctx, conn, nil)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+
+	msg := newMessage(0, []byte{0})
+	require.NoError(t, c.send(msg))
+	require.Equal(t, uint64(5), msg.writtenGeneration)
 }
