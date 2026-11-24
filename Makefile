@@ -69,13 +69,13 @@ OPAMP_EXT_PACKAGESTATE_PKG = $(OPAMP_EXT_MODULE)/packagestate
 # 'embed_library' used by the telemetry generator receiver to use blitz (PR#3525)
 AGENT_BUILD_TAGS = embed_library
 
-# AGENT_LDFLAGS stamps version + git hash + build date into the v1 collector
-# binaries (both consume github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version),
-# plus the DBDOT identity values into the opamp connection extension.
+# AGENT_LDFLAGS stamps version + git hash + build date into the collector's
+# main package (the DBDOT main.go copied in by _build-collector), plus the
+# DBDOT identity values into the opamp connection extension.
 AGENT_LDFLAGS = -s -w \
-	-X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.version=$(COLLECTOR_VERSION) \
-	-X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.gitHash=$(GIT_HASH) \
-	-X github.com/dynatrace/dynatrace-bindplane-otel-contrib/pkg/version.date=$(BUILD_DATE) \
+	-X main.version=$(COLLECTOR_VERSION) \
+	-X main.gitHash=$(GIT_HASH) \
+	-X main.date=$(BUILD_DATE) \
 	-X $(OPAMP_EXT_COLLECTOR_PKG).buildName=$(AGENT_NAME) \
 	-X '$(OPAMP_EXT_COLLECTOR_PKG).buildDescription=$(AGENT_DESCRIPTION)' \
 	-X $(OPAMP_EXT_PACKAGESTATE_PKG).collectorPackageName=$(PRODUCT_NAME) \
