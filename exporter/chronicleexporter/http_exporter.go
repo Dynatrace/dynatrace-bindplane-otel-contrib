@@ -45,6 +45,9 @@ import (
 
 const httpScope = "https://www.googleapis.com/auth/cloud-platform"
 
+// statusCancelled is the HTTP mapping of google.rpc.Code CANCELLED, returned during SecOps backend rollouts.
+const statusCancelled = 499
+
 const (
 	// stdlib defaults to 2. Under heavy load, higher default values are
 	// useful for avoiding re-connections.
@@ -391,7 +394,8 @@ func (exp *httpExporter) uploadToChronicleHTTP(ctx context.Context, logs *api.Im
 	statusErr := errors.New(resp.Status)
 	switch resp.StatusCode {
 	// Retryable response codes: https://github.com/open-telemetry/opentelemetry-proto/blob/main/docs/specification.md#retryable-response-codes
-	case http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+	case http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout,
+		statusCancelled:
 		return statusErr
 	default:
 		if exp.cfg.LogErroredPayloads {

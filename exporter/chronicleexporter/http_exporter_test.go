@@ -158,6 +158,14 @@ func TestHTTPExporter(t *testing.T) {
 			permanentErr:     false,
 		},
 		{
+			name:             "retryable_error 499 Cancelled",
+			serverStatusCode: statusCancelled,
+			input:            singleLog(),
+			expectedRequests: 1,
+			expectedErr:      "upload to chronicle: 499 status code 499",
+			permanentErr:     false,
+		},
+		{
 			name:             "permanent_error",
 			serverStatusCode: http.StatusUnauthorized,
 			input:            singleLog(),
@@ -293,6 +301,19 @@ func TestHTTPExporterRetrySequences(t *testing.T) {
 			},
 			calls: []callExpectation{
 				{expectErr: true, permanentErr: false}, // 503 retryable
+				{expectErr: false},                     // 200 success
+			},
+		},
+		{
+			name: "backend rollout: 499 → 499 → success",
+			sequence: []retryserver.Response{
+				{StatusCode: statusCancelled},
+				{StatusCode: statusCancelled},
+				{StatusCode: http.StatusOK},
+			},
+			calls: []callExpectation{
+				{expectErr: true, permanentErr: false}, // 499 retryable
+				{expectErr: true, permanentErr: false}, // 499 retryable
 				{expectErr: false},                     // 200 success
 			},
 		},
