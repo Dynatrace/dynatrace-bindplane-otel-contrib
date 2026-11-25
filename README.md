@@ -126,8 +126,8 @@ make test
 # Run all CI checks (format, license, lint, gosec, test)
 make ci-checks
 
-# Build the collector against your local contrib changes (requires a local
-# collector checkout; see "Local Development with Collector" below)
+# Build a DBDOT replica against your local contrib changes
+# (see "Building the Collector Locally" below)
 make build-collector
 
 # Lint
@@ -140,17 +140,11 @@ make fmt
 make tidy
 ```
 
-### Local Development with Collector
+### Building the Collector Locally
 
-Create a `.local.env` file to configure the path to your local collector repo:
+`make build-collector` builds a replica of the DBDOT collector from this working tree; no collector checkout is needed. The binary lands in `build/collector_<os>_<arch>`.
 
-```bash
-COLLECTOR_PATH=../dynatrace-bindplane-otel-collector
-```
-
-Then run `make build-collector` to build the collector with your local contrib changes.
-
-The collector build is [ocb](https://opentelemetry.io/docs/collector/custom-collector/)-driven and lives in the collector repo: its `manifests/dynatrace-bindplane-otel-collector/manifest.yaml` pins each contrib component at a released version. `make build-collector` writes a copy of that manifest which `replace`s every contrib module with its on-disk path.
+The build is [ocb](https://opentelemetry.io/docs/collector/custom-collector/)-driven. [`internal/dbdot/manifest.yaml`](internal/dbdot/manifest.yaml) is a copy of the collector repo's manifest; `make build-collector` writes a version of it that `replace`s every contrib module with its on-disk path. See [`internal/dbdot/README.md`](internal/dbdot/README.md) for how the replica is kept in sync.
 
 ## License
 

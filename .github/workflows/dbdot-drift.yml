@@ -1,0 +1,21 @@
+name: DBDOT Manifest Drift
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Compares internal/dbdot/manifest.yaml with the collector's manifest on
+      # main (public repo, fetched over HTTPS). Fails when a component or
+      # replace exists in one but not the other; version differences are
+      # warnings only. See internal/dbdot/README.md.
+      - name: Check replica manifest against collector
+        run: ./scripts/check-dbdot-drift.sh
